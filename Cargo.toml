@@ -1,11 +1,11 @@
 [package]
 name = "oxalis"
 version = "0.1.0"
+authors = ["Ryan Lawton <ryan.a.lawton@gmail.com>", "Klim Tsoutsman <klimusha@gmail.com>"]
 edition = "2018"
-description = "idk yet"
+description = "A peer to peer backup service."
 repository = "https://github.com/Ryan-Lawton-Prog/oxalis"
 license = "MIT OR Apache-2.0"
-
-# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+keywords = ["p2p", "files", "sharing", "backup", "encryption"]
 
 [dependencies]
