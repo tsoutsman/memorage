@@ -25,7 +25,7 @@ pub fn changed_files<P: AsRef<Path>>(path: P, dur: Duration) -> io::Result<Vec<P
         } else {
             let time_changed = entry.metadata()?.modified()?;
 
-            if now - dur > time_changed {
+            if now - dur < time_changed {
                 result.push(entry.path());
             }
         }
@@ -91,22 +91,38 @@ mod tests {
     #[test]
     fn test_changed_files() {
         let root_path = tempdir().unwrap().into_path();
+        // Set 1
         gen_fs!(root_path => bar (x: temp foo));
 
-        let expected: Vec<PathBuf> = Vec::new();
-        assert_eq!(
-            expected,
-            changed_files(root_path.clone(), Duration::from_secs(1)).unwrap()
-        );
-
-        std::thread::sleep(Duration::from_secs(1));
-
+        // The files were made in the last 0.5 secs so we expect to get everything.
         let mut expected = gen_expected!(root_path => bar (x: temp foo));
         expected.sort();
-
-        let mut result = changed_files(root_path, Duration::from_secs(1)).unwrap();
+        let mut result = changed_files(&root_path, Duration::from_secs_f64(0.5)).unwrap();
         result.sort();
+        assert_eq!(expected, result,);
 
+        std::thread::sleep(Duration::from_secs_f64(0.5));
+
+        // The files were made over 0.5 secs ago so we expect to get nothing.
+        let expected: Vec<PathBuf> = Vec::new();
+        let result = changed_files(&root_path, Duration::from_secs_f64(0.5)).unwrap();
+        assert_eq!(expected, result);
+
+        // Set 2
+        gen_fs!(root_path => temp2 (y: alice bob));
+
+        // Only set 2 was generated within the last 0.5 secs.
+        let mut expected = gen_expected!(root_path => temp2 (y: alice bob));
+        expected.sort();
+        let mut result = changed_files(&root_path, Duration::from_secs_f64(0.5)).unwrap();
+        result.sort();
+        assert_eq!(expected, result);
+
+        // Both sets of files were generated within the last 2 secs.
+        let mut expected = gen_expected!(root_path => temp2 (y: alice bob) bar (x: temp foo));
+        expected.sort();
+        let mut result = changed_files(&root_path, Duration::from_secs_f64(2.)).unwrap();
+        result.sort();
         assert_eq!(expected, result);
     }
 }
