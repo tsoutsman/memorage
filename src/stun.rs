@@ -1,4 +1,9 @@
 #![allow(dead_code)]
+
+use crate::error::{Error, Result};
+
+use std::convert::TryInto;
+
 use bytes::BytesMut;
 use rand_chacha::{
     rand_core::{RngCore, SeedableRng},
@@ -52,14 +57,22 @@ impl std::convert::From<Length> for [u8; 2] {
     }
 }
 
-impl Length {
-    fn from(l: u16) -> Self {
+impl std::convert::TryFrom<u16> for Length {
+    type Error = Error;
+
+    fn try_from(l: u16) -> Result<Self> {
         // Length is actually a u14 so it can't be larger than 16838.
         if l > 16383 {
-            panic!("length cannot be greater than 16383; got value {}", l);
+            Err(Error::MessageTooLarge(l))
+        } else {
+            Ok(Length(l))
         }
+    }
+}
 
-        Length(l)
+impl Length {
+    fn from(l: u16) -> Result<Self> {
+        l.try_into()
     }
 }
 
@@ -126,7 +139,7 @@ mod tests {
 
     #[test]
     fn test_from_len() {
-        let length = Length::from(423);
+        let length = Length::from(423).unwrap();
 
         assert_eq!(1692u16, length.into());
         assert_eq!([0x6, 0x9c], <[u8; 2]>::from(length));
@@ -135,7 +148,7 @@ mod tests {
     #[test]
     #[should_panic]
     fn test_overflow_len() {
-        Length::from(16384);
+        Length::from(16384).unwrap();
     }
 
     #[test]
