@@ -1,19 +1,20 @@
+use crate::error::{Error, Result};
+
 use std::{
-    fs, io,
+    fs,
     path::{Path, PathBuf},
     time::{Duration, SystemTime},
 };
 
 #[allow(dead_code)]
-pub fn changed_files<P: AsRef<Path>>(path: P, dur: Duration) -> io::Result<Vec<PathBuf>> {
+pub fn changed_files<P: AsRef<Path>>(path: P, dur: Duration) -> Result<Vec<PathBuf>> {
     let dir = path.as_ref();
     let mut result = Vec::new();
 
     let now = SystemTime::now();
 
     if !dir.is_dir() {
-        // TODO return custom error
-        panic!("path is not a dir");
+        return Err(Error::NotDirectory(dir.to_owned()));
     }
 
     for entry in fs::read_dir(dir)? {

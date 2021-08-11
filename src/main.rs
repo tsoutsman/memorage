@@ -1,5 +1,4 @@
+mod error;
 mod fs;
 
-fn main() {
-    println!("Hello, world!");
-}
+fn main() {}
