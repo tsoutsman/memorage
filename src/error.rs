@@ -4,8 +4,14 @@ pub type Result<T> = std::result::Result<T, Error>;
 
 #[derive(thiserror::Error, Debug)]
 pub enum Error {
+    #[error("could not find {0}")]
+    FileNotFound(PathBuf),
+    #[error("denied permission to access {0}")]
+    PermissionDenied(PathBuf),
     #[error("{0} is not a directory")]
     NotDirectory(PathBuf),
     #[error("I/O error")]
-    IoError(#[from] std::io::Error),
+    Io(#[from] std::io::Error),
+    #[error("error encrypting {0}")]
+    Encryption(PathBuf),
 }
