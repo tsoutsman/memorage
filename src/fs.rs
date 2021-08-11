@@ -40,7 +40,7 @@ mod tests {
     use super::*;
     use tempfile::tempdir;
 
-    use crate::test::*;
+    use crate::{gen_expected, gen_fs};
 
     #[test]
     fn test_changed_files() {
