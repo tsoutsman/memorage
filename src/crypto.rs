@@ -15,6 +15,7 @@ use rand_chacha::{
     ChaCha20Rng,
 };
 
+#[derive(Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug, Default)]
 pub struct Key(Vec<u8>);
 
 impl Key {
@@ -22,7 +23,7 @@ impl Key {
         p.into()
     }
 
-    // IDK why this method is necessary; slices and vecs are compilcated.
+    // IDK why this method is necessary; slices and vecs are complicated.
     pub fn from_slice(p: &[u8]) -> Self {
         Self(p.to_owned())
     }
@@ -183,8 +184,7 @@ mod tests {
 
         // Note the changed key
         let key = Key::from("secret key");
-        let decrypted = decrypt_contents(&encrypted_file_path, &key).expect("UEOE: ");
-
-        assert_eq!(&decrypted, message);
+        // This unwrap should fail as the key is incorrect.
+        decrypt_contents(&encrypted_file_path, &key).unwrap();
     }
 }
