@@ -6,7 +6,6 @@ use std::{
     time::{Duration, SystemTime},
 };
 
-#[allow(dead_code)]
 pub fn changed_files<P: AsRef<Path>>(path: P, dur: Duration) -> Result<Vec<PathBuf>> {
     let dir = path.as_ref();
     let mut result = Vec::new();

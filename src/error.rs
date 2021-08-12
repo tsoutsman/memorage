@@ -15,5 +15,5 @@ pub enum Error {
     #[error("error encrypting {0}")]
     Encryption(PathBuf),
     #[error("stun message length too large; length: {0}")]
-    MessageTooLarge(u16),
+    MessageTooLarge(usize),
 }

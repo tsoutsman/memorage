@@ -1,17 +1,14 @@
-#![allow(dead_code)]
-
 use crate::error::{Error, Result};
 
 use std::convert::TryInto;
 
-use bytes::BytesMut;
 use rand_chacha::{
     rand_core::{RngCore, SeedableRng},
     ChaCha20Rng,
 };
 
 /// The magic cookie field MUST contain the fixed value 0x2112A442 in network byte order.
-static MAGIC_COOKIE: u64 = 0x2112A442;
+static MAGIC_COOKIE: [u8; 4] = [0x21, 0x12, 0xA4, 0x42];
 
 #[repr(u8)]
 #[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
@@ -44,6 +41,12 @@ pub enum Method {
 #[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug, Default)]
 pub struct Length(u16);
 
+impl Length {
+    pub fn from(l: usize) -> Result<Self> {
+        l.try_into()
+    }
+}
+
 impl std::convert::From<Length> for u16 {
     fn from(l: Length) -> Self {
         // The last 2 bits of the length are padded.
@@ -57,22 +60,18 @@ impl std::convert::From<Length> for [u8; 2] {
     }
 }
 
-impl std::convert::TryFrom<u16> for Length {
+impl std::convert::TryFrom<usize> for Length {
     type Error = Error;
 
-    fn try_from(l: u16) -> Result<Self> {
+    fn try_from(l: usize) -> Result<Self> {
         // Length is actually a u14 so it can't be larger than 16838.
         if l > 16383 {
             Err(Error::MessageTooLarge(l))
         } else {
-            Ok(Length(l))
+            // The typecast is guaranteed to not panic as `l` is guaranteed to be less than
+            // `u16::MAX`.
+            Ok(Length(l as u16))
         }
-    }
-}
-
-impl Length {
-    fn from(l: u16) -> Result<Self> {
-        l.try_into()
     }
 }
 
@@ -113,29 +112,66 @@ impl std::convert::From<Type> for [u8; 2] {
     }
 }
 
+/// This struct represents a STUN message in its entirety.
+/// # Semantics
+/// The struct cannot be mutated as, from [RFC 5389](datatracker.ietf.org/doc/html/rfc5389), "resends
+/// of the same request reuse the same transaction ID, but the client MUST choose a new transaction
+/// ID for new transactions unless the new request is bit-wise identical to the previous request and
+/// sent from the same transport address to the same IP address." If you would like to resend the
+/// request then you can use the same instance of `Message`. Otherwise, you must generate a new
+/// `Message` instance that will have a different transaction ID.
 #[derive(Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
 pub struct Message {
     ty: Type,
     length: Length,
-    transaction_id: Option<BytesMut>,
-    message: BytesMut,
+    /// The transaction ID is a 96-bit identifier, used to uniquely identify stun transactions.
+    transaction_id: [u8; 12],
+    message: Vec<u8>,
 }
 
-/// This function returns a randomly generated transaction ID. The transaction ID is a 96-bit
-/// identifier, used to uniquely identify STUN transactions.
-pub fn gen_transaction_id() -> BytesMut {
-    let mut buf = BytesMut::with_capacity(12);
-    buf.resize(12, 0);
+impl Message {
+    pub fn new(ty: Type, message: &[u8]) -> Result<Self> {
+        let mut transaction_id = [0; 12];
 
-    let mut rng = ChaCha20Rng::from_entropy();
-    rng.fill_bytes(&mut buf);
+        // The transaction ID MUST be uniformly and randomly chosen from the interval 0 .. 2**96-1, and
+        // SHOULD be cryptographically random.
+        let mut rng = ChaCha20Rng::from_entropy();
+        rng.fill_bytes(&mut transaction_id);
 
-    buf
+        Ok(Self {
+            ty,
+            length: Length::from(message.len())?,
+            transaction_id,
+            message: message.into(),
+        })
+    }
+}
+
+impl std::convert::From<Message> for Vec<u8> {
+    fn from(m: Message) -> Self {
+        // The total size of the package sent is the length of the header (20 bytes) + the length of
+        // the message.
+        let size = (20 + u16::from(m.length)) as usize;
+        let mut result = Vec::with_capacity(size);
+
+        result.extend_from_slice(&<[u8; 2]>::from(m.ty));
+        result.extend_from_slice(&<[u8; 2]>::from(m.length));
+        result.extend_from_slice(&MAGIC_COOKIE);
+        result.extend_from_slice(&m.transaction_id);
+        result.extend(m.message);
+
+        result
+    }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn test_message() {
+        // TODO
+    }
 
     #[test]
     fn test_from_len() {
@@ -203,13 +239,5 @@ mod tests {
         assert_eq!(7, Method::Data as u8);
         assert_eq!(8, Method::CreatePermission as u8);
         assert_eq!(9, Method::ChannelBind as u8);
-    }
-
-    #[test]
-    fn test_transaction_id() {
-        for _ in 0..10 {
-            let transaction_id = gen_transaction_id();
-            assert_eq!(transaction_id.len(), 12);
-        }
     }
 }

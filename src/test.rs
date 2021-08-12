@@ -1,7 +1,8 @@
 //! This module contains useful functions and macros for unit tests.
 
 // TODO if someone can find a way to only export the macros below when running tests or compiling
-// documentation that would be great - `#[cfg(any(test, doc))]` doesn't seem to work.
+// documentation that would be great - `#[cfg(any(test, doc))]` doesn't seem to work. In order to
+// run their doctests, the macros are currently being exported publicly.
 
 /// A macro that creates files and directories based on the given input.
 /// # Example

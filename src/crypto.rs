@@ -52,7 +52,6 @@ impl<T: AsRef<str>> std::convert::From<T> for Key {
     }
 }
 
-#[allow(dead_code)]
 pub fn encrypt_contents<P: AsRef<Path>>(path: &P, key: &Key) -> Result<Vec<u8>> {
     let path = path.as_ref();
 
@@ -88,7 +87,6 @@ pub fn encrypt_contents<P: AsRef<Path>>(path: &P, key: &Key) -> Result<Vec<u8>> 
     Ok(encrypted)
 }
 
-#[allow(dead_code)]
 pub fn decrypt_contents<P: AsRef<Path>>(path: &P, key: &Key) -> Result<Vec<u8>> {
     let path = path.as_ref();
 
