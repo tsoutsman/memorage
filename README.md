@@ -2,7 +2,7 @@
 
 [![Crates.io](https://img.shields.io/crates/v/oxalis.svg)](https://crates.io/crates/oxalis)
 [![Docs.rs](https://docs.rs/oxalis/badge.svg)](https://docs.rs/oxalis)
-[![CI](https://github.com/Ryan-Lawton-Prog/oxalis/workflows/Continuous%20Integration/badge.svg)](https://github.com/Ryan-Lawton-Prog/oxalis/actions)
+[![CI](https://github.com/Ryan-Lawton-Prog/oxalis/workflows/CI/badge.svg)](https://github.com/Ryan-Lawton-Prog/oxalis/actions)
 [![Coverage Status](https://coveralls.io/repos/github/Ryan-Lawton-Prog/oxalis/badge.svg?branch=main)](https://coveralls.io/github/Ryan-Lawton-Prog/oxalis?branch=main)
 
 ## Installation

@@ -1,11 +1,9 @@
+name: CI
 on:
   push:
     branches: main
   pull_request:
-name: Continuous Integration
-
 jobs:
-
   test:
     name: Test Suite
     runs-on: ubuntu-latest
@@ -22,7 +20,6 @@ jobs:
         with:
           command: test
           args: --all-features --workspace
-
   rustfmt:
     name: Rustfmt
     runs-on: ubuntu-latest
@@ -41,7 +38,6 @@ jobs:
         with:
           command: fmt
           args: --all -- --check
-
   clippy:
     name: Clippy
     runs-on: ubuntu-latest
@@ -60,7 +56,6 @@ jobs:
         with:
           command: clippy
           args: --all-targets --all-features --workspace -- -D warnings
-
   docs:
     name: Docs
     runs-on: ubuntu-latest
@@ -80,4 +75,24 @@ jobs:
         with:
           command: doc
           args: --no-deps --document-private-items --all-features --workspace
-
+  coverage:
+    name: Code coverage
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v2
+      - name: Install stable toolchain
+        uses: actions-rs/toolchain@v1
+        with:
+          toolchain: stable
+          profile: minimal
+          override: true
+      - name: Run cargo-tarpaulin
+        uses: actions-rs/tarpaulin@v0.1
+        with:
+          args: '--all-features --workspace --ignore-tests --out Lcov'
+      - name: Upload to Coveralls
+        uses: coverallsapp/github-action@master
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          path-to-lcov: './lcov.info'
