@@ -1,4 +1,4 @@
-use crate::stun;
+use crate::stun::attribute::Attribute;
 
 use rand_chacha::{
     rand_core::{RngCore, SeedableRng},
@@ -89,7 +89,7 @@ pub struct Message {
     /// should be cryptographically random.
     tid: [u8; 12],
     ty: Type,
-    attrs: Vec<stun::attribute::Attribute>,
+    attrs: Vec<Attribute>,
 }
 
 impl Message {
@@ -120,7 +120,12 @@ impl Message {
     /// Any attribute type may appear more than once in a STUN message. Unless specified otherwise,
     /// the order of appearance is significant: only the first occurrence needs to be processed by a
     /// receiver, and any duplicates may be ignored by a receiver.
-    pub fn push(&mut self, attr: stun::attribute::Attribute) {
+    pub fn push(&mut self, mut attr: Attribute) {
+        #[allow(clippy::single_match)]
+        match attr {
+            Attribute::XorMappedAddress(ref mut a) => a.set_tid(self.tid),
+            _ => {}
+        }
         self.attrs.push(attr);
     }
 }
@@ -147,7 +152,7 @@ impl std::convert::From<Message> for Vec<u8> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::stun::attribute::{Attribute, Software};
+    use crate::stun::attribute::Software;
     use std::convert::TryFrom;
 
     #[test]

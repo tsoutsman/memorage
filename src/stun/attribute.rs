@@ -1,4 +1,7 @@
-use crate::error::{Error, Result};
+use crate::{
+    error::{Error, Result},
+    stun::MAGIC_COOKIE,
+};
 
 use std::{convert::TryFrom, net};
 
@@ -113,24 +116,27 @@ pub struct XorMappedAddress {
     ip: net::IpAddr,
     /// If the address is ipv6 then the transaction id of the message is used in the xor function.
     tid: Option<[u8; 12]>,
+    port: u16,
 }
 
 impl XorMappedAddress {
-    pub fn is_ipv4(&self) -> bool {
-        match &self.ip {
-            net::IpAddr::V4(_) => true,
-            net::IpAddr::V6(_) => false,
+    pub fn from(ip: net::IpAddr, port: u16) -> Self {
+        Self {
+            ip,
+            tid: None,
+            port,
         }
+    }
+    pub fn is_ipv4(&self) -> bool {
+        self.ip.is_ipv4()
     }
 
     pub fn is_ipv6(&self) -> bool {
-        !self.is_ipv4()
+        self.ip.is_ipv6()
     }
-}
 
-impl std::convert::From<net::IpAddr> for XorMappedAddress {
-    fn from(ip: net::IpAddr) -> Self {
-        Self { ip, tid: None }
+    pub fn set_tid(&mut self, tid: [u8; 12]) {
+        self.tid = Some(tid);
     }
 }
 
@@ -138,18 +144,32 @@ impl AttributeExt for XorMappedAddress {
     const TYPE: u16 = 0x0020;
 
     fn value(&self) -> Vec<u8> {
+        // The port is XORed with the 16 most significant bits of the `MAGIC_COOKIE`. The typecast
+        // is safe as the bit shift guarantees that only the 16 right most bits of the u32 are set.
+        let port_xor = (self.port ^ (MAGIC_COOKIE >> 16) as u16).to_be_bytes();
+
         match self.ip {
             net::IpAddr::V4(a) => {
-                let a = u32::from(a);
-                (a ^ crate::stun::message::MAGIC_COOKIE)
-                    .to_be_bytes()
-                    .to_vec()
+                let mut result = Vec::new();
+                // Special code denoting the address family (i.e. IPv4).
+                result.extend_from_slice(&1u16.to_be_bytes());
+                result.extend_from_slice(&port_xor);
+
+                let addr = u32::from(a);
+                result.extend_from_slice(&(addr ^ MAGIC_COOKIE).to_be_bytes());
+
+                result
             }
             net::IpAddr::V6(a) => {
-                let a = u128::from(a);
+                let mut result = Vec::new();
+                // Special code denoting the address family (i.e. IPv6).
+                result.extend_from_slice(&2u16.to_be_bytes());
+                result.extend_from_slice(&port_xor);
+
+                let addr = u128::from(a);
 
                 let mut xor = Vec::new();
-                xor.extend_from_slice(&crate::stun::message::MAGIC_COOKIE.to_be_bytes());
+                xor.extend_from_slice(&MAGIC_COOKIE.to_be_bytes());
                 // Unwrap is ok as `Message` sets the value of `tid` when it pushes an
                 // `XorMappedAddress`.
                 xor.extend_from_slice(&self.tid.unwrap());
@@ -157,7 +177,9 @@ impl AttributeExt for XorMappedAddress {
                 // of length 4 and `self.tid` must be of length 12.
                 let xor = u128::from_be_bytes(<[u8; 16]>::try_from(xor).unwrap());
 
-                (a ^ xor).to_be_bytes().to_vec()
+                result.extend_from_slice(&(addr ^ xor).to_be_bytes());
+
+                result
             }
         }
     }
