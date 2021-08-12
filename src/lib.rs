@@ -1,7 +1,5 @@
-//!
-
 #![warn(
-    missing_docs,
+    // missing_docs,
     rust_2018_idioms,
     rust_2021_compatibility,
     future_incompatible,

@@ -1,6 +1,4 @@
-use crate::error::{Error, Result};
-
-use std::convert::TryInto;
+use crate::stun;
 
 use rand_chacha::{
     rand_core::{RngCore, SeedableRng},
@@ -36,43 +34,6 @@ pub enum Method {
     CreatePermission,
     /// ChannelBind method defined by [RFC 5766](https://tools.ietf.org/html/rfc5766).
     ChannelBind,
-}
-
-#[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug, Default)]
-pub struct Length(u16);
-
-impl Length {
-    pub fn from(l: usize) -> Result<Self> {
-        l.try_into()
-    }
-}
-
-impl std::convert::From<Length> for u16 {
-    fn from(l: Length) -> Self {
-        // The last 2 bits of the length are padded.
-        l.0 << 2
-    }
-}
-
-impl std::convert::From<Length> for [u8; 2] {
-    fn from(l: Length) -> Self {
-        u16::from(l).to_be_bytes()
-    }
-}
-
-impl std::convert::TryFrom<usize> for Length {
-    type Error = Error;
-
-    fn try_from(l: usize) -> Result<Self> {
-        // Length is actually a u14 so it can't be larger than 16838.
-        if l > 16383 {
-            Err(Error::MessageTooLarge(l))
-        } else {
-            // The typecast is guaranteed to not panic as `l` is guaranteed to be less than
-            // `u16::MAX`.
-            Ok(Length(l as u16))
-        }
-    }
 }
 
 #[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
@@ -123,27 +84,37 @@ impl std::convert::From<Type> for [u8; 2] {
 #[derive(Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
 pub struct Message {
     ty: Type,
-    length: Length,
     /// The transaction ID is a 96-bit identifier, used to uniquely identify stun transactions.
-    transaction_id: [u8; 12],
-    contents: Vec<u8>,
+    id: [u8; 12],
+    attrs: Vec<stun::attribute::Attribute>,
 }
 
 impl Message {
-    pub fn new(ty: Type, contents: &[u8]) -> Result<Self> {
-        let mut transaction_id = [0; 12];
+    pub fn new(ty: Type) -> Self {
+        let mut id = [0; 12];
 
         // The transaction ID MUST be uniformly and randomly chosen from the interval 0 .. 2**96-1, and
         // SHOULD be cryptographically random.
         let mut rng = ChaCha20Rng::from_entropy();
-        rng.fill_bytes(&mut transaction_id);
+        rng.fill_bytes(&mut id);
 
-        Ok(Self {
+        Self {
             ty,
-            length: Length::from(contents.len())?,
-            transaction_id,
-            contents: contents.into(),
-        })
+            id,
+            attrs: Vec::new(),
+        }
+    }
+
+    pub fn len(&self) -> usize {
+        let mut result = 0;
+        for attr in self.attrs.iter() {
+            result += attr.len();
+        }
+        result
+    }
+
+    pub fn push(&mut self, attr: stun::attribute::Attribute) {
+        self.attrs.push(attr);
     }
 }
 
@@ -151,14 +122,16 @@ impl std::convert::From<Message> for Vec<u8> {
     fn from(m: Message) -> Self {
         // The total size of the message sent is the length of the header (20 bytes) + the length of
         // the contents.
-        let size = (20 + u16::from(m.length)) as usize;
+        let size = (20 + m.len()) as usize;
         let mut result = Vec::with_capacity(size);
 
         result.extend_from_slice(&<[u8; 2]>::from(m.ty));
-        result.extend_from_slice(&<[u8; 2]>::from(m.length));
+        result.extend_from_slice(&(m.len() as u16).to_be_bytes());
         result.extend_from_slice(&MAGIC_COOKIE);
-        result.extend_from_slice(&m.transaction_id);
-        result.extend(m.contents);
+        result.extend_from_slice(&m.id);
+        for attr in m.attrs {
+            result.extend(attr.to_bytes());
+        }
 
         result
     }
@@ -167,68 +140,57 @@ impl std::convert::From<Message> for Vec<u8> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::stun::attribute::{Attribute, Software};
+    use std::convert::TryFrom;
 
     #[test]
     fn test_message() {
-        let contents = &[1, 2, 3, 4];
-        let message: Vec<u8> = Message::new(
-            Type {
-                class: Class::Request,
-                method: Method::Binding,
-            },
-            contents,
-        )
-        .unwrap()
-        .into();
+        // TODO add attributes to messages.
+        // TODO check that the contents are decoded correctly.
+
+        let mut message = Message::new(Type {
+            class: Class::Request,
+            method: Method::Binding,
+        });
+
+        let software = "my unicorn company name";
+        message.push(Attribute::Software(Software::try_from(software).unwrap()));
+
+        let message: Vec<u8> = message.into();
 
         // Type
         assert_eq!(&message[0..2], &[0, 1]);
-        // Size (padding of 2 at the end)
-        assert_eq!(&message[2..4], &[0, 4 << 2]);
+        // Size
+        assert_eq!(&message[2..4], &[0, 0x17]);
         // Magic cookie
         assert_eq!(&message[4..8], MAGIC_COOKIE);
         // Transaction ID
         let tid1 = &message[8..20];
-        // Message
-        assert_eq!(&message[20..24], contents);
 
-        let contents = &[5, 6, 7, 8, 9, 10];
-        let message: Vec<u8> = Message::new(
-            Type {
-                class: Class::Error,
-                method: Method::ChannelBind,
-            },
-            contents,
-        )
-        .unwrap()
-        .into();
+        let mut message = Message::new(Type {
+            class: Class::Error,
+            method: Method::ChannelBind,
+        });
+
+        let software1 = "oxalis v1.2.5";
+        message.push(Attribute::Software(Software::try_from(software1).unwrap()));
+        let software2 = "another cool name v2.5.2";
+        message.push(Attribute::Software(Software::try_from(software2).unwrap()));
+        let software3 = "another cool name v3.4.4";
+        message.push(Attribute::Software(Software::try_from(software3).unwrap()));
+
+        let message: Vec<u8> = message.into();
 
         // Type
         assert_eq!(&message[0..2], &[1, 0x19]);
-        // Size (padding of 2 at the end)
-        assert_eq!(&message[2..4], &[0, 6 << 2]);
+        // Size
+        assert_eq!(&message[2..4], &[0, 61]);
         // Magic cookie
         assert_eq!(&message[4..8], MAGIC_COOKIE);
         // Transaction ID
         let tid2 = &message[8..20];
-        // Message
-        assert_eq!(&message[20..26], contents);
 
         assert_ne!(tid1, tid2);
-    }
-
-    #[test]
-    fn test_from_len() {
-        let length = Length::from(423).unwrap();
-
-        assert_eq!(1692u16, length.into());
-        assert_eq!([0x6, 0x9c], <[u8; 2]>::from(length));
-    }
-
-    #[test]
-    #[should_panic]
-    fn test_overflow_len() {
-        Length::from(16384).unwrap();
     }
 
     #[test]

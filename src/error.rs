@@ -14,6 +14,6 @@ pub enum Error {
     Io(#[from] std::io::Error),
     #[error("error encrypting {0}")]
     Encryption(PathBuf),
-    #[error("stun message length too large; length: {0}")]
-    MessageTooLarge(usize),
+    #[error("the size of STUN attribute {0} is too large")]
+    AttrTooLarge(&'static str),
 }
