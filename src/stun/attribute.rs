@@ -186,8 +186,10 @@ impl AttributeExt for XorMappedAddress {
 
     fn value_len(&self) -> usize {
         match self.ip {
-            net::IpAddr::V4(_) => 4,
-            net::IpAddr::V6(_) => 16,
+            // 2 (family) + 2 (port) + 8 (address)
+            net::IpAddr::V4(_) => 12,
+            // 2 (family) + 2 (port) + 16 (address)
+            net::IpAddr::V6(_) => 20,
         }
     }
 }
@@ -196,6 +198,7 @@ impl AttributeExt for XorMappedAddress {
 mod tests {
     use super::*;
     use std::convert::TryFrom;
+    use std::net::IpAddr;
 
     #[test]
     fn test_software_encode() {
@@ -257,5 +260,19 @@ mod tests {
         assert_eq!(8, software.len());
         assert_eq!(1, software.len_padding());
         assert_eq!(3, software.value_len());
+    }
+
+    #[test]
+    fn test_ip_len() {
+        let address = XorMappedAddress::from(IpAddr::V4(net::Ipv4Addr::new(127, 0, 0, 1)), 80);
+
+        assert!(address.is_ipv4());
+        assert_eq!(address.len(), 16);
+
+        let address =
+            XorMappedAddress::from(IpAddr::V6(net::Ipv6Addr::new(1, 2, 3, 4, 5, 6, 7, 8)), 80);
+
+        assert!(address.is_ipv6());
+        assert_eq!(address.len(), 24);
     }
 }
