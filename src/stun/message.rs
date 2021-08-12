@@ -6,7 +6,7 @@ use rand_chacha::{
 };
 
 /// The magic cookie field must contain the fixed value 0x2112A442 in network byte order.
-static MAGIC_COOKIE: [u8; 4] = [0x21, 0x12, 0xA4, 0x42];
+pub static MAGIC_COOKIE: u32 = 0x2112A442;
 
 #[repr(u8)]
 #[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
@@ -87,21 +87,21 @@ pub struct Message {
     ///
     /// It must be uniformly and randomly chosen from the interval 0 .. 2**96-1, and
     /// should be cryptographically random.
-    id: [u8; 12],
+    tid: [u8; 12],
     ty: Type,
     attrs: Vec<stun::attribute::Attribute>,
 }
 
 impl Message {
     pub fn new(ty: Type) -> Self {
-        let mut id = [0; 12];
+        let mut tid = [0; 12];
 
         let mut rng = ChaCha20Rng::from_entropy();
-        rng.fill_bytes(&mut id);
+        rng.fill_bytes(&mut tid);
 
         Self {
+            tid,
             ty,
-            id,
             attrs: Vec::new(),
         }
     }
@@ -134,8 +134,8 @@ impl std::convert::From<Message> for Vec<u8> {
 
         result.extend_from_slice(&<[u8; 2]>::from(m.ty));
         result.extend_from_slice(&(m.len() as u16).to_be_bytes());
-        result.extend_from_slice(&MAGIC_COOKIE);
-        result.extend_from_slice(&m.id);
+        result.extend_from_slice(&MAGIC_COOKIE.to_be_bytes());
+        result.extend_from_slice(&m.tid);
         for attr in m.attrs {
             result.extend(attr.to_bytes());
         }
@@ -167,7 +167,7 @@ mod tests {
         // Size
         assert_eq!(&message[2..4], &[0, 0x1c]);
         // Magic cookie
-        assert_eq!(&message[4..8], MAGIC_COOKIE);
+        assert_eq!(&message[4..8], MAGIC_COOKIE.to_be_bytes());
         // Transaction ID
         let tid1 = &message[8..20];
 
@@ -190,7 +190,7 @@ mod tests {
         // Size
         assert_eq!(&message[2..4], &[0, 0x4c]);
         // Magic cookie
-        assert_eq!(&message[4..8], MAGIC_COOKIE);
+        assert_eq!(&message[4..8], MAGIC_COOKIE.to_be_bytes());
         // Transaction ID
         let tid2 = &message[8..20];
 

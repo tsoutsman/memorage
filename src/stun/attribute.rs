@@ -1,23 +1,26 @@
-#![allow(clippy::len_without_is_empty)]
 use crate::error::{Error, Result};
+
+use std::{convert::TryFrom, net};
 
 /// An enum that contains all supported attributes that can be added to a STUN message.
 #[derive(Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
 pub enum Attribute {
     Software(Software),
+    XorMappedAddress(XorMappedAddress),
 }
 
 impl Attribute {
     pub fn to_bytes(&self) -> Vec<u8> {
-        match &self {
-            Attribute::Software(s) => s.to_bytes(),
+        match self {
+            Attribute::Software(a) => a.to_bytes(),
+            Attribute::XorMappedAddress(a) => a.to_bytes(),
         }
     }
 
     pub fn len(&self) -> usize {
-        match &self {
-            // TODO do we really need to get the whole value to get len
-            Attribute::Software(s) => s.len(),
+        match self {
+            Attribute::Software(a) => a.len(),
+            Attribute::XorMappedAddress(a) => a.len(),
         }
     }
 }
@@ -27,13 +30,14 @@ pub trait AttributeExt {
     /// The 2 byte value that STUN agents use to identify the type of attribute.
     const TYPE: u16;
     fn value(&self) -> Vec<u8>;
+    fn value_len(&self) -> usize;
 
     /// The total length of the attribute once encoded.
     ///
     /// The length includes 4 bytes for the header, the length of the internal value, and the length
     /// of padding required.
     fn len(&self) -> usize {
-        4 + self.len_value() + self.len_padding()
+        4 + self.value_len() + self.len_padding()
     }
 
     /// The amount of padding needed when encoding this attribute.
@@ -42,12 +46,7 @@ pub trait AttributeExt {
     /// multiple of 4 bytes are padded with 1, 2, or 3 bytes of padding so that its value contains
     /// a multiple of 4 bytes. The padding bits are ignored, and may be any value.
     fn len_padding(&self) -> usize {
-        (4 - self.len_value() % 4) % 4
-    }
-
-    /// The length of the data stored in the attribute.
-    fn len_value(&self) -> usize {
-        self.value().len()
+        (4 - self.value_len() % 4) % 4
     }
 
     fn to_bytes(&self) -> Vec<u8> {
@@ -55,7 +54,7 @@ pub trait AttributeExt {
         let mut result = Vec::with_capacity(self.len());
 
         result.extend_from_slice(&Self::TYPE.to_be_bytes());
-        result.extend_from_slice(&(self.len_value() as u16).to_be_bytes());
+        result.extend_from_slice(&(self.value_len() as u16).to_be_bytes());
         result.extend(self.value());
         result.extend(vec![0; self.len_padding()]);
 
@@ -103,6 +102,71 @@ impl AttributeExt for Software {
 
     fn value(&self) -> Vec<u8> {
         self.0.as_bytes().to_owned()
+    }
+    fn value_len(&self) -> usize {
+        self.0.as_bytes().len()
+    }
+}
+
+#[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
+pub struct XorMappedAddress {
+    ip: net::IpAddr,
+    /// If the address is ipv6 then the transaction id of the message is used in the xor function.
+    tid: Option<[u8; 12]>,
+}
+
+impl XorMappedAddress {
+    pub fn is_ipv4(&self) -> bool {
+        match &self.ip {
+            net::IpAddr::V4(_) => true,
+            net::IpAddr::V6(_) => false,
+        }
+    }
+
+    pub fn is_ipv6(&self) -> bool {
+        !self.is_ipv4()
+    }
+}
+
+impl std::convert::From<net::IpAddr> for XorMappedAddress {
+    fn from(ip: net::IpAddr) -> Self {
+        Self { ip, tid: None }
+    }
+}
+
+impl AttributeExt for XorMappedAddress {
+    const TYPE: u16 = 0x0020;
+
+    fn value(&self) -> Vec<u8> {
+        match self.ip {
+            net::IpAddr::V4(a) => {
+                let a = u32::from(a);
+                (a ^ crate::stun::message::MAGIC_COOKIE)
+                    .to_be_bytes()
+                    .to_vec()
+            }
+            net::IpAddr::V6(a) => {
+                let a = u128::from(a);
+
+                let mut xor = Vec::new();
+                xor.extend_from_slice(&crate::stun::message::MAGIC_COOKIE.to_be_bytes());
+                // Unwrap is ok as `Message` sets the value of `tid` when it pushes an
+                // `XorMappedAddress`.
+                xor.extend_from_slice(&self.tid.unwrap());
+                // Unwrap is ok as the vector is guaranteed to be 16 bytes: `MAGIC_COOKIE` must be
+                // of length 4 and `self.tid` must be of length 12.
+                let xor = u128::from_be_bytes(<[u8; 16]>::try_from(xor).unwrap());
+
+                (a ^ xor).to_be_bytes().to_vec()
+            }
+        }
+    }
+
+    fn value_len(&self) -> usize {
+        match self.ip {
+            net::IpAddr::V4(_) => 4,
+            net::IpAddr::V6(_) => 16,
+        }
     }
 }
 
@@ -155,21 +219,21 @@ mod tests {
         let software = Software::try_from("company name").unwrap();
         assert_eq!(16, software.len());
         assert_eq!(0, software.len_padding());
-        assert_eq!(12, software.len_value());
+        assert_eq!(12, software.value_len());
 
         let software = Software::try_from("a").unwrap();
         assert_eq!(8, software.len());
         assert_eq!(3, software.len_padding());
-        assert_eq!(1, software.len_value());
+        assert_eq!(1, software.value_len());
 
         let software = Software::try_from("my company").unwrap();
         assert_eq!(16, software.len());
         assert_eq!(2, software.len_padding());
-        assert_eq!(10, software.len_value());
+        assert_eq!(10, software.value_len());
 
         let software = Software::try_from("abc").unwrap();
         assert_eq!(8, software.len());
         assert_eq!(1, software.len_padding());
-        assert_eq!(3, software.len_value());
+        assert_eq!(3, software.value_len());
     }
 }
