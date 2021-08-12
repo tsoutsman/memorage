@@ -95,11 +95,11 @@ impl std::convert::From<Type> for u16 {
 
         // if the 1st bit is set
         if (t.class as u8 & 1) != 0 {
-            result += 16;
+            result += 1 << 4;
         }
         // if the second bit is set
         if (t.class as u8 >> 1 & 1) != 0 {
-            result += 256;
+            result += 1 << 8;
         }
 
         result
@@ -126,11 +126,11 @@ pub struct Message {
     length: Length,
     /// The transaction ID is a 96-bit identifier, used to uniquely identify stun transactions.
     transaction_id: [u8; 12],
-    message: Vec<u8>,
+    contents: Vec<u8>,
 }
 
 impl Message {
-    pub fn new(ty: Type, message: &[u8]) -> Result<Self> {
+    pub fn new(ty: Type, contents: &[u8]) -> Result<Self> {
         let mut transaction_id = [0; 12];
 
         // The transaction ID MUST be uniformly and randomly chosen from the interval 0 .. 2**96-1, and
@@ -140,17 +140,17 @@ impl Message {
 
         Ok(Self {
             ty,
-            length: Length::from(message.len())?,
+            length: Length::from(contents.len())?,
             transaction_id,
-            message: message.into(),
+            contents: contents.into(),
         })
     }
 }
 
 impl std::convert::From<Message> for Vec<u8> {
     fn from(m: Message) -> Self {
-        // The total size of the package sent is the length of the header (20 bytes) + the length of
-        // the message.
+        // The total size of the message sent is the length of the header (20 bytes) + the length of
+        // the contents.
         let size = (20 + u16::from(m.length)) as usize;
         let mut result = Vec::with_capacity(size);
 
@@ -158,7 +158,7 @@ impl std::convert::From<Message> for Vec<u8> {
         result.extend_from_slice(&<[u8; 2]>::from(m.length));
         result.extend_from_slice(&MAGIC_COOKIE);
         result.extend_from_slice(&m.transaction_id);
-        result.extend(m.message);
+        result.extend(m.contents);
 
         result
     }
@@ -170,7 +170,51 @@ mod tests {
 
     #[test]
     fn test_message() {
-        // TODO
+        let contents = &[1, 2, 3, 4];
+        let message: Vec<u8> = Message::new(
+            Type {
+                class: Class::Request,
+                method: Method::Binding,
+            },
+            contents,
+        )
+        .unwrap()
+        .into();
+
+        // Type
+        assert_eq!(&message[0..2], &[0, 1]);
+        // Size (padding of 2 at the end)
+        assert_eq!(&message[2..4], &[0, 4 << 2]);
+        // Magic cookie
+        assert_eq!(&message[4..8], MAGIC_COOKIE);
+        // Transaction ID
+        let tid1 = &message[8..20];
+        // Message
+        assert_eq!(&message[20..24], contents);
+
+        let contents = &[5, 6, 7, 8, 9, 10];
+        let message: Vec<u8> = Message::new(
+            Type {
+                class: Class::Error,
+                method: Method::ChannelBind,
+            },
+            contents,
+        )
+        .unwrap()
+        .into();
+
+        // Type
+        assert_eq!(&message[0..2], &[1, 0x19]);
+        // Size (padding of 2 at the end)
+        assert_eq!(&message[2..4], &[0, 6 << 2]);
+        // Magic cookie
+        assert_eq!(&message[4..8], MAGIC_COOKIE);
+        // Transaction ID
+        let tid2 = &message[8..20];
+        // Message
+        assert_eq!(&message[20..26], contents);
+
+        assert_ne!(tid1, tid2);
     }
 
     #[test]
