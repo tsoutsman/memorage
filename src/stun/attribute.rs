@@ -38,7 +38,7 @@ pub trait AttributeExt {
     /// multiple of 4 bytes are padded with 1, 2, or 3 bytes of padding so that its value contains
     /// a multiple of 4 bytes. The padding bits are ignored, and may be any value.
     fn len_padding(&self) -> usize {
-        self.len_value() % 4
+        (4 - self.len_value() % 4) % 4
     }
 
     /// The length of the data stored in the attribute.
@@ -96,5 +96,73 @@ impl AttributeExt for Software {
 
     fn value(&self) -> Vec<u8> {
         self.0.as_bytes().to_owned()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::convert::TryFrom;
+
+    #[test]
+    fn test_software_encode() {
+        let name = "unicorn company";
+        let software = Software::try_from(name).unwrap();
+
+        let bytes = software.to_bytes();
+
+        // Making sure that putting it in an enum doesn't break the `to_bytes` function.
+        let wrapper = Attribute::Software(software.clone());
+        assert_eq!(bytes, wrapper.to_bytes());
+
+        let mut expected = vec![
+            0x80, // type
+            0x22, // type
+            0x00, // unpadded length
+            0x0F, // unpadded length
+        ];
+        expected.extend_from_slice(name.as_bytes()); // message contents
+        expected.extend_from_slice(&[0]); // padding
+
+        assert_eq!(bytes.len(), software.len());
+        assert_eq!(bytes, expected);
+    }
+
+    #[test]
+    fn test_software_overflow() {
+        let mut long_string = String::new();
+        for _ in 0..128 {
+            long_string.push(' ');
+        }
+        let software = Software::try_from(&long_string[..]);
+
+        if let Err(Error::AttrTooLarge("Software")) = software {
+            // correct
+        } else {
+            panic!();
+        }
+    }
+
+    #[test]
+    fn test_software_len() {
+        let software = Software::try_from("company name").unwrap();
+        assert_eq!(16, software.len());
+        assert_eq!(0, software.len_padding());
+        assert_eq!(12, software.len_value());
+
+        let software = Software::try_from("a").unwrap();
+        assert_eq!(8, software.len());
+        assert_eq!(3, software.len_padding());
+        assert_eq!(1, software.len_value());
+
+        let software = Software::try_from("my company").unwrap();
+        assert_eq!(16, software.len());
+        assert_eq!(2, software.len_padding());
+        assert_eq!(10, software.len_value());
+
+        let software = Software::try_from("abc").unwrap();
+        assert_eq!(8, software.len());
+        assert_eq!(1, software.len_padding());
+        assert_eq!(3, software.len_value());
     }
 }
