@@ -1,5 +1,7 @@
+#![allow(clippy::len_without_is_empty)]
 use crate::error::{Error, Result};
 
+/// An enum that contains all supported attributes that can be added to a STUN message.
 #[derive(Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
 pub enum Attribute {
     Software(Software),
@@ -15,12 +17,14 @@ impl Attribute {
     pub fn len(&self) -> usize {
         match &self {
             // TODO do we really need to get the whole value to get len
-            Attribute::Software(s) => s.value().len(),
+            Attribute::Software(s) => s.len(),
         }
     }
 }
 
+/// The trait implemented by all STUN attributes.
 pub trait AttributeExt {
+    /// The 2 byte value that STUN agents use to identify the type of attribute.
     const TYPE: u16;
     fn value(&self) -> Vec<u8>;
 
@@ -66,6 +70,9 @@ pub trait AttributeExt {
 /// Its value must be a valid UTF-8 string and have fewer than 128 characters.
 /// The value should include manufacturer and version number. The attribute has no impact on
 /// operation of the protocol, and serves only as a tool for diagnostic and debugging purposes.
+///
+/// Software is a comprehension-optional attribute, which means that it can be ignored by
+/// the STUN agent if it does not understand it.
 ///
 /// # Reference
 /// [RFC 5389]
@@ -122,7 +129,7 @@ mod tests {
             0x0F, // unpadded length
         ];
         expected.extend_from_slice(name.as_bytes()); // message contents
-        expected.extend_from_slice(&[0]); // padding
+        expected.push(0); // padding
 
         assert_eq!(bytes.len(), software.len());
         assert_eq!(bytes, expected);

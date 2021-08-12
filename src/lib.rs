@@ -8,9 +8,10 @@
     rustdoc::broken_intra_doc_links
 )]
 #![allow(dead_code)]
+#![allow(clippy::len_without_is_empty)]
 
-mod crypto;
-mod error;
-mod fs;
-mod stun;
-mod test;
+pub mod crypto;
+pub mod error;
+pub mod fs;
+pub mod stun;
+pub mod test;

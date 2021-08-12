@@ -6,6 +6,25 @@ use std::{
     time::{Duration, SystemTime},
 };
 
+/// Returns the files that have been changed in a directory within a given timeframe.
+///
+/// # Example
+/// ```rust
+/// # use oxalis::fs::changed_files;
+/// # use std::time::Duration;
+/// # use std::fs::File;
+/// # use tempfile::tempdir;
+/// # fn main() -> oxalis::error::Result<()> {
+/// # let root_path = tempdir().unwrap().into_path();
+/// let file_path = root_path.join("foo");
+/// File::create(file_path.clone());
+///
+/// let changed_files = changed_files(root_path, Duration::from_secs(1))?;
+///
+/// assert_eq!(changed_files.len(), 1);
+/// assert_eq!(changed_files[0], file_path);
+/// # Ok(())
+/// # }
 pub fn changed_files<P: AsRef<Path>>(path: P, dur: Duration) -> Result<Vec<PathBuf>> {
     let dir = path.as_ref();
     let mut result = Vec::new();

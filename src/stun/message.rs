@@ -5,7 +5,7 @@ use rand_chacha::{
     ChaCha20Rng,
 };
 
-/// The magic cookie field MUST contain the fixed value 0x2112A442 in network byte order.
+/// The magic cookie field must contain the fixed value 0x2112A442 in network byte order.
 static MAGIC_COOKIE: [u8; 4] = [0x21, 0x12, 0xA4, 0x42];
 
 #[repr(u8)]
@@ -76,16 +76,19 @@ impl std::convert::From<Type> for [u8; 2] {
 /// This struct represents a STUN message in its entirety.
 /// # Semantics
 /// The struct cannot be mutated as, from [RFC 5389](datatracker.ietf.org/doc/html/rfc5389), "resends
-/// of the same request reuse the same transaction ID, but the client MUST choose a new transaction
+/// of the same request reuse the same transaction ID, but the client must choose a new transaction
 /// ID for new transactions unless the new request is bit-wise identical to the previous request and
 /// sent from the same transport address to the same IP address." If you would like to resend the
 /// request then you can use the same instance of `Message`. Otherwise, you must generate a new
 /// `Message` instance that will have a different transaction ID.
 #[derive(Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
 pub struct Message {
-    ty: Type,
     /// The transaction ID is a 96-bit identifier, used to uniquely identify stun transactions.
+    ///
+    /// It must be uniformly and randomly chosen from the interval 0 .. 2**96-1, and
+    /// should be cryptographically random.
     id: [u8; 12],
+    ty: Type,
     attrs: Vec<stun::attribute::Attribute>,
 }
 
@@ -93,8 +96,6 @@ impl Message {
     pub fn new(ty: Type) -> Self {
         let mut id = [0; 12];
 
-        // The transaction ID MUST be uniformly and randomly chosen from the interval 0 .. 2**96-1, and
-        // SHOULD be cryptographically random.
         let mut rng = ChaCha20Rng::from_entropy();
         rng.fill_bytes(&mut id);
 
@@ -105,6 +106,7 @@ impl Message {
         }
     }
 
+    /// The total length of the message excluding the header, but including padding.
     pub fn len(&self) -> usize {
         let mut result = 0;
         for attr in self.attrs.iter() {
@@ -113,6 +115,11 @@ impl Message {
         result
     }
 
+    /// Append an attribute to the end of a message.
+    ///
+    /// Any attribute type may appear more than once in a STUN message. Unless specified otherwise,
+    /// the order of appearance is significant: only the first occurrence needs to be processed by a
+    /// receiver, and any duplicates may be ignored by a receiver.
     pub fn push(&mut self, attr: stun::attribute::Attribute) {
         self.attrs.push(attr);
     }
@@ -145,9 +152,6 @@ mod tests {
 
     #[test]
     fn test_message() {
-        // TODO add attributes to messages.
-        // TODO check that the contents are decoded correctly.
-
         let mut message = Message::new(Type {
             class: Class::Request,
             method: Method::Binding,
@@ -161,7 +165,7 @@ mod tests {
         // Type
         assert_eq!(&message[0..2], &[0, 1]);
         // Size
-        assert_eq!(&message[2..4], &[0, 0x17]);
+        assert_eq!(&message[2..4], &[0, 0x1c]);
         // Magic cookie
         assert_eq!(&message[4..8], MAGIC_COOKIE);
         // Transaction ID
@@ -184,7 +188,7 @@ mod tests {
         // Type
         assert_eq!(&message[0..2], &[1, 0x19]);
         // Size
-        assert_eq!(&message[2..4], &[0, 61]);
+        assert_eq!(&message[2..4], &[0, 0x4c]);
         // Magic cookie
         assert_eq!(&message[4..8], MAGIC_COOKIE);
         // Transaction ID

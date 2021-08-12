@@ -15,6 +15,7 @@ use rand_chacha::{
     ChaCha20Rng,
 };
 
+/// A key used to encrypt data.
 #[derive(Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug, Default)]
 pub struct Key(Vec<u8>);
 
@@ -52,6 +53,10 @@ impl<T: AsRef<str>> std::convert::From<T> for Key {
     }
 }
 
+/// Encrypt the contents of a file at a given path with a key. The file is not modified, instead
+/// its encrypted contents are returned by the function.
+///
+/// The function returns an error if there is an issue reading the file.
 pub fn encrypt_contents<P: AsRef<Path>>(path: &P, key: &Key) -> Result<Vec<u8>> {
     let path = path.as_ref();
 
@@ -87,6 +92,11 @@ pub fn encrypt_contents<P: AsRef<Path>>(path: &P, key: &Key) -> Result<Vec<u8>> 
     Ok(encrypted)
 }
 
+/// Decrypt the contents of a file at a given path with a key. The file is not modified, instead
+/// its decrypted contents are returned by the function.
+///
+/// The function returns an error if there is an issue reading the file, or if the provided key was
+/// not the same key that the file was encrypted with.
 pub fn decrypt_contents<P: AsRef<Path>>(path: &P, key: &Key) -> Result<Vec<u8>> {
     let path = path.as_ref();
 
@@ -163,7 +173,6 @@ mod tests {
     }
 
     #[test]
-    #[should_panic]
     fn test_decrypt_incorrect_key() {
         let root_path = tempdir().unwrap().into_path();
 
@@ -182,7 +191,9 @@ mod tests {
 
         // Note the changed key
         let key = Key::from("secret key");
-        // This unwrap should fail as the key is incorrect.
-        decrypt_contents(&encrypted_file_path, &key).unwrap();
+        let decrypted = decrypt_contents(&encrypted_file_path, &key);
+        if decrypted.is_ok() {
+            panic!();
+        }
     }
 }
