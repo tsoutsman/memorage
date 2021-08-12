@@ -263,16 +263,59 @@ mod tests {
     }
 
     #[test]
-    fn test_ip_len() {
-        let address = XorMappedAddress::from(IpAddr::V4(net::Ipv4Addr::new(127, 0, 0, 1)), 80);
+    fn test_ipv4() {
+        let ip_adress = net::Ipv4Addr::new(127, 0, 0, 1);
+        let port = 28015;
+        let address = XorMappedAddress::from(IpAddr::V4(ip_adress), port);
+
+        let family = 1u16;
+        let port_xor = port ^ (MAGIC_COOKIE >> 16) as u16;
+        let address_xor = u32::from(ip_adress) ^ MAGIC_COOKIE;
+
+        let mut expected = vec![
+            0,    // type
+            0x20, // type
+            0,    // unpadded size
+            0xc,  //unpadded size
+        ];
+        expected.extend_from_slice(&family.to_be_bytes());
+        expected.extend_from_slice(&port_xor.to_be_bytes());
+        expected.extend_from_slice(&address_xor.to_be_bytes());
 
         assert!(address.is_ipv4());
         assert_eq!(address.len(), 16);
+        assert_eq!(address.to_bytes(), expected);
+    }
 
-        let address =
-            XorMappedAddress::from(IpAddr::V6(net::Ipv6Addr::new(1, 2, 3, 4, 5, 6, 7, 8)), 80);
+    #[test]
+    fn test_ipv6() {
+        let ip_address = net::Ipv6Addr::new(1, 2, 3, 4, 5, 6, 7, 8);
+        let port = 28015;
+        let tid: [u8; 12] = [5; 12];
+        let mut address = XorMappedAddress::from(IpAddr::V6(ip_address), port);
+        address.set_tid(tid);
+
+        let family = 2u16;
+        let port_xor = port ^ (MAGIC_COOKIE >> 16) as u16;
+
+        let mut xor_op = Vec::new();
+        xor_op.extend_from_slice(&MAGIC_COOKIE.to_be_bytes());
+        xor_op.extend_from_slice(&tid);
+        let address_xor =
+            u128::from(ip_address) ^ u128::from_be_bytes(<[u8; 16]>::try_from(xor_op).unwrap());
+
+        let mut expected = vec![
+            0,    // type
+            0x20, // type
+            0,    //unpadded size
+            0x14, // unpadded size
+        ];
+        expected.extend_from_slice(&family.to_be_bytes());
+        expected.extend_from_slice(&port_xor.to_be_bytes());
+        expected.extend_from_slice(&address_xor.to_be_bytes());
 
         assert!(address.is_ipv6());
         assert_eq!(address.len(), 24);
+        assert_eq!(address.to_bytes(), expected);
     }
 }
