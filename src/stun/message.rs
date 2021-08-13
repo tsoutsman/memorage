@@ -106,6 +106,16 @@ impl Message {
         }
     }
 
+    /// The type of message.
+    pub fn ty(&self) -> Type {
+        self.ty
+    }
+
+    /// The attributes of the message.
+    pub fn attrs(&self) -> Vec<Attribute> {
+        self.attrs.clone()
+    }
+
     /// The total length of the message excluding the header, but including padding.
     pub fn len(&self) -> usize {
         let mut result = 0;
@@ -157,48 +167,49 @@ mod tests {
 
     #[test]
     fn test_message() {
-        let software = "James is an ass, and we won't be working with him again.";
+        let descriptions = vec![
+            "James is an ass, and we won't be working with him again.",
+            "The E400 Sedan model arrives this year, boasting a 3.0L V6 biturbo engine producing \
+             329 hp and 354 lb-ft of torque",
+            "— the same powertrain that currently drives its E400 Coupe, Cabriolet and 4MATIC \
+             Wagon cousins.",
+        ];
+
+        let mut attrs = Vec::new();
+        for d in descriptions.iter() {
+            let software = Software::try_from(*d).unwrap();
+            attrs.push(Attribute::Software(software));
+        }
+
         let mut message = Message::new(Type {
             class: Class::Request,
             method: Method::Binding,
         });
+        for attr in attrs {
+            message.push(attr);
+        }
 
-        message.push(Attribute::Software(Software::try_from(software).unwrap()));
         let message: Vec<u8> = message.into();
+
+        // Each attribute is the length of their value + padding + a 4 byte header.
+        let expected_len = descriptions
+            .iter()
+            .map(|d| d.len() + ((4 - (d.len() % 4)) % 4) + 4)
+            .sum::<usize>() as u16;
 
         // Type
         assert_eq!(&message[0..2], &[0, 1]);
-        // Size (length of `Software` attribute value + length of `Software` attribute header
-        // (4 bytes))
-        assert_eq!(&message[2..4], ((software.len() + 4) as u16).to_be_bytes());
-        // Magic cookie
-        assert_eq!(&message[4..8], MAGIC_COOKIE.to_be_bytes());
-        // Transaction ID
-        let tid1 = &message[8..20];
-
-        let software1 = "oxalis v1.2.5";
-        let software2 = "another cool name v2.5.2";
-        let software3 = "another cool name v3.4.4";
-        let mut message = Message::new(Type {
-            class: Class::Error,
-            method: Method::ChannelBind,
-        });
-
-        message.push(Attribute::Software(Software::try_from(software1).unwrap()));
-        message.push(Attribute::Software(Software::try_from(software2).unwrap()));
-        message.push(Attribute::Software(Software::try_from(software3).unwrap()));
-        let message: Vec<u8> = message.into();
-
-        // Type
-        assert_eq!(&message[0..2], &[1, 0x19]);
         // Size
-        assert_eq!(&message[2..4], &[0, 0x4c]);
+        assert_eq!(&message[2..4], expected_len.to_be_bytes());
         // Magic cookie
         assert_eq!(&message[4..8], MAGIC_COOKIE.to_be_bytes());
-        // Transaction ID
-        let tid2 = &message[8..20];
+        // Transaction ID exists
+        let _ = &message[8..20];
 
-        assert_ne!(tid1, tid2);
+        // let message: Message = message.into();
+        // for attr in message.attrs {
+        //     //
+        // }
     }
 
     #[test]
@@ -253,5 +264,20 @@ mod tests {
         assert_eq!(7, Method::Data as u8);
         assert_eq!(8, Method::CreatePermission as u8);
         assert_eq!(9, Method::ChannelBind as u8);
+    }
+
+    #[test]
+    fn test_tid_random() {
+        let mut messages = Vec::new();
+        for _ in 0..100 {
+            messages.push(Message::new(Type {
+                class: Class::Request,
+                method: Method::Binding,
+            }));
+        }
+        let mut unique_tids: Vec<[u8; 12]> = messages.iter().map(|m| m.tid).collect();
+        unique_tids.sort_unstable();
+        unique_tids.dedup();
+        assert_eq!(unique_tids.len(), 100);
     }
 }

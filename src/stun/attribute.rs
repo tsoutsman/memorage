@@ -20,8 +20,19 @@ impl Attribute {
         }
     }
 
-    pub fn from_bytes(_data: Vec<u8>, _tid: [u8; 12]) -> Result<Self> {
-        todo!();
+    pub fn from_bytes(data: Vec<u8>, tid: [u8; 12]) -> Result<Self> {
+        // Ensure future indexing won't panic.
+        if data.len() < 2 {
+            return Err(Error::Decoding);
+        }
+
+        match u16::from_be_bytes(<[u8; 2]>::try_from(&data[0..2]).unwrap()) {
+            Software::TYPE => Ok(Attribute::Software(Software::from_bytes(data, tid)?)),
+            XorMappedAddress::TYPE => Ok(Attribute::XorMappedAddress(
+                XorMappedAddress::from_bytes(data, tid)?,
+            )),
+            _ => Err(Error::Decoding),
+        }
     }
 
     pub fn len(&self) -> usize {
@@ -385,22 +396,30 @@ mod tests {
     #[test]
     fn test_software_len() {
         let software = Software::try_from("company name").unwrap();
+        let wrapper = Attribute::Software(software.clone());
         assert_eq!(16, software.len());
+        assert_eq!(16, wrapper.len());
         assert_eq!(0, software.padding_len());
         assert_eq!(12, software.value_len());
 
         let software = Software::try_from("ding ding ding mf").unwrap();
+        let wrapper = Attribute::Software(software.clone());
         assert_eq!(24, software.len());
+        assert_eq!(24, wrapper.len());
         assert_eq!(3, software.padding_len());
         assert_eq!(17, software.value_len());
 
         let software = Software::try_from("cliffteezy").unwrap();
+        let wrapper = Attribute::Software(software.clone());
         assert_eq!(16, software.len());
+        assert_eq!(16, wrapper.len());
         assert_eq!(2, software.padding_len());
         assert_eq!(10, software.value_len());
 
         let software = Software::try_from("python3").unwrap();
+        let wrapper = Attribute::Software(software.clone());
         assert_eq!(12, software.len());
+        assert_eq!(12, wrapper.len());
         assert_eq!(1, software.padding_len());
         assert_eq!(7, software.value_len());
     }
@@ -411,6 +430,7 @@ mod tests {
         let port = 28015;
 
         let address = XorMappedAddress::from(IpAddr::V4(ip_adress), port);
+        let wrapper = Attribute::XorMappedAddress(address);
 
         let ty = 0x20u16;
         let unpadded_size = 8u16;
@@ -429,15 +449,20 @@ mod tests {
 
         assert!(address.is_ipv4());
         assert_eq!(address.len(), 12);
+        assert_eq!(wrapper.len(), 12);
         assert_eq!(address.to_bytes(), expected);
+        assert_eq!(wrapper.to_bytes(), expected);
     }
 
     #[test]
     fn test_ipv6_encode() {
         let ip_address = net::Ipv6Addr::new(958, 1919, 4304, 14091, 21196, 32600, 34313, 44479);
         let port = 9150;
+        let tid: [u8; 12] = [5; 12];
 
         let mut address = XorMappedAddress::from(IpAddr::V6(ip_address), port);
+        address.set_tid(tid);
+        let wrapper = Attribute::XorMappedAddress(address);
 
         let ty = 0x20u16;
         let unpadded_size = 20u16;
@@ -445,8 +470,6 @@ mod tests {
 
         let port_xor = port ^ (MAGIC_COOKIE >> 16) as u16;
 
-        let tid: [u8; 12] = [5; 12];
-        address.set_tid(tid);
         let mut xor_op = Vec::new();
         xor_op.extend_from_slice(&MAGIC_COOKIE.to_be_bytes());
         xor_op.extend_from_slice(&tid);
@@ -462,7 +485,9 @@ mod tests {
 
         assert!(address.is_ipv6());
         assert_eq!(address.len(), 24);
+        assert_eq!(wrapper.len(), 24);
         assert_eq!(address.to_bytes(), expected);
+        assert_eq!(wrapper.to_bytes(), expected);
     }
 
     #[test]
@@ -495,11 +520,16 @@ mod tests {
         packet.extend_from_slice(&port_xor.to_be_bytes());
         packet.extend_from_slice(&address_xor.to_be_bytes());
 
+        let expected = XorMappedAddress::from(IpAddr::V4(ip_address), port);
         // tid doesn't matter for ipv4 addresses
         assert_eq!(
-            XorMappedAddress::from_bytes(packet, [0; 12]).unwrap(),
-            XorMappedAddress::from(IpAddr::V4(ip_address), port)
+            XorMappedAddress::from_bytes(packet.clone(), [0; 12]).unwrap(),
+            expected
         );
+        assert_eq!(
+            Attribute::from_bytes(packet, [0; 12]).unwrap(),
+            Attribute::XorMappedAddress(expected),
+        )
     }
 
     #[test]
@@ -530,6 +560,13 @@ mod tests {
         let mut expected = XorMappedAddress::from(IpAddr::V6(ip_address), port);
         expected.set_tid(tid);
 
-        assert_eq!(XorMappedAddress::from_bytes(packet, tid).unwrap(), expected);
+        assert_eq!(
+            XorMappedAddress::from_bytes(packet.clone(), tid).unwrap(),
+            expected
+        );
+        assert_eq!(
+            Attribute::from_bytes(packet, tid).unwrap(),
+            Attribute::XorMappedAddress(expected),
+        );
     }
 }
