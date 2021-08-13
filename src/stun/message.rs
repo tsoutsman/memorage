@@ -157,14 +157,13 @@ mod tests {
 
     #[test]
     fn test_message() {
+        let software = "my unicorn company name";
         let mut message = Message::new(Type {
             class: Class::Request,
             method: Method::Binding,
         });
 
-        let software = "my unicorn company name";
         message.push(Attribute::Software(Software::try_from(software).unwrap()));
-
         let message: Vec<u8> = message.into();
 
         // Type
@@ -176,18 +175,17 @@ mod tests {
         // Transaction ID
         let tid1 = &message[8..20];
 
+        let software1 = "oxalis v1.2.5";
+        let software2 = "another cool name v2.5.2";
+        let software3 = "another cool name v3.4.4";
         let mut message = Message::new(Type {
             class: Class::Error,
             method: Method::ChannelBind,
         });
 
-        let software1 = "oxalis v1.2.5";
         message.push(Attribute::Software(Software::try_from(software1).unwrap()));
-        let software2 = "another cool name v2.5.2";
         message.push(Attribute::Software(Software::try_from(software2).unwrap()));
-        let software3 = "another cool name v3.4.4";
         message.push(Attribute::Software(Software::try_from(software3).unwrap()));
-
         let message: Vec<u8> = message.into();
 
         // Type

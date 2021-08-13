@@ -145,7 +145,8 @@ impl AttributeExt for XorMappedAddress {
 
     fn value(&self) -> Vec<u8> {
         // The port is XORed with the 16 most significant bits of the `MAGIC_COOKIE`. The typecast
-        // is safe as the bit shift guarantees that only the 16 right most bits of the u32 are set.
+        // is safe as the bit shift guarantees that, at most, only the 16 right most bits of the u32
+        // are set.
         let port_xor = (self.port ^ (MAGIC_COOKIE >> 16) as u16).to_be_bytes();
 
         match self.ip {
@@ -203,22 +204,22 @@ mod tests {
     #[test]
     fn test_software_encode() {
         let name = "unicorn company";
-        let software = Software::try_from(name).unwrap();
 
+        let software = Software::try_from(name).unwrap();
         let bytes = software.to_bytes();
+
+        let ty = 0x8022u16;
+        let unpadded_size = 0xfu16;
+
+        let mut expected = Vec::new();
+        expected.extend_from_slice(&ty.to_be_bytes());
+        expected.extend_from_slice(&unpadded_size.to_be_bytes());
+        expected.extend_from_slice(name.as_bytes()); // message contents
+        expected.push(0); // padding
 
         // Making sure that putting it in an enum doesn't break the `to_bytes` function.
         let wrapper = Attribute::Software(software.clone());
         assert_eq!(bytes, wrapper.to_bytes());
-
-        let mut expected = vec![
-            0x80, // type
-            0x22, // type
-            0x00, // unpadded length
-            0x0F, // unpadded length
-        ];
-        expected.extend_from_slice(name.as_bytes()); // message contents
-        expected.push(0); // padding
 
         assert_eq!(bytes.len(), software.len());
         assert_eq!(bytes, expected);
@@ -266,18 +267,20 @@ mod tests {
     fn test_ipv4() {
         let ip_adress = net::Ipv4Addr::new(127, 0, 0, 1);
         let port = 28015;
+
         let address = XorMappedAddress::from(IpAddr::V4(ip_adress), port);
 
+        let ty = 0x20u16;
+        let unpadded_size = 12u16;
         let family = 1u16;
+
         let port_xor = port ^ (MAGIC_COOKIE >> 16) as u16;
+
         let address_xor = u32::from(ip_adress) ^ MAGIC_COOKIE;
 
-        let mut expected = vec![
-            0,    // type
-            0x20, // type
-            0,    // unpadded size
-            0xc,  //unpadded size
-        ];
+        let mut expected = Vec::new();
+        expected.extend_from_slice(&ty.to_be_bytes());
+        expected.extend_from_slice(&unpadded_size.to_be_bytes());
         expected.extend_from_slice(&family.to_be_bytes());
         expected.extend_from_slice(&port_xor.to_be_bytes());
         expected.extend_from_slice(&address_xor.to_be_bytes());
@@ -291,25 +294,26 @@ mod tests {
     fn test_ipv6() {
         let ip_address = net::Ipv6Addr::new(1, 2, 3, 4, 5, 6, 7, 8);
         let port = 28015;
-        let tid: [u8; 12] = [5; 12];
-        let mut address = XorMappedAddress::from(IpAddr::V6(ip_address), port);
-        address.set_tid(tid);
 
+        let mut address = XorMappedAddress::from(IpAddr::V6(ip_address), port);
+
+        let ty = 0x20u16;
+        let unpadded_size = 20u16;
         let family = 2u16;
+
         let port_xor = port ^ (MAGIC_COOKIE >> 16) as u16;
 
+        let tid: [u8; 12] = [5; 12];
+        address.set_tid(tid);
         let mut xor_op = Vec::new();
         xor_op.extend_from_slice(&MAGIC_COOKIE.to_be_bytes());
         xor_op.extend_from_slice(&tid);
         let address_xor =
             u128::from(ip_address) ^ u128::from_be_bytes(<[u8; 16]>::try_from(xor_op).unwrap());
 
-        let mut expected = vec![
-            0,    // type
-            0x20, // type
-            0,    //unpadded size
-            0x14, // unpadded size
-        ];
+        let mut expected = Vec::new();
+        expected.extend_from_slice(&ty.to_be_bytes());
+        expected.extend_from_slice(&unpadded_size.to_be_bytes());
         expected.extend_from_slice(&family.to_be_bytes());
         expected.extend_from_slice(&port_xor.to_be_bytes());
         expected.extend_from_slice(&address_xor.to_be_bytes());
@@ -317,5 +321,16 @@ mod tests {
         assert!(address.is_ipv6());
         assert_eq!(address.len(), 24);
         assert_eq!(address.to_bytes(), expected);
+    }
+
+    #[test]
+    #[should_panic]
+    fn test_ipv6_no_tid() {
+        let ip_address = net::Ipv6Addr::new(1, 2, 3, 4, 5, 6, 7, 8);
+        let port = 28015;
+
+        let address = XorMappedAddress::from(IpAddr::V6(ip_address), port);
+
+        address.to_bytes();
     }
 }
