@@ -1,4 +1,9 @@
-use crate::stun::attribute::Attribute;
+use crate::{
+    error::{Error, Result},
+    stun::attribute::Attribute,
+};
+
+use std::convert::TryFrom;
 
 use rand_chacha::{
     rand_core::{RngCore, SeedableRng},
@@ -9,7 +14,7 @@ use rand_chacha::{
 pub static MAGIC_COOKIE: u32 = 0x2112A442;
 
 #[repr(u8)]
-#[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
+#[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug, enumn::N)]
 pub enum Class {
     Request,
     Indication,
@@ -17,22 +22,21 @@ pub enum Class {
     Error,
 }
 
-#[repr(u8)]
-#[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
+/// Enum containing the possible methods defined in [RFC 8489] and [RFC 8656].
+///
+/// # Implementation details
+/// The struct is represented by a [`u16`] as theoretically, the method is defined by 12 bits in the
+/// message, meaning a [`u8`] is too small. In reality, the method integer representation is never
+/// greater than 9, however, we still chose to represent it as a [`u16`] for compatibility.
+#[repr(u16)]
+#[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug, enumn::N)]
 pub enum Method {
-    /// Binding method defined by [RFC 5389](https://tools.ietf.org/html/rfc5389).
     Binding = 1,
-    /// Allocate method defined by [RFC 5766](https://tools.ietf.org/html/rfc5766).
     Allocate = 3,
-    /// Refresh method defined by [RFC 5766](https://tools.ietf.org/html/rfc5766).
     Refresh,
-    /// Send method defined by [RFC 5766](https://tools.ietf.org/html/rfc5766).
     Send = 6,
-    /// Data method defined by [RFC 5766](https://tools.ietf.org/html/rfc5766).
     Data,
-    /// CreatePermission method defined by [RFC 5766](https://tools.ietf.org/html/rfc5766).
     CreatePermission,
-    /// ChannelBind method defined by [RFC 5766](https://tools.ietf.org/html/rfc5766).
     ChannelBind,
 }
 
@@ -70,6 +74,36 @@ impl std::convert::From<Type> for u16 {
 impl std::convert::From<Type> for [u8; 2] {
     fn from(t: Type) -> Self {
         u16::from(t).to_be_bytes()
+    }
+}
+
+impl std::convert::TryFrom<u16> for Type {
+    type Error = Error;
+
+    fn try_from(value: u16) -> Result<Self> {
+        // First 2 bytes must be 0.
+        if (value & 0xC000) != 0 {
+            return Err(Error::Decoding);
+        }
+
+        // For details on how `Type` works and what the weird magic that follows is, see the
+        // `From<Type> for u16` `impl` above.
+
+        let mut m: u16 = 0;
+        let mut c: u8 = 0;
+
+        m += value & 0xf;
+        m += (value & 0xe0) >> 1;
+        m += (value & 0x3e00) >> 2;
+
+        c += ((value & 0x10) >> 4) as u8;
+        c += ((value & 0x100) >> 7) as u8;
+
+        if let (Some(class), Some(method)) = (Class::n(c), Method::n(m)) {
+            Ok(Self { class, method })
+        } else {
+            Err(Error::Decoding)
+        }
     }
 }
 
@@ -132,11 +166,20 @@ impl Message {
     /// receiver, and any duplicates may be ignored by a receiver.
     pub fn push(&mut self, mut attr: Attribute) {
         #[allow(clippy::single_match)]
+        // Certain attributes require information about the message in order to be correctly encoded.
         match attr {
             Attribute::XorMappedAddress(ref mut a) => a.set_tid(self.tid),
             _ => {}
         }
         self.attrs.push(attr);
+    }
+
+    pub fn into_bytes(self) -> Vec<u8> {
+        <Vec<u8>>::from(self)
+    }
+
+    pub fn from_bytes(data: Vec<u8>) -> Result<Self> {
+        Self::try_from(data)
     }
 }
 
@@ -156,6 +199,14 @@ impl std::convert::From<Message> for Vec<u8> {
         }
 
         result
+    }
+}
+
+impl std::convert::TryFrom<Vec<u8>> for Message {
+    type Error = Error;
+
+    fn try_from(_value: Vec<u8>) -> Result<Self> {
+        todo!();
     }
 }
 
@@ -253,6 +304,11 @@ mod tests {
         assert_eq!(1, Class::Indication as u8);
         assert_eq!(2, Class::Success as u8);
         assert_eq!(3, Class::Error as u8);
+
+        assert_eq!(Class::Request, Class::n(0).unwrap());
+        assert_eq!(Class::Indication, Class::n(1).unwrap());
+        assert_eq!(Class::Success, Class::n(2).unwrap());
+        assert_eq!(Class::Error, Class::n(3).unwrap());
     }
 
     #[test]
@@ -264,6 +320,14 @@ mod tests {
         assert_eq!(7, Method::Data as u8);
         assert_eq!(8, Method::CreatePermission as u8);
         assert_eq!(9, Method::ChannelBind as u8);
+
+        assert_eq!(Method::Binding, Method::n(1).unwrap());
+        assert_eq!(Method::Allocate, Method::n(3).unwrap());
+        assert_eq!(Method::Refresh, Method::n(4).unwrap());
+        assert_eq!(Method::Send, Method::n(6).unwrap());
+        assert_eq!(Method::Data, Method::n(7).unwrap());
+        assert_eq!(Method::CreatePermission, Method::n(8).unwrap());
+        assert_eq!(Method::ChannelBind, Method::n(9).unwrap());
     }
 
     #[test]
@@ -279,5 +343,47 @@ mod tests {
         unique_tids.sort_unstable();
         unique_tids.dedup();
         assert_eq!(unique_tids.len(), 100);
+    }
+
+    #[test]
+    fn test_type_conversions() {
+        let class_masks = [
+            (0b0000000000000000u16, Class::Request),
+            (0b0000000000010000u16, Class::Indication),
+            (0b0000000100000000u16, Class::Success),
+            (0b0000000100010000u16, Class::Error),
+        ];
+        let method_masks = [
+            (0b0000000000000001u16, Method::Binding),
+            (0b0000000000000011u16, Method::Allocate),
+            (0b0000000000000100u16, Method::Refresh),
+            (0b0000000000000110u16, Method::Send),
+            (0b0000000000000111u16, Method::Data),
+            (0b0000000000001000u16, Method::CreatePermission),
+            (0b0000000000001001u16, Method::ChannelBind),
+        ];
+
+        for (cmask, class) in class_masks {
+            for (mmask, method) in method_masks {
+                // From
+                let result = Type::try_from(cmask | mmask).unwrap();
+                let expected = Type { class, method };
+
+                assert_eq!(result, expected);
+
+                // Into
+                let result = Type { class, method };
+                let expected = cmask | mmask;
+
+                assert_eq!(u16::from(result), expected);
+                assert_eq!(<[u8; 2]>::from(result), expected.to_be_bytes());
+            }
+        }
+
+        // Should result in an error as the first 2 bits aren't 0.
+        match Type::try_from(0xFF) {
+            Err(Error::Decoding) => {}
+            _ => panic!(),
+        }
     }
 }
