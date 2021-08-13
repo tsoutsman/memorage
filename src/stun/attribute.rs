@@ -29,18 +29,33 @@ impl Attribute {
 }
 
 /// The trait implemented by all STUN attributes.
-pub trait AttributeExt {
+pub trait AttributeExt: Sized {
     /// The 2 byte value that STUN agents use to identify the type of attribute.
+    #[doc(hidden)]
     const TYPE: u16;
-    fn value(&self) -> Vec<u8>;
+    /// The encoded representation of the attribute, not including the attribute header or any
+    /// padding.
+    #[doc(hidden)]
+    fn encode(&self) -> Vec<u8>;
+    /// Should return a decoded version of `Self` from the data given. `data` will contain the
+    /// value of the attribute, so it will not include the header or any padding.
+    #[doc(hidden)]
+    fn decode(data: Vec<u8>) -> Result<Self>;
+    /// The length of the [`Vec`](std::vec::Vec) returned by [`encode`](AttributeExt::encode).
+    ///
+    /// This is only included as there are often much more efficient ways of calculating the length
+    /// instead of fully encoding it and getting the length (e.g. the length of a
+    /// [`XorMappedAddress`] is constant).
+    #[doc(hidden)]
     fn value_len(&self) -> usize;
 
     /// The total length of the attribute once encoded.
     ///
     /// The length includes 4 bytes for the header, the length of the internal value, and the length
     /// of padding required.
+    #[doc(hidden)]
     fn len(&self) -> usize {
-        4 + self.value_len() + self.len_padding()
+        4 + self.value_len() + self.padding_len()
     }
 
     /// The amount of padding needed when encoding this attribute.
@@ -48,7 +63,8 @@ pub trait AttributeExt {
     /// Since STUN aligns attributes on 32-bit boundaries, attributes whose content is not a
     /// multiple of 4 bytes are padded with 1, 2, or 3 bytes of padding so that its value contains
     /// a multiple of 4 bytes. The padding bits are ignored, and may be any value.
-    fn len_padding(&self) -> usize {
+    #[doc(hidden)]
+    fn padding_len(&self) -> usize {
         (4 - self.value_len() % 4) % 4
     }
 
@@ -58,12 +74,29 @@ pub trait AttributeExt {
 
         result.extend_from_slice(&Self::TYPE.to_be_bytes());
         result.extend_from_slice(&(self.value_len() as u16).to_be_bytes());
-        result.extend(self.value());
-        result.extend(vec![0; self.len_padding()]);
+        result.extend(self.encode());
+        result.extend(vec![0; self.padding_len()]);
 
         // TODO assert len of result?
 
         result
+    }
+
+    fn from_bytes(data: Vec<u8>) -> Result<Self> {
+        // The two try_from unwraps are safe as we are taking a slice of length 2 from a Vec<u8>.
+
+        let expected_type = u16::from_be_bytes(<[u8; 2]>::try_from(&data[0..2]).unwrap());
+        if expected_type != Self::TYPE {
+            return Err(Error::IncorrectAttrType);
+        }
+
+        let len = u16::from_be_bytes(<[u8; 2]>::try_from(&data[2..4]).unwrap());
+
+        // TODO we don't need to clone the vec, but I don't know how to get a slice of a vec that is
+        // itself a vec.
+        // Give decode the data contained in the packet (i.e. the packet - the heading - the
+        // padding).
+        Self::decode(data[4..(4 + len) as usize].to_vec())
     }
 }
 
@@ -82,6 +115,12 @@ pub trait AttributeExt {
 /// [RFC 5389]: https://datatracker.ietf.org/doc/html/rfc5389#section-15.10
 #[derive(Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug, Default)]
 pub struct Software(String);
+
+impl Software {
+    pub fn value(&self) -> String {
+        self.0.clone()
+    }
+}
 
 impl std::convert::TryFrom<&str> for Software {
     type Error = Error;
@@ -103,9 +142,15 @@ impl std::convert::TryFrom<&str> for Software {
 impl AttributeExt for Software {
     const TYPE: u16 = 0x8022;
 
-    fn value(&self) -> Vec<u8> {
+    fn encode(&self) -> Vec<u8> {
         self.0.as_bytes().to_owned()
     }
+
+    fn decode(data: Vec<u8>) -> Result<Self> {
+        let string = String::from_utf8(data)?;
+        Ok(Self(string))
+    }
+
     fn value_len(&self) -> usize {
         self.0.as_bytes().len()
     }
@@ -115,6 +160,7 @@ impl AttributeExt for Software {
 pub struct XorMappedAddress {
     ip: net::IpAddr,
     /// If the address is ipv6 then the transaction id of the message is used in the xor function.
+    #[doc(hidden)]
     tid: Option<[u8; 12]>,
     port: u16,
 }
@@ -127,6 +173,15 @@ impl XorMappedAddress {
             port,
         }
     }
+
+    pub fn ip(&self) -> net::IpAddr {
+        self.ip
+    }
+
+    pub fn port(&self) -> u16 {
+        self.port
+    }
+
     pub fn is_ipv4(&self) -> bool {
         self.ip.is_ipv4()
     }
@@ -135,7 +190,10 @@ impl XorMappedAddress {
         self.ip.is_ipv6()
     }
 
-    pub fn set_tid(&mut self, tid: [u8; 12]) {
+    /// This function must only be called by the [`Message`](crate::stun::Message) that carries
+    /// the [`Software`] attribute. It should not be called by the user.
+    #[doc(hidden)]
+    pub(crate) fn set_tid(&mut self, tid: [u8; 12]) {
         self.tid = Some(tid);
     }
 }
@@ -143,7 +201,7 @@ impl XorMappedAddress {
 impl AttributeExt for XorMappedAddress {
     const TYPE: u16 = 0x0020;
 
-    fn value(&self) -> Vec<u8> {
+    fn encode(&self) -> Vec<u8> {
         // The port is XORed with the 16 most significant bits of the `MAGIC_COOKIE`. The typecast
         // is safe as the bit shift guarantees that, at most, only the 16 right most bits of the u32
         // are set.
@@ -182,6 +240,21 @@ impl AttributeExt for XorMappedAddress {
 
                 result
             }
+        }
+    }
+
+    fn decode(data: Vec<u8>) -> Result<Self> {
+        // It's a slice of 2 so unwrap can't fail.
+        match u16::from_be_bytes(<[u8; 2]>::try_from(&data[0..2]).unwrap()) {
+            1 => {
+                // IPv4
+                todo!();
+            }
+            2 => {
+                // IPv6
+                todo!();
+            }
+            _ => Err(Error::Decoding),
         }
     }
 
@@ -241,25 +314,44 @@ mod tests {
     }
 
     #[test]
+    fn test_software_decode() {
+        let name = "unicorn company";
+
+        let ty = 0x8022u16;
+        let unpadded_size = 0xfu16;
+
+        let mut packet = Vec::new();
+        packet.extend_from_slice(&ty.to_be_bytes());
+        packet.extend_from_slice(&unpadded_size.to_be_bytes());
+        packet.extend_from_slice(name.as_bytes()); // message contents
+        packet.push(0); // padding
+
+        assert_eq!(
+            Software::try_from(name).unwrap(),
+            Software::from_bytes(packet).unwrap()
+        );
+    }
+
+    #[test]
     fn test_software_len() {
         let software = Software::try_from("company name").unwrap();
         assert_eq!(16, software.len());
-        assert_eq!(0, software.len_padding());
+        assert_eq!(0, software.padding_len());
         assert_eq!(12, software.value_len());
 
         let software = Software::try_from("a").unwrap();
         assert_eq!(8, software.len());
-        assert_eq!(3, software.len_padding());
+        assert_eq!(3, software.padding_len());
         assert_eq!(1, software.value_len());
 
         let software = Software::try_from("my company").unwrap();
         assert_eq!(16, software.len());
-        assert_eq!(2, software.len_padding());
+        assert_eq!(2, software.padding_len());
         assert_eq!(10, software.value_len());
 
         let software = Software::try_from("abc").unwrap();
         assert_eq!(8, software.len());
-        assert_eq!(1, software.len_padding());
+        assert_eq!(1, software.padding_len());
         assert_eq!(3, software.value_len());
     }
 
