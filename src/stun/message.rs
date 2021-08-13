@@ -157,7 +157,7 @@ mod tests {
 
     #[test]
     fn test_message() {
-        let software = "my unicorn company name";
+        let software = "James is an ass, and we won't be working with him again.";
         let mut message = Message::new(Type {
             class: Class::Request,
             method: Method::Binding,
@@ -168,8 +168,9 @@ mod tests {
 
         // Type
         assert_eq!(&message[0..2], &[0, 1]);
-        // Size
-        assert_eq!(&message[2..4], &[0, 0x1c]);
+        // Size (length of `Software` attribute value + length of `Software` attribute header
+        // (4 bytes))
+        assert_eq!(&message[2..4], ((software.len() + 4) as u16).to_be_bytes());
         // Magic cookie
         assert_eq!(&message[4..8], MAGIC_COOKIE.to_be_bytes());
         // Transaction ID

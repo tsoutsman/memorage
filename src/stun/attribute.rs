@@ -20,6 +20,10 @@ impl Attribute {
         }
     }
 
+    pub fn from_bytes(_data: Vec<u8>, _tid: [u8; 12]) -> Result<Self> {
+        todo!();
+    }
+
     pub fn len(&self) -> usize {
         match self {
             Attribute::Software(a) => a.len(),
@@ -40,7 +44,7 @@ pub trait AttributeExt: Sized {
     /// Should return a decoded version of `Self` from the data given. `data` will contain the
     /// value of the attribute, so it will not include the header or any padding.
     #[doc(hidden)]
-    fn decode(data: Vec<u8>) -> Result<Self>;
+    fn decode(data: Vec<u8>, tid: [u8; 12]) -> Result<Self>;
     /// The length of the [`Vec`](std::vec::Vec) returned by [`encode`](AttributeExt::encode).
     ///
     /// This is only included as there are often much more efficient ways of calculating the length
@@ -82,7 +86,9 @@ pub trait AttributeExt: Sized {
         result
     }
 
-    fn from_bytes(data: Vec<u8>) -> Result<Self> {
+    /// Decodes bytes into an [`Attribute`]. The function requires the transaction id of the message
+    /// as some attributes require it in order to successfully interpret the bytes.
+    fn from_bytes(data: Vec<u8>, tid: [u8; 12]) -> Result<Self> {
         // The two try_from unwraps are safe as we are taking a slice of length 2 from a Vec<u8>.
 
         let expected_type = u16::from_be_bytes(<[u8; 2]>::try_from(&data[0..2]).unwrap());
@@ -90,13 +96,17 @@ pub trait AttributeExt: Sized {
             return Err(Error::IncorrectAttrType);
         }
 
-        let len = u16::from_be_bytes(<[u8; 2]>::try_from(&data[2..4]).unwrap());
+        // Ensure that indexing further down won't panic.
+        let expected_len = u16::from_be_bytes(<[u8; 2]>::try_from(&data[2..4]).unwrap());
+        if expected_len as usize > data.len() - 4 {
+            return Err(Error::Decoding);
+        }
 
         // TODO we don't need to clone the vec, but I don't know how to get a slice of a vec that is
         // itself a vec.
         // Give decode the data contained in the packet (i.e. the packet - the heading - the
         // padding).
-        Self::decode(data[4..(4 + len) as usize].to_vec())
+        Self::decode(data[4..(4 + expected_len) as usize].to_vec(), tid)
     }
 }
 
@@ -146,7 +156,7 @@ impl AttributeExt for Software {
         self.0.as_bytes().to_owned()
     }
 
-    fn decode(data: Vec<u8>) -> Result<Self> {
+    fn decode(data: Vec<u8>, _: [u8; 12]) -> Result<Self> {
         let string = String::from_utf8(data)?;
         Ok(Self(string))
     }
@@ -243,16 +253,56 @@ impl AttributeExt for XorMappedAddress {
         }
     }
 
-    fn decode(data: Vec<u8>) -> Result<Self> {
+    fn decode(data: Vec<u8>, tid: [u8; 12]) -> Result<Self> {
+        // Make sure that getting the family (bytes 1-2 of the message) and decoding the port
+        // (bytes 3-4 of the message) don't panic.
+        if data.len() < 4 {
+            return Err(Error::Decoding);
+        }
+
+        let encoded_port = u16::from_be_bytes(<[u8; 2]>::try_from(&data[2..4]).unwrap());
+        let decoded_port = encoded_port ^ (MAGIC_COOKIE >> 16) as u16;
+
         // It's a slice of 2 so unwrap can't fail.
         match u16::from_be_bytes(<[u8; 2]>::try_from(&data[0..2]).unwrap()) {
+            // IPv4
             1 => {
-                // IPv4
-                todo!();
+                // If the address family is IPv4, the address must be 32 bits.
+                // 2 bytes (length) + 2 bytes (port) + 4 bytes (address) = 8 bytes
+                if data.len() != 8 {
+                    return Err(Error::Decoding);
+                }
+
+                let encoded_address = u32::from_be_bytes(<[u8; 4]>::try_from(&data[4..8]).unwrap());
+                let decoded_address = encoded_address ^ MAGIC_COOKIE;
+                let decoded_address = net::IpAddr::V4(net::Ipv4Addr::from(decoded_address));
+
+                Ok(Self::from(decoded_address, decoded_port))
             }
+            // IPv6
             2 => {
-                // IPv6
-                todo!();
+                // If the address family is IPv6, the address must be 128 bits.
+                // 2 bytes (length) + 2 bytes (port) + 16 bytes (address) = 20 bytes
+                if data.len() != 20 {
+                    return Err(Error::Decoding);
+                }
+
+                let encoded_address =
+                    u128::from_be_bytes(<[u8; 16]>::try_from(&data[4..20]).unwrap());
+
+                let mut xor = Vec::new();
+                xor.extend_from_slice(&MAGIC_COOKIE.to_be_bytes());
+                xor.extend_from_slice(&tid);
+                // Unwrap is ok as the vector is guaranteed to be 16 bytes: `MAGIC_COOKIE` must be
+                // of length 4 and `self.tid` must be of length 12.
+                let xor = u128::from_be_bytes(<[u8; 16]>::try_from(xor).unwrap());
+
+                let decoded_address = encoded_address ^ xor;
+                let decoded_address = net::IpAddr::V6(net::Ipv6Addr::from(decoded_address));
+
+                let mut result = Self::from(decoded_address, decoded_port);
+                result.set_tid(tid);
+                Ok(result)
             }
             _ => Err(Error::Decoding),
         }
@@ -260,8 +310,8 @@ impl AttributeExt for XorMappedAddress {
 
     fn value_len(&self) -> usize {
         match self.ip {
-            // 2 (family) + 2 (port) + 8 (address)
-            net::IpAddr::V4(_) => 12,
+            // 2 (family) + 2 (port) + 4 (address)
+            net::IpAddr::V4(_) => 8,
             // 2 (family) + 2 (port) + 16 (address)
             net::IpAddr::V6(_) => 20,
         }
@@ -315,10 +365,10 @@ mod tests {
 
     #[test]
     fn test_software_decode() {
-        let name = "unicorn company";
+        let name = "lakad matatag";
 
         let ty = 0x8022u16;
-        let unpadded_size = 0xfu16;
+        let unpadded_size = name.len() as u16;
 
         let mut packet = Vec::new();
         packet.extend_from_slice(&ty.to_be_bytes());
@@ -328,7 +378,7 @@ mod tests {
 
         assert_eq!(
             Software::try_from(name).unwrap(),
-            Software::from_bytes(packet).unwrap()
+            Software::from_bytes(packet, [0; 12]).unwrap()
         );
     }
 
@@ -339,31 +389,31 @@ mod tests {
         assert_eq!(0, software.padding_len());
         assert_eq!(12, software.value_len());
 
-        let software = Software::try_from("a").unwrap();
-        assert_eq!(8, software.len());
+        let software = Software::try_from("ding ding ding mf").unwrap();
+        assert_eq!(24, software.len());
         assert_eq!(3, software.padding_len());
-        assert_eq!(1, software.value_len());
+        assert_eq!(17, software.value_len());
 
-        let software = Software::try_from("my company").unwrap();
+        let software = Software::try_from("cliffteezy").unwrap();
         assert_eq!(16, software.len());
         assert_eq!(2, software.padding_len());
         assert_eq!(10, software.value_len());
 
-        let software = Software::try_from("abc").unwrap();
-        assert_eq!(8, software.len());
+        let software = Software::try_from("python3").unwrap();
+        assert_eq!(12, software.len());
         assert_eq!(1, software.padding_len());
-        assert_eq!(3, software.value_len());
+        assert_eq!(7, software.value_len());
     }
 
     #[test]
-    fn test_ipv4() {
-        let ip_adress = net::Ipv4Addr::new(127, 0, 0, 1);
+    fn test_ipv4_encode() {
+        let ip_adress = net::Ipv4Addr::new(31, 41, 59, 26);
         let port = 28015;
 
         let address = XorMappedAddress::from(IpAddr::V4(ip_adress), port);
 
         let ty = 0x20u16;
-        let unpadded_size = 12u16;
+        let unpadded_size = 8u16;
         let family = 1u16;
 
         let port_xor = port ^ (MAGIC_COOKIE >> 16) as u16;
@@ -378,14 +428,14 @@ mod tests {
         expected.extend_from_slice(&address_xor.to_be_bytes());
 
         assert!(address.is_ipv4());
-        assert_eq!(address.len(), 16);
+        assert_eq!(address.len(), 12);
         assert_eq!(address.to_bytes(), expected);
     }
 
     #[test]
-    fn test_ipv6() {
-        let ip_address = net::Ipv6Addr::new(1, 2, 3, 4, 5, 6, 7, 8);
-        let port = 28015;
+    fn test_ipv6_encode() {
+        let ip_address = net::Ipv6Addr::new(958, 1919, 4304, 14091, 21196, 32600, 34313, 44479);
+        let port = 9150;
 
         let mut address = XorMappedAddress::from(IpAddr::V6(ip_address), port);
 
@@ -419,10 +469,67 @@ mod tests {
     #[should_panic]
     fn test_ipv6_no_tid() {
         let ip_address = net::Ipv6Addr::new(1, 2, 3, 4, 5, 6, 7, 8);
-        let port = 28015;
+        let port = 9418;
 
         let address = XorMappedAddress::from(IpAddr::V6(ip_address), port);
 
         address.to_bytes();
+    }
+
+    #[test]
+    fn test_ipv4_decode() {
+        let ip_address = net::Ipv4Addr::new(0xab, 0xad, 0xba, 0xbe);
+        let port = 25565;
+
+        let ty = 0x20u16;
+        let unpadded_size = 8u16;
+        let family = 1u16;
+
+        let port_xor = port ^ (MAGIC_COOKIE >> 16) as u16;
+        let address_xor = u32::from(ip_address) ^ MAGIC_COOKIE;
+
+        let mut packet = Vec::new();
+        packet.extend_from_slice(&ty.to_be_bytes());
+        packet.extend_from_slice(&unpadded_size.to_be_bytes());
+        packet.extend_from_slice(&family.to_be_bytes());
+        packet.extend_from_slice(&port_xor.to_be_bytes());
+        packet.extend_from_slice(&address_xor.to_be_bytes());
+
+        // tid doesn't matter for ipv4 addresses
+        assert_eq!(
+            XorMappedAddress::from_bytes(packet, [0; 12]).unwrap(),
+            XorMappedAddress::from(IpAddr::V4(ip_address), port)
+        );
+    }
+
+    #[test]
+    fn test_ipv6_decode() {
+        let ip_address = net::Ipv6Addr::new(322, 17, 3, 0xe400, 250, 5050, 0xbe7a, 10000);
+        let port = 27015;
+
+        let ty = 0x20u16;
+        let unpadded_size = 20u16;
+        let family = 2u16;
+
+        let port_xor = port ^ (MAGIC_COOKIE >> 16) as u16;
+
+        let tid: [u8; 12] = [5; 12];
+        let mut xor_op = Vec::new();
+        xor_op.extend_from_slice(&MAGIC_COOKIE.to_be_bytes());
+        xor_op.extend_from_slice(&tid);
+        let address_xor =
+            u128::from(ip_address) ^ u128::from_be_bytes(<[u8; 16]>::try_from(xor_op).unwrap());
+
+        let mut packet = Vec::new();
+        packet.extend_from_slice(&ty.to_be_bytes());
+        packet.extend_from_slice(&unpadded_size.to_be_bytes());
+        packet.extend_from_slice(&family.to_be_bytes());
+        packet.extend_from_slice(&port_xor.to_be_bytes());
+        packet.extend_from_slice(&address_xor.to_be_bytes());
+
+        let mut expected = XorMappedAddress::from(IpAddr::V6(ip_address), port);
+        expected.set_tid(tid);
+
+        assert_eq!(XorMappedAddress::from_bytes(packet, tid).unwrap(), expected);
     }
 }
