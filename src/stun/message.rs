@@ -3,8 +3,6 @@ use crate::{
     stun::attribute::Attribute,
 };
 
-use std::convert::TryFrom;
-
 use rand_chacha::{
     rand_core::{RngCore, SeedableRng},
     ChaCha20Rng,
@@ -148,6 +146,11 @@ impl Message {
         }
     }
 
+    /// The transaction ID of the message.
+    pub fn tid(&self) -> [u8; 12] {
+        self.tid
+    }
+
     /// The type of message.
     pub fn ty(&self) -> Type {
         self.ty
@@ -180,14 +183,6 @@ impl Message {
             _ => {}
         }
         self.attrs.push(attr);
-    }
-
-    pub fn into_bytes(self) -> Vec<u8> {
-        <Vec<u8>>::from(self)
-    }
-
-    pub fn from_bytes(data: Vec<u8>) -> Result<Self> {
-        Self::try_from(data)
     }
 }
 
@@ -298,11 +293,61 @@ mod tests {
         // Magic cookie
         assert_eq!(&message_bytes[4..8], MAGIC_COOKIE.to_be_bytes());
         // Transaction ID exists
-        let _ = &message_bytes[8..20];
+        let tid = message_bytes[8..20].to_vec();
 
         let message = Message::try_from(message_bytes).unwrap();
-        assert_eq!(message.ty, ty);
-        assert_eq!(message.attrs, attrs);
+
+        assert_eq!(message.ty(), ty);
+        assert_eq!(message.attrs(), attrs);
+        assert_eq!(message.tid().to_vec(), tid);
+    }
+
+    #[test]
+    fn test_message_decoding_err() {
+        let tid = [0u8; 12];
+
+        // Message too short
+        let message_bytes = vec![0; 10];
+        match Message::try_from(message_bytes) {
+            Err(Error::Decoding) => {}
+            _ => panic!(),
+        }
+
+        // Incorrect length
+        let ty = <[u8; 2]>::from(Type {
+            class: Class::Request,
+            method: Method::Binding,
+        });
+        let incorrect_length = 10u16;
+        let attr = Attribute::Software(Software::try_from("engadine maccas").unwrap());
+
+        // Ensure that the test is valid.
+        assert_ne!(attr.len(), incorrect_length as usize);
+
+        let mut message_bytes: Vec<u8> = Vec::new();
+        message_bytes.extend_from_slice(&ty);
+        message_bytes.extend_from_slice(&incorrect_length.to_be_bytes());
+        message_bytes.extend_from_slice(&MAGIC_COOKIE.to_be_bytes());
+        message_bytes.extend_from_slice(&tid);
+        message_bytes.extend(attr.to_bytes());
+
+        match Message::try_from(message_bytes) {
+            Err(Error::Decoding) => {}
+            _ => panic!(),
+        }
+
+        // Incorrect MAGIC_COOKIE
+
+        let mut message_bytes: Vec<u8> = Vec::new();
+        message_bytes.extend_from_slice(&ty);
+        message_bytes.extend_from_slice(&0u16.to_be_bytes());
+        message_bytes.extend_from_slice(&[0u8; 4]);
+        message_bytes.extend_from_slice(&tid);
+
+        match Message::try_from(message_bytes) {
+            Err(Error::Decoding) => {}
+            _ => panic!(),
+        }
     }
 
     #[test]
