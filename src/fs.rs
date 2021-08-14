@@ -97,4 +97,15 @@ mod tests {
         result.sort();
         assert_eq!(expected, result);
     }
+
+    #[test]
+    fn test_changed_files_not_directory() {
+        let root_path = tempdir().unwrap().into_path();
+        gen_fs!(root_path => foo);
+
+        match changed_files(root_path.join("foo"), Duration::ZERO) {
+            Err(Error::NotDirectory(p)) => assert_eq!(p, root_path.join("foo")),
+            _ => panic!(),
+        }
+    }
 }

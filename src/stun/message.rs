@@ -10,7 +10,7 @@ use rand_chacha::{
     ChaCha20Rng,
 };
 
-/// The magic cookie field must contain the fixed value 0x2112A442 in network byte order.
+/// The magic cookie field must contain the fixed value `0x2112A442` in network byte order.
 pub static MAGIC_COOKIE: u32 = 0x2112A442;
 
 #[repr(u8)]
@@ -104,6 +104,14 @@ impl std::convert::TryFrom<u16> for Type {
         } else {
             Err(Error::Decoding)
         }
+    }
+}
+
+impl std::convert::TryFrom<[u8; 2]> for Type {
+    type Error = Error;
+
+    fn try_from(data: [u8; 2]) -> Result<Self> {
+        Type::try_from(u16::from_be_bytes(data))
     }
 }
 
@@ -205,8 +213,42 @@ impl std::convert::From<Message> for Vec<u8> {
 impl std::convert::TryFrom<Vec<u8>> for Message {
     type Error = Error;
 
-    fn try_from(_value: Vec<u8>) -> Result<Self> {
-        todo!();
+    fn try_from(value: Vec<u8>) -> Result<Self> {
+        // The message must at least contain a header which is 20 bytes in length. This check
+        // prevents future indexing of value from panicking.
+        if value.len() < 20 {
+            return Err(Error::Decoding);
+        }
+
+        let encoded_type = <[u8; 2]>::try_from(&value[0..2]).unwrap();
+        let ty = Type::try_from(encoded_type)?;
+
+        let encoded_len = <[u8; 2]>::try_from(&value[2..4]).unwrap();
+        let len = u16::from_be_bytes(encoded_len);
+        // The message length must contain the size of the message in bytes, not including the
+        // 20-byte STUN header.
+        if len != value.len() as u16 - 20 {
+            return Err(Error::Decoding);
+        }
+
+        // The Magic Cookie field must contain the fixed value 0x2112A442 in network byte order.
+        if u32::from_be_bytes(<[u8; 4]>::try_from(&value[4..8]).unwrap()) != MAGIC_COOKIE {
+            return Err(Error::Decoding);
+        }
+
+        let tid = <[u8; 12]>::try_from(&value[8..20]).unwrap();
+
+        let mut attrs = Vec::new();
+        let mut attr_start_index = 20;
+
+        while attr_start_index < value.len() {
+            let data_remainder = &value[(attr_start_index)..(value.len())];
+            let attr_result = Attribute::from_bytes(data_remainder.to_vec(), tid)?;
+            attrs.push(attr_result.0);
+            attr_start_index += attr_result.1;
+        }
+
+        Ok(Self { ty, tid, attrs })
     }
 }
 
@@ -232,15 +274,16 @@ mod tests {
             attrs.push(Attribute::Software(software));
         }
 
-        let mut message = Message::new(Type {
+        let ty = Type {
             class: Class::Request,
             method: Method::Binding,
-        });
-        for attr in attrs {
+        };
+        let mut message = Message::new(ty);
+        for attr in attrs.clone() {
             message.push(attr);
         }
 
-        let message: Vec<u8> = message.into();
+        let message_bytes: Vec<u8> = message.into();
 
         // Each attribute is the length of their value + padding + a 4 byte header.
         let expected_len = descriptions
@@ -249,53 +292,17 @@ mod tests {
             .sum::<usize>() as u16;
 
         // Type
-        assert_eq!(&message[0..2], &[0, 1]);
+        assert_eq!(&message_bytes[0..2], &[0, 1]);
         // Size
-        assert_eq!(&message[2..4], expected_len.to_be_bytes());
+        assert_eq!(&message_bytes[2..4], expected_len.to_be_bytes());
         // Magic cookie
-        assert_eq!(&message[4..8], MAGIC_COOKIE.to_be_bytes());
+        assert_eq!(&message_bytes[4..8], MAGIC_COOKIE.to_be_bytes());
         // Transaction ID exists
-        let _ = &message[8..20];
+        let _ = &message_bytes[8..20];
 
-        // let message: Message = message.into();
-        // for attr in message.attrs {
-        //     //
-        // }
-    }
-
-    #[test]
-    fn test_from_type() {
-        let ty = Type {
-            class: Class::Request,
-            method: Method::Binding,
-        };
-
-        assert_eq!(1u16, ty.into());
-        assert_eq!([0, 1], <[u8; 2]>::from(ty));
-
-        let ty = Type {
-            class: Class::Indication,
-            method: Method::Data,
-        };
-
-        assert_eq!(0x17u16, ty.into());
-        assert_eq!([0, 0x17], <[u8; 2]>::from(ty));
-
-        let ty = Type {
-            class: Class::Success,
-            method: Method::Refresh,
-        };
-
-        assert_eq!(0x104u16, ty.into());
-        assert_eq!([1, 0x4], <[u8; 2]>::from(ty));
-
-        let ty = Type {
-            class: Class::Error,
-            method: Method::ChannelBind,
-        };
-
-        assert_eq!(0x119u16, ty.into());
-        assert_eq!([1, 0x19], <[u8; 2]>::from(ty));
+        let message = Message::try_from(message_bytes).unwrap();
+        assert_eq!(message.ty, ty);
+        assert_eq!(message.attrs, attrs);
     }
 
     #[test]

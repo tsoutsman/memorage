@@ -20,17 +20,25 @@ impl Attribute {
         }
     }
 
-    pub fn from_bytes(data: Vec<u8>, tid: [u8; 12]) -> Result<Self> {
+    /// Decodes bytes into an [`Attribute`]. The function requires the transaction id of the message
+    /// as some attributes require it in order to successfully interpret the bytes. If given
+    /// multiple attributes, it will only decode the top most one and return the decoded attribute
+    /// and how many bytes were read while decoding it.
+    pub fn from_bytes(data: Vec<u8>, tid: [u8; 12]) -> Result<(Self, usize)> {
         // Ensure future indexing won't panic.
         if data.len() < 2 {
             return Err(Error::Decoding);
         }
 
         match u16::from_be_bytes(<[u8; 2]>::try_from(&data[0..2]).unwrap()) {
-            Software::TYPE => Ok(Attribute::Software(Software::from_bytes(data, tid)?)),
-            XorMappedAddress::TYPE => Ok(Attribute::XorMappedAddress(
-                XorMappedAddress::from_bytes(data, tid)?,
-            )),
+            Software::TYPE => {
+                let result = Software::from_bytes(data, tid)?;
+                Ok((Attribute::Software(result.0), result.1))
+            }
+            XorMappedAddress::TYPE => {
+                let result = XorMappedAddress::from_bytes(data, tid)?;
+                Ok((Attribute::XorMappedAddress(result.0), result.1))
+            }
             _ => Err(Error::Decoding),
         }
     }
@@ -98,8 +106,10 @@ pub trait AttributeExt: Sized {
     }
 
     /// Decodes bytes into an [`Attribute`]. The function requires the transaction id of the message
-    /// as some attributes require it in order to successfully interpret the bytes.
-    fn from_bytes(data: Vec<u8>, tid: [u8; 12]) -> Result<Self> {
+    /// as some attributes require it in order to successfully interpret the bytes. If given
+    /// multiple attributes, it will only decode the top most one and return the decoded attribute
+    /// and how many bytes were read while decoding it.
+    fn from_bytes(data: Vec<u8>, tid: [u8; 12]) -> Result<(Self, usize)> {
         // The two try_from unwraps are safe as we are taking a slice of length 2 from a Vec<u8>.
 
         let expected_type = u16::from_be_bytes(<[u8; 2]>::try_from(&data[0..2]).unwrap());
@@ -117,7 +127,12 @@ pub trait AttributeExt: Sized {
         // itself a vec.
         // Give decode the data contained in the packet (i.e. the packet - the heading - the
         // padding).
-        Self::decode(data[4..(4 + expected_len) as usize].to_vec(), tid)
+        Ok((
+            Self::decode(data[4..(4 + expected_len) as usize].to_vec(), tid)?,
+            // The length of data used is equal to the header (4 bytes) + the length of data
+            // + the padding
+            (4 + expected_len + (4 - expected_len % 4) % 4) as usize,
+        ))
     }
 }
 
@@ -387,10 +402,11 @@ mod tests {
         packet.extend_from_slice(name.as_bytes()); // message contents
         packet.push(0); // padding
 
-        assert_eq!(
-            Software::try_from(name).unwrap(),
-            Software::from_bytes(packet, [0; 12]).unwrap()
-        );
+        let expected = Software::try_from(name).unwrap();
+        let result = Software::from_bytes(packet, [0; 12]).unwrap();
+
+        assert_eq!(expected, result.0);
+        assert_eq!(expected.len(), result.1);
     }
 
     #[test]
@@ -524,11 +540,11 @@ mod tests {
         // tid doesn't matter for ipv4 addresses
         assert_eq!(
             XorMappedAddress::from_bytes(packet.clone(), [0; 12]).unwrap(),
-            expected
+            (expected, 12)
         );
         assert_eq!(
             Attribute::from_bytes(packet, [0; 12]).unwrap(),
-            Attribute::XorMappedAddress(expected),
+            (Attribute::XorMappedAddress(expected), 12),
         )
     }
 
@@ -562,11 +578,11 @@ mod tests {
 
         assert_eq!(
             XorMappedAddress::from_bytes(packet.clone(), tid).unwrap(),
-            expected
+            (expected, 24)
         );
         assert_eq!(
             Attribute::from_bytes(packet, tid).unwrap(),
-            Attribute::XorMappedAddress(expected),
+            (Attribute::XorMappedAddress(expected), 24),
         );
     }
 }
