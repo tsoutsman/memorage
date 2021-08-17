@@ -234,6 +234,12 @@ impl XorMappedAddress {
     }
 }
 
+impl std::convert::From<XorMappedAddress> for std::net::SocketAddr {
+    fn from(a: XorMappedAddress) -> Self {
+        std::net::SocketAddr::new(a.ip(), a.port())
+    }
+}
+
 impl AttributeExt for XorMappedAddress {
     const TYPE: u16 = 0x0020;
 

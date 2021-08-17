@@ -205,10 +205,10 @@ impl std::convert::From<Message> for Vec<u8> {
     }
 }
 
-impl std::convert::TryFrom<Vec<u8>> for Message {
+impl std::convert::TryFrom<&[u8]> for Message {
     type Error = Error;
 
-    fn try_from(value: Vec<u8>) -> Result<Self> {
+    fn try_from(value: &[u8]) -> Result<Self> {
         // The message must at least contain a header which is 20 bytes in length. This check
         // prevents future indexing of value from panicking.
         if value.len() < 20 {
@@ -295,7 +295,7 @@ mod tests {
         // Transaction ID exists
         let tid = message_bytes[8..20].to_vec();
 
-        let message = Message::try_from(message_bytes).unwrap();
+        let message = Message::try_from(&message_bytes[..]).unwrap();
 
         assert_eq!(message.ty(), ty);
         assert_eq!(message.attrs(), attrs);
@@ -308,7 +308,7 @@ mod tests {
 
         // Message too short
         let message_bytes = vec![0; 10];
-        match Message::try_from(message_bytes) {
+        match Message::try_from(&message_bytes[..]) {
             Err(Error::Decoding) => {}
             _ => panic!(),
         }
@@ -331,7 +331,7 @@ mod tests {
         message_bytes.extend_from_slice(&tid);
         message_bytes.extend(attr.to_bytes());
 
-        match Message::try_from(message_bytes) {
+        match Message::try_from(&message_bytes[..]) {
             Err(Error::Decoding) => {}
             _ => panic!(),
         }
@@ -344,7 +344,7 @@ mod tests {
         message_bytes.extend_from_slice(&[0u8; 4]);
         message_bytes.extend_from_slice(&tid);
 
-        match Message::try_from(message_bytes) {
+        match Message::try_from(&message_bytes[..]) {
             Err(Error::Decoding) => {}
             _ => panic!(),
         }

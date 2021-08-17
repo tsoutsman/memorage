@@ -13,5 +13,6 @@
 pub mod crypto;
 pub mod error;
 pub mod fs;
+pub mod net;
 pub mod stun;
 pub mod test;
