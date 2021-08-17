@@ -23,7 +23,8 @@ pub async fn stun_information() -> Result<std::net::SocketAddr> {
     let socket = net::UdpSocket::bind("0.0.0.0:0").await?;
     socket.send_to(&<Vec<u8>>::from(message)[..], addr).await?;
 
-    let mut buf = [0u8; 32];
+    // Assuming the message is at most 1024 bytes.
+    let mut buf = [0; 1024];
     socket.recv_from(&mut buf).await?;
 
     let received = stun::Message::try_from(&buf[..])?;

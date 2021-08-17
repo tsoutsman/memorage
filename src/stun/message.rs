@@ -220,9 +220,28 @@ impl std::convert::TryFrom<&[u8]> for Message {
 
         let encoded_len = <[u8; 2]>::try_from(&value[2..4]).unwrap();
         let len = u16::from_be_bytes(encoded_len);
+        // The message can contain an unspecified number of zeroes at the end as `UdpSocket` just
+        // reads into a buffer.
+        let actual_length = {
+            let mut len = value.len();
+            for (index, item) in value.iter().rev().enumerate() {
+                if (value.len() - index) % 4 == 0 {
+                    len = value.len() - index;
+                }
+                if *item != 0 {
+                    break;
+                }
+            }
+            // The message will be at least of length 20, checked above. If the last 4 (or more)
+            // bytes of the transaction ID are 0 for some unlikely reason (i.e. my shoddy tests)
+            // then the calculations above could set `actual_length` to 16 which would cause
+            // errors further on.
+            std::cmp::max(len, 20)
+        };
+
         // The message length must contain the size of the message in bytes, not including the
         // 20-byte STUN header.
-        if len != value.len() as u16 - 20 {
+        if len != actual_length as u16 - 20 {
             return Err(Error::Decoding);
         }
 
@@ -234,10 +253,11 @@ impl std::convert::TryFrom<&[u8]> for Message {
         let tid = <[u8; 12]>::try_from(&value[8..20]).unwrap();
 
         let mut attrs = Vec::new();
+        // Attributes start after the 20 byte header
         let mut attr_start_index = 20;
 
-        while attr_start_index < value.len() {
-            let data_remainder = &value[(attr_start_index)..(value.len())];
+        while attr_start_index < actual_length {
+            let data_remainder = &value[(attr_start_index)..(actual_length)];
             let attr_result = Attribute::from_bytes(data_remainder.to_vec(), tid)?;
             attrs.push(attr_result.0);
             attr_start_index += attr_result.1;
