@@ -1,17 +1,3 @@
-# oxalis
-
-[![Crates.io](https://img.shields.io/crates/v/oxalis.svg)](https://crates.io/crates/oxalis)
-[![CI](https://github.com/Ryan-Lawton-Prog/oxalis/workflows/CI/badge.svg)](https://github.com/Ryan-Lawton-Prog/oxalis/actions)
-[![Coverage Status](https://coveralls.io/repos/github/Ryan-Lawton-Prog/oxalis/badge.svg?branch=main)](https://coveralls.io/github/Ryan-Lawton-Prog/oxalis?branch=main)
-
-## Installation
-
-### Cargo
-
-* Install the rust toolchain in order to have cargo installed by following
-  [this](https://www.rust-lang.org/tools/install) guide.
-* run `cargo install oxalis`
-
 ## License
 
 Licensed under either of
