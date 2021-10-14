@@ -24,7 +24,6 @@ impl Key {
         p.into()
     }
 
-    // IDK why this method is necessary; slices and vecs are complicated.
     pub fn from_slice(p: &[u8]) -> Self {
         Self(p.to_owned())
     }
@@ -41,9 +40,9 @@ impl Key {
     }
 }
 
-impl std::convert::From<&Key> for chacha20poly1305::Key {
-    fn from(key: &Key) -> Self {
-        chacha20poly1305::Key::clone_from_slice(&key.hash())
+impl std::convert::From<Key> for chacha20poly1305::Key {
+    fn from(key: Key) -> Self {
+        chacha20poly1305::Key::from(key.hash())
     }
 }
 
@@ -73,7 +72,7 @@ pub fn encrypt_contents<P: AsRef<Path>>(path: &P, key: &Key) -> Result<Vec<u8>> 
     let mut contents = vec![0; size];
     file.read_exact(&mut contents)?;
 
-    let aed = XChaCha20Poly1305::new(&key.into());
+    let aed = XChaCha20Poly1305::new(&key.clone().into());
 
     let mut rng = ChaCha20Rng::from_entropy();
     let nonce_value = &mut [0u8; 24];
@@ -113,7 +112,7 @@ pub fn decrypt_contents<P: AsRef<Path>>(path: &P, key: &Key) -> Result<Vec<u8>> 
     let mut encrypted: Vec<u8> = vec![0; size];
     file.read_exact(&mut encrypted)?;
 
-    let aed = XChaCha20Poly1305::new(&key.into());
+    let aed = XChaCha20Poly1305::new(&key.clone().into());
 
     // The nonce is stored in the last 24 bytes of the file.
     let nonce_value = &encrypted[size - 24..size];

@@ -25,11 +25,11 @@ pub struct File {
 ///
 /// # Example
 /// ```rust
-/// # use oxalis::fs::changed_files;
+/// # use lib::fs::changed_files;
 /// # use std::time::Duration;
 /// # use std::fs::File;
 /// # use tempfile::tempdir;
-/// # fn main() -> oxalis::error::Result<()> {
+/// # fn main() -> lib::error::Result<()> {
 /// # let root_path = tempdir().unwrap().into_path();
 /// let file_path = root_path.join("foo");
 /// File::create(file_path.clone());
