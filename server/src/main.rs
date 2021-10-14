@@ -1,6 +1,8 @@
 mod code_map;
+mod connection_map;
 
 use code_map::code_map_manager;
+use connection_map::connection_map_manager;
 
 use lib::cs::protocol::{ClientRequest, Error, ServerResponse, SuccesfulResponse};
 use tokio::{
@@ -11,20 +13,23 @@ use tokio::{
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    let (tx, rx) = mpsc::channel(32);
+    let (code_tx, code_rx) = mpsc::channel(32);
+    let (conn_tx, conn_rx) = mpsc::channel(32);
 
-    let _map_manager = tokio::spawn(code_map_manager(rx));
+    let _code_map_manager = tokio::spawn(code_map_manager(code_rx));
+    let _connection_map_manager = tokio::spawn(connection_map_manager(conn_rx));
 
     let listener = TcpListener::bind("0.0.0.0:8389").await?;
 
     loop {
         let (socket, _addr) = listener.accept().await?;
-        tokio::spawn(handle_request(socket, tx.clone()));
+        tokio::spawn(handle_request(socket, code_tx.clone(), conn_tx.clone()));
     }
 
     #[allow(unreachable_code)]
     {
-        _map_manager.await?;
+        _code_map_manager.await?;
+        _connection_map_manager.await?;
         Ok(())
     }
 }
@@ -33,9 +38,10 @@ trait SendError: std::error::Error + Send {}
 
 async fn handle_request(
     mut socket: TcpStream,
-    mm_tx: mpsc::Sender<code_map::Command>,
+    code_tx: mpsc::Sender<code_map::Command>,
+    _conn_tx: mpsc::Sender<connection_map::Command>,
 ) -> Result<(), Box<dyn SendError>> {
-    let mut buf = vec![0; 2048];
+    let mut buf = vec![0; 1024];
 
     // This is inside an async block so I can easily propagate errors that should be sent.
     let resp: ServerResponse = async {
@@ -46,7 +52,7 @@ async fn handle_request(
             ClientRequest::Register(key) => {
                 let (resp_tx, resp_rx) = oneshot::channel();
 
-                mm_tx
+                code_tx
                     .send(code_map::Command::Generate { key, resp: resp_tx })
                     .await?;
                 let code = resp_rx.await?;
@@ -56,7 +62,7 @@ async fn handle_request(
             ClientRequest::GetKey(code) => {
                 let (resp_tx, resp_rx) = oneshot::channel();
 
-                mm_tx
+                code_tx
                     .send(code_map::Command::Get {
                         code,
                         resp: resp_tx,
@@ -66,14 +72,18 @@ async fn handle_request(
 
                 Ok(SuccesfulResponse::GetKey(key))
             }
-            ClientRequest::EstablishConnection(_) => todo!(),
-            ClientRequest::Ping => todo!(),
+            ClientRequest::RequestConnection(_) => {
+                todo!();
+            }
+            ClientRequest::Ping => {
+                todo!();
+            }
         }
     }
     .await;
 
     let resp = bincode::serialize(&resp).unwrap();
-
     socket.write(&resp).await.unwrap();
+
     Ok(())
 }

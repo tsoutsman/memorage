@@ -1,14 +1,14 @@
 use std::time::Duration;
 
-use crate::cs::Code;
+use crate::cs::{Code, PublicKey};
 
 use serde::{Deserialize, Serialize};
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub enum ClientRequest {
-    Register(String),
+    Register(PublicKey),
     GetKey(Code),
-    EstablishConnection(String),
+    RequestConnection(PublicKey),
     Ping,
 }
 
@@ -17,8 +17,8 @@ pub type ServerResponse = Result<SuccesfulResponse, Error>;
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub enum SuccesfulResponse {
     Register(Code),
-    GetKey(String),
-    EstablishConnection,
+    GetKey(PublicKey),
+    RequestConnection,
     Ping(Option<Duration>),
 }
 

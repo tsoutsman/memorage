@@ -21,6 +21,7 @@ serde = { version = "*", features = ["derive"] }
 bincode = "*"
 rand = "*"
 tokio = "*"
+ed25519-dalek = { version = "*", features = ["serde"] }
 
 [dev-dependencies]
 tempfile = "*"
