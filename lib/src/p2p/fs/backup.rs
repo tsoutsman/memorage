@@ -1,4 +1,4 @@
-use crate::{
+use crate::p2p::{
     crypto::Key,
     error::Result,
     fs::file::{EncryptedFile, File},
@@ -25,6 +25,7 @@ impl Backup {
     pub fn deserialise_hashes(bytes: &[u8]) -> Result<Vec<[u8; 32]>> {
         #[derive(Deserialize)]
         struct BackupFileHashes {
+            #[allow(dead_code)]
             version: u16,
             path_hashes: Vec<[u8; 32]>,
         }
@@ -44,7 +45,7 @@ impl Backup {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::fs::file::FileContents;
+    use crate::p2p::fs::file::FileContents;
     use std::path::PathBuf;
 
     #[test]

@@ -10,8 +10,8 @@
     clippy::missing_panics_doc,
     clippy::missing_safety_doc
 )]
-#![allow(dead_code)]
 
-pub mod crypto;
-pub mod error;
-pub mod fs;
+#[cfg(feature = "cs")]
+pub mod cs;
+#[cfg(feature = "p2p")]
+pub mod p2p;

@@ -1,7 +1,8 @@
-use crate::{
+use crate::p2p::{
     crypto::Key,
     error::{Error, Result},
 };
+
 use chacha20poly1305::{
     aead::{Aead, NewAead},
     XChaCha20Poly1305, XNonce,
@@ -34,7 +35,7 @@ pub fn decrypt(key: &Key, nonce: &[u8; 24], bytes: &[u8]) -> Result<Vec<u8>> {
 
     let decrypted = match aed.decrypt(nonce, bytes) {
         Ok(c) => c,
-        Err(_) => return Err(Error::Encryption),
+        Err(_) => return Err(Error::Decryption),
     };
 
     Ok(decrypted)
@@ -64,6 +65,6 @@ mod tests {
 
         let incorrect_key = Key::from("secret key");
         let decrypted = decrypt(&incorrect_key, &nonce, &encrypted);
-        assert!(decrypted.is_err());
+        assert!(matches!(decrypted, Err(Error::Decryption)));
     }
 }

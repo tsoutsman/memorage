@@ -5,6 +5,7 @@ pub struct Key(Vec<u8>);
 
 impl Key {
     /// This function hashes the password using the blake3 hash.
+    ///
     /// blake3 is very fast and not designed to be used as a password hashing algorithm, but we
     /// aren't using it as one. This is only used to turn a password with a variable length, into
     /// something that's always 32 bytes so that it can then be used by chacha. The hash is never

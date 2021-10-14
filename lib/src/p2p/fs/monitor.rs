@@ -1,4 +1,4 @@
-use crate::error::{Error, Result};
+use crate::p2p::error::{Error, Result};
 
 use std::{
     fs,
@@ -10,11 +10,11 @@ use std::{
 ///
 /// # Example
 /// ```rust
-/// # use lib::fs::monitor::changed_files;
+/// # use lib::p2p::fs::monitor::changed_files;
 /// # use std::time::Duration;
 /// # use std::fs::File;
 /// # use tempfile::tempdir;
-/// # fn main() -> lib::error::Result<()> {
+/// # fn main() -> lib::p2p::error::Result<()> {
 /// # let root_path = tempdir().unwrap().into_path();
 /// let file_path = root_path.join("foo");
 /// File::create(file_path.clone());
@@ -43,7 +43,7 @@ pub fn changed_files<P: AsRef<Path>>(
         if entry.file_type()?.is_dir() {
             // Recurse into the child directory.
             result.extend(changed_files(entry.path(), dur)?);
-        } else {
+        } else if entry.file_type()?.is_file() {
             let time_changed = entry.metadata()?.modified()?;
 
             if now - dur < time_changed {

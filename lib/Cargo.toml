@@ -4,12 +4,16 @@ version = "0.1.0"
 authors = ["Klim Tsoutsman <klimusha@gmail.com>"]
 edition = "2018"
 description = "TODO"
-repository = "https://github.com/tsoutsman/oxalis"
+repository = "https://github.com/tsoutsman/smth"
 license = "MIT OR Apache-2.0"
 keywords = ["p2p", "files", "sharing", "backup", "encryption"]
 
+[features]
+default = ["cs", "p2p"]
+cs = []
+p2p = []
+
 [dependencies]
-thiserror = "*"
 chacha20poly1305 = { version = "*", features = ["xchacha20poly1305"]}
 rand_chacha = "*"
 blake3 = "*"

@@ -1,6 +1,6 @@
 use std::path::PathBuf;
 
-use crate::{
+use crate::p2p::{
     crypto::{encrypt, Key},
     error::Result,
 };
