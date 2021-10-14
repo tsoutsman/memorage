@@ -6,6 +6,21 @@ use std::{
     time::{Duration, SystemTime},
 };
 
+use serde::{Deserialize, Serialize};
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct Metadata {
+    version: u16,
+    nonce: [u8; 24],
+    path: PathBuf,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct File {
+    meta: Metadata,
+    contents: Vec<u8>,
+}
+
 /// Returns the files that have been changed in a directory within a given timeframe.
 ///
 /// # Example
@@ -19,13 +34,15 @@ use std::{
 /// let file_path = root_path.join("foo");
 /// File::create(file_path.clone());
 ///
-/// let changed_files = changed_files(root_path, Duration::from_secs(1))?;
+/// let changed_files = changed_files(root_path, Duration::from_secs(1))?.collect::<Vec<_>>();
 ///
-/// assert_eq!(changed_files.len(), 1);
-/// assert_eq!(changed_files[0], file_path);
+/// assert_eq!(changed_files, vec![file_path]);
 /// # Ok(())
 /// # }
-pub fn changed_files<P: AsRef<Path>>(path: P, dur: Duration) -> Result<Vec<PathBuf>> {
+pub fn changed_files<P: AsRef<Path>>(
+    path: P,
+    dur: Duration,
+) -> Result<impl Iterator<Item = PathBuf>> {
     let dir = path.as_ref();
     let mut result = Vec::new();
 
@@ -50,15 +67,14 @@ pub fn changed_files<P: AsRef<Path>>(path: P, dur: Duration) -> Result<Vec<PathB
         }
     }
 
-    Ok(result)
+    Ok(result.into_iter())
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use efes::{gen_fs, gen_paths};
     use tempfile::tempdir;
-
-    use crate::{gen_expected, gen_fs};
 
     #[test]
     fn test_changed_files() {
@@ -67,9 +83,11 @@ mod tests {
         gen_fs!(root_path => bar (x: temp foo));
 
         // The files were made in the last 0.5 secs so we expect to get everything.
-        let mut expected = gen_expected!(root_path => bar (x: temp foo));
+        let mut expected = gen_paths!(root_path => bar (x: temp foo));
         expected.sort();
-        let mut result = changed_files(&root_path, Duration::from_secs_f64(0.5)).unwrap();
+        let mut result = changed_files(&root_path, Duration::from_secs_f64(0.5))
+            .unwrap()
+            .collect::<Vec<_>>();
         result.sort();
         assert_eq!(expected, result,);
 
@@ -77,23 +95,29 @@ mod tests {
 
         // The files were made over 0.5 secs ago so we expect to get nothing.
         let expected: Vec<PathBuf> = Vec::new();
-        let result = changed_files(&root_path, Duration::from_secs_f64(0.5)).unwrap();
+        let result = changed_files(&root_path, Duration::from_secs_f64(0.5))
+            .unwrap()
+            .collect::<Vec<_>>();
         assert_eq!(expected, result);
 
         // Set 2
         gen_fs!(root_path => temp2 (y: alice bob));
 
         // Only set 2 was generated within the last 0.5 secs.
-        let mut expected = gen_expected!(root_path => temp2 (y: alice bob));
+        let mut expected = gen_paths!(root_path => temp2 (y: alice bob));
         expected.sort();
-        let mut result = changed_files(&root_path, Duration::from_secs_f64(0.5)).unwrap();
+        let mut result = changed_files(&root_path, Duration::from_secs_f64(0.5))
+            .unwrap()
+            .collect::<Vec<_>>();
         result.sort();
         assert_eq!(expected, result);
 
         // Both sets of files were generated within the last 2 secs.
-        let mut expected = gen_expected!(root_path => temp2 (y: alice bob) bar (x: temp foo));
+        let mut expected = gen_paths!(root_path => temp2 (y: alice bob) bar (x: temp foo));
         expected.sort();
-        let mut result = changed_files(&root_path, Duration::from_secs_f64(2.)).unwrap();
+        let mut result = changed_files(&root_path, Duration::from_secs_f64(2.))
+            .unwrap()
+            .collect::<Vec<_>>();
         result.sort();
         assert_eq!(expected, result);
     }

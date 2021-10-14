@@ -1,0 +1,22 @@
+[package]
+name = "lib"
+version = "0.1.0"
+authors = ["Klim Tsoutsman <klimusha@gmail.com>"]
+edition = "2018"
+description = "TODO"
+repository = "https://github.com/tsoutsman/oxalis"
+license = "MIT OR Apache-2.0"
+keywords = ["p2p", "files", "sharing", "backup", "encryption"]
+
+[dependencies]
+thiserror = "*"
+chacha20poly1305 = { version = "*", features = ["xchacha20poly1305"]}
+rand_chacha = "*"
+blake3 = "*"
+enumn = "*"
+tokio = { version = "*", features = ["net", "rt", "macros"] }
+serde = { version = "*", features = ["derive"] }
+
+[dev-dependencies]
+tempfile = "*"
+efes = "*"

@@ -24,13 +24,13 @@ impl Attribute {
     /// as some attributes require it in order to successfully interpret the bytes. If given
     /// multiple attributes, it will only decode the top most one and return the decoded attribute
     /// and how many bytes were read while decoding it.
+    // SAFETY: see safety comment below
+    #[allow(clippy::missing_panics_doc)]
     pub fn from_bytes(data: Vec<u8>, tid: [u8; 12]) -> Result<(Self, usize)> {
-        // Ensure future indexing won't panic.
-        if data.len() < 2 {
-            return Err(Error::Decoding);
-        }
-
-        match u16::from_be_bytes(<[u8; 2]>::try_from(&data[0..2]).unwrap()) {
+        match u16::from_be_bytes(
+            // SAFETY: size of slice is guaranteed to be 2
+            <[u8; 2]>::try_from(data.get(0..2).ok_or(Error::Decoding)?).unwrap(),
+        ) {
             Software::TYPE => {
                 let result = Software::from_bytes(data, tid)?;
                 Ok((Attribute::Software(result.0), result.1))
@@ -123,8 +123,6 @@ pub trait AttributeExt: Sized {
             return Err(Error::Decoding);
         }
 
-        // TODO we don't need to clone the vec, but I don't know how to get a slice of a vec that is
-        // itself a vec.
         // Give decode the data contained in the packet (i.e. the packet - the heading - the
         // padding).
         Ok((

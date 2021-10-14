@@ -49,7 +49,7 @@ impl std::convert::From<&Key> for chacha20poly1305::Key {
 
 impl<T: AsRef<str>> std::convert::From<T> for Key {
     fn from(p: T) -> Self {
-        Self(p.as_ref().to_owned().as_bytes().to_owned())
+        Self(p.as_ref().as_bytes().to_owned())
     }
 }
 
@@ -82,7 +82,7 @@ pub fn encrypt_contents<P: AsRef<Path>>(path: &P, key: &Key) -> Result<Vec<u8>> 
     let nonce = XNonce::from_slice(nonce_value);
 
     let mut encrypted = match aed.encrypt(nonce, contents.as_ref()) {
-        Ok(e) => e,
+        Ok(c) => c,
         Err(_) => return Err(Error::Encryption(path.to_owned())),
     };
 
@@ -123,7 +123,7 @@ pub fn decrypt_contents<P: AsRef<Path>>(path: &P, key: &Key) -> Result<Vec<u8>> 
     let encrypted_contents = &encrypted[0..size - 24];
 
     let decrypted = match aed.decrypt(nonce, encrypted_contents.as_ref()) {
-        Ok(d) => d,
+        Ok(c) => c,
         Err(_) => return Err(Error::Encryption(path.to_owned())),
     };
 
@@ -192,8 +192,6 @@ mod tests {
         // Note the changed key
         let key = Key::from("secret key");
         let decrypted = decrypt_contents(&encrypted_file_path, &key);
-        if decrypted.is_ok() {
-            panic!();
-        }
+        assert!(decrypted.is_err());
     }
 }

@@ -16,7 +16,7 @@ pub async fn stun_information() -> Result<std::net::SocketAddr> {
         method: stun::Method::Binding,
     });
     message.push(stun::attribute::Attribute::Software(
-        // Generates `Software` with a description something like "oxalis v0.1.0"
+        // Generates Software with a description something like "oxalis v0.1.0"
         stun::attribute::Software::try_from(concat!("oxalis v", env!("CARGO_PKG_VERSION")))?,
     ));
 
@@ -48,6 +48,6 @@ mod tests {
     async fn test_stun_information() {
         let info = stun_information().await.unwrap();
         // TODO find a way to actually test this
-        println!("STUN information: {:?}", info);
+        eprintln!("STUN information: {:?}", info);
     }
 }
