@@ -19,8 +19,9 @@ rand_chacha = "*"
 blake3 = "*"
 serde = { version = "*", features = ["derive"] }
 bincode = "*"
+rand = "*"
+tokio = "*"
 
 [dev-dependencies]
 tempfile = "*"
 efes = "*"
-rand = "*"

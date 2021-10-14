@@ -9,7 +9,7 @@ use rand_chacha::{
 };
 
 /// The magic cookie field must contain the fixed value `0x2112A442` in network byte order.
-pub static MAGIC_COOKIE: u32 = 0x2112A442;
+pub const MAGIC_COOKIE: u32 = 0x2112A442;
 
 #[repr(u8)]
 #[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug, enumn::N)]
