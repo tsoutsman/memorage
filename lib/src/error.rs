@@ -12,8 +12,8 @@ pub enum Error {
     NotDirectory(PathBuf),
     #[error("I/O error")]
     Io(#[from] std::io::Error),
-    #[error("error encrypting {0}")]
-    Encryption(PathBuf),
+    #[error("error encrypting")]
+    Encryption,
     #[error("the type field on the attribute does not match the expected value")]
     IncorrectAttrType,
     #[error("the length file on the attribute does not equal the actual length")]
@@ -22,6 +22,8 @@ pub enum Error {
     AttrTooLarge(&'static str),
     #[error("utf8 decoding error")]
     Utf8Decoding(#[from] std::string::FromUtf8Error),
+    #[error("error serialising")]
+    Serialisation(#[from] bincode::Error),
     #[error("error decoding STUN packet")]
     Decoding,
 }

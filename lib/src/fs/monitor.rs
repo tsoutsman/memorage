@@ -6,26 +6,11 @@ use std::{
     time::{Duration, SystemTime},
 };
 
-use serde::{Deserialize, Serialize};
-
-#[derive(Clone, Debug, Serialize, Deserialize)]
-pub struct Metadata {
-    version: u16,
-    nonce: [u8; 24],
-    path: PathBuf,
-}
-
-#[derive(Clone, Debug, Serialize, Deserialize)]
-pub struct File {
-    meta: Metadata,
-    contents: Vec<u8>,
-}
-
 /// Returns the files that have been changed in a directory within a given timeframe.
 ///
 /// # Example
 /// ```rust
-/// # use lib::fs::changed_files;
+/// # use lib::fs::monitor::changed_files;
 /// # use std::time::Duration;
 /// # use std::fs::File;
 /// # use tempfile::tempdir;
