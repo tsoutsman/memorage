@@ -62,7 +62,7 @@ mod tests {
 
     #[test]
     fn test_key_hash() {
-        for i in 0..10 {
+        for i in 0..5 {
             let password: String = ChaCha20Rng::from_entropy()
                 .sample_iter(&Alphanumeric)
                 .take(i)
