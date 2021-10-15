@@ -13,7 +13,7 @@ use rand_chacha::{
 };
 
 pub fn encrypt(key: &Key, bytes: &[u8]) -> Result<([u8; 24], Vec<u8>)> {
-    let aed = XChaCha20Poly1305::new(&key.clone().into());
+    let aed = XChaCha20Poly1305::new(&chacha20poly1305::Key::from(*key));
 
     let mut rng = ChaCha20Rng::from_entropy();
     let nonce_value = &mut [0u8; 24];
@@ -30,7 +30,7 @@ pub fn encrypt(key: &Key, bytes: &[u8]) -> Result<([u8; 24], Vec<u8>)> {
 }
 
 pub fn decrypt(key: &Key, nonce: &[u8; 24], bytes: &[u8]) -> Result<Vec<u8>> {
-    let aed = XChaCha20Poly1305::new(&key.clone().into());
+    let aed = XChaCha20Poly1305::new(&chacha20poly1305::Key::from(*key));
     let nonce = XNonce::from_slice(nonce);
 
     let decrypted = match aed.decrypt(nonce, bytes) {

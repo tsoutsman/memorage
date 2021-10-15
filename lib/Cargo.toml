@@ -22,7 +22,14 @@ bincode = "*"
 rand = "*"
 tokio = "*"
 ed25519-dalek = { version = "*", features = ["serde"] }
+argon2 = { version = "*", features = ["parallel"] }
+lazy_static = "*"
 
 [dev-dependencies]
 tempfile = "*"
 efes = "*"
+criterion = "*"
+
+[[bench]]
+name = "key"
+harness = false

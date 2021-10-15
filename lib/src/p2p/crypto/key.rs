@@ -1,31 +1,56 @@
+use argon2::{Algorithm, Argon2, ParamsBuilder, Version};
+use lazy_static::lazy_static;
+
+lazy_static! {
+    static ref ARGON2: Argon2<'static> = {
+        let mut params = ParamsBuilder::new();
+        params
+            .m_cost(4096)
+            .unwrap()
+            .t_cost(24)
+            .unwrap()
+            .p_cost(8)
+            .unwrap()
+            .output_len(32)
+            .unwrap();
+        let params = params.params().unwrap();
+        Argon2::new(Algorithm::Argon2id, Version::V0x13, params)
+    };
+}
+
 /// A key used to encrypt data.
-#[derive(Clone)]
+#[derive(Copy, Clone)]
 #[allow(missing_debug_implementations)]
-pub struct Key(Vec<u8>);
+pub struct Key([u8; 32]);
 
 impl Key {
-    /// This function hashes the password using the blake3 hash.
-    ///
-    /// blake3 is very fast and not designed to be used as a password hashing algorithm, but we
-    /// aren't using it as one. This is only used to turn a password with a variable length, into
-    /// something that's always 32 bytes so that it can then be used by chacha. The hash is never
-    /// stored anywhere, and a bad actor would only be able to see encrypted files which have
-    /// been encrypted with this hash as the key. This reduces the effectiveness of brute
-    /// force attacks as the decryption of the files would be the bottleneck.
-    fn hash(&self) -> [u8; 32] {
-        blake3::hash(&self.0).as_bytes().to_owned()
+    #[inline]
+    pub fn hash(&self) -> [u8; 32] {
+        self.0
     }
 }
 
 impl std::convert::From<Key> for chacha20poly1305::Key {
+    #[inline]
     fn from(key: Key) -> Self {
-        chacha20poly1305::Key::from(key.hash())
+        chacha20poly1305::Key::from(key.0)
     }
 }
 
 impl<T: AsRef<str>> std::convert::From<T> for Key {
+    // TODO maybe make lazy but cached?
     fn from(p: T) -> Self {
-        Self(p.as_ref().as_bytes().to_owned())
+        // TODO unwraps
+        let p = p.as_ref().as_bytes();
+
+        let mut salt = [0; 32];
+        ARGON2
+            .hash_password_into(p, b"very secure salt :)", &mut salt)
+            .unwrap();
+        let mut output = [0; 32];
+        ARGON2.hash_password_into(p, &salt, &mut output).unwrap();
+
+        Self(output)
     }
 }
 
@@ -37,7 +62,7 @@ mod tests {
 
     #[test]
     fn test_key_hash() {
-        for i in 0..100 {
+        for i in 0..10 {
             let password: String = ChaCha20Rng::from_entropy()
                 .sample_iter(&Alphanumeric)
                 .take(i)
