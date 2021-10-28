@@ -7,6 +7,19 @@ use serde::{Deserialize, Serialize};
 use serde_big_array::BigArray;
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct VerifiablePublicKey {
+    signature: Signature,
+    key: PublicKey,
+}
+
+impl VerifiablePublicKey {
+    pub fn into_key(&self, b: &SigningBytes) -> Result<PublicKey> {
+        self.key.verify(&b.0, &self.signature)?;
+        Ok(self.key)
+    }
+}
+
+#[derive(Copy, Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct SigningBytes(#[serde(with = "BigArray")] [u8; Self::LEN]);
 
 impl SigningBytes {
@@ -24,18 +37,5 @@ impl SigningBytes {
 impl Default for SigningBytes {
     fn default() -> Self {
         Self::new()
-    }
-}
-
-#[derive(Copy, Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
-pub struct VerifiablePublicKey {
-    signature: Signature,
-    key: PublicKey,
-}
-
-impl VerifiablePublicKey {
-    pub fn into_key(&self, msg: &[u8]) -> Result<PublicKey> {
-        self.key.verify(msg, &self.signature)?;
-        Ok(self.key)
     }
 }

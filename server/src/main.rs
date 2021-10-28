@@ -1,10 +1,15 @@
 mod code_map;
 mod connection_map;
+mod signing_bytes;
 
 use code_map::code_map_manager;
 use connection_map::connection_map_manager;
+use signing_bytes::signing_bytes_manager;
 
-use lib::cs::protocol::{ClientRequest, Error, ServerResponse, SuccesfulResponse};
+use lib::cs::{
+    key::SigningBytes,
+    protocol::{ClientRequest, Error, ServerResponse, SuccesfulResponse},
+};
 use tokio::{
     io::{AsyncReadExt, AsyncWriteExt},
     net::{TcpListener, TcpStream},
@@ -15,21 +20,29 @@ use tokio::{
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let (code_tx, code_rx) = mpsc::channel(32);
     let (conn_tx, conn_rx) = mpsc::channel(32);
+    let (sign_tx, sign_rx) = mpsc::channel(32);
 
     let _code_map_manager = tokio::spawn(code_map_manager(code_rx));
     let _connection_map_manager = tokio::spawn(connection_map_manager(conn_rx));
+    let _signing_bytes_manager = tokio::spawn(signing_bytes_manager(sign_rx));
 
     let listener = TcpListener::bind("0.0.0.0:8389").await?;
 
     loop {
         let (socket, _addr) = listener.accept().await?;
-        tokio::spawn(handle_request(socket, code_tx.clone(), conn_tx.clone()));
+        tokio::spawn(handle_request(
+            socket,
+            code_tx.clone(),
+            conn_tx.clone(),
+            sign_tx.clone(),
+        ));
     }
 
     #[allow(unreachable_code)]
     {
         _code_map_manager.await?;
         _connection_map_manager.await?;
+        _signing_bytes_manager.await?;
         Ok(())
     }
 }
@@ -40,6 +53,7 @@ async fn handle_request(
     mut socket: TcpStream,
     code_tx: mpsc::Sender<code_map::Command>,
     _conn_tx: mpsc::Sender<connection_map::Command>,
+    _sign_tx: mpsc::Sender<oneshot::Sender<SigningBytes>>,
 ) -> Result<(), Box<dyn SendError>> {
     let mut buf = vec![0; 1024];
 
