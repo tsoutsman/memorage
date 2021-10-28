@@ -1,14 +1,25 @@
-use std::time::Duration;
+use std::net::SocketAddr;
 
-use crate::cs::{Code, PublicKey};
+use crate::cs::{
+    key::{PublicKey, VerifiablePublicKey},
+    Code,
+};
 
 use serde::{Deserialize, Serialize};
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub enum ClientRequest {
+    /// Request to associate the [`PublicKey`] to a temporary randomised code.
     Register(PublicKey),
+    /// Request to get the [`PublicKey`] associated with a given code.
     GetKey(Code),
-    RequestConnection(PublicKey),
+    GetSigningBytes,
+    /// Request to connect to a given [`PublicKey`].
+    RequestConnection {
+        initiator: VerifiablePublicKey,
+        target: PublicKey,
+    },
+    CheckConnection(VerifiablePublicKey),
     Ping,
 }
 
@@ -19,7 +30,8 @@ pub enum SuccesfulResponse {
     Register(Code),
     GetKey(PublicKey),
     RequestConnection,
-    Ping(Option<Duration>),
+    CheckConnection(Option<PublicKey>),
+    Ping(Option<SocketAddr>),
 }
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]

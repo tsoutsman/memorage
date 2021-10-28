@@ -24,6 +24,7 @@ tokio = "*"
 ed25519-dalek = { version = "*", features = ["serde"] }
 argon2 = { version = "*", features = ["parallel"] }
 lazy_static = "*"
+serde-big-array = { version = "*", features = ["const-generics"] }
 
 [dev-dependencies]
 tempfile = "*"

@@ -3,6 +3,7 @@ pub type Result<T> = std::result::Result<T, Error>;
 #[derive(Debug)]
 pub enum Error {
     IncorrectCodeLength(String),
+    InvalidKey,
 }
 
 impl std::fmt::Display for Error {
@@ -16,6 +17,7 @@ impl std::fmt::Display for Error {
                     crate::cs::Code::LEN
                 )
             }
+            Error::InvalidKey => "key is not valid".to_owned(),
         };
 
         write!(f, "{}", s)
@@ -25,5 +27,11 @@ impl std::fmt::Display for Error {
 impl std::error::Error for Error {
     fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
         None
+    }
+}
+
+impl From<ed25519_dalek::SignatureError> for Error {
+    fn from(_: ed25519_dalek::SignatureError) -> Self {
+        Self::InvalidKey
     }
 }

@@ -1,5 +1,5 @@
 use hashbrown::HashMap;
-use lib::cs::{Code, PublicKey};
+use lib::cs::{key::PublicKey, Code};
 use tokio::sync::{mpsc, oneshot};
 
 pub enum Command {

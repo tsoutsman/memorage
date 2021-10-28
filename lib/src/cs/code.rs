@@ -16,7 +16,7 @@ impl Code {
         Self(
             ChaCha20Rng::from_entropy()
                 .sample_iter(&Alphanumeric)
-                .take(6)
+                .take(Self::LEN)
                 .map(char::from)
                 .collect(),
         )

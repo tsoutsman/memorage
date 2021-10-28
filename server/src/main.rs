@@ -72,10 +72,13 @@ async fn handle_request(
 
                 Ok(SuccesfulResponse::GetKey(key))
             }
-            ClientRequest::RequestConnection(_) => {
+            ClientRequest::RequestConnection { .. } => {
                 todo!();
             }
-            ClientRequest::Ping => {
+            ClientRequest::Ping { .. } => {
+                todo!();
+            }
+            _ => {
                 todo!();
             }
         }

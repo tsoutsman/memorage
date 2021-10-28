@@ -1,14 +1,15 @@
 use std::net::SocketAddr;
 
 use hashbrown::HashMap;
-use lib::cs::PublicKey;
+use lib::cs::key::PublicKey;
 use tokio::sync::{mpsc, oneshot};
 
 #[allow(clippy::large_enum_variant)]
 #[allow(dead_code)]
 pub enum Command {
     RequestConnection {
-        initiator: PublicKey,
+        initiator_key: PublicKey,
+        initiator_socket: SocketAddr,
         target: PublicKey,
         resp: oneshot::Sender<Option<String>>,
     },
@@ -41,11 +42,12 @@ pub async fn connection_map_manager(mut rx: mpsc::Receiver<Command>) {
         match cmd {
             #[allow(unused_variables)]
             Command::RequestConnection {
-                initiator,
+                initiator_key,
+                initiator_socket,
                 target,
                 resp,
             } => {
-                //
+                todo!();
             }
             Command::CheckConnection {} => {
                 todo!();
