@@ -1,3 +1,5 @@
+use crate::cs::protocol::error::Error;
+
 use rand::{distributions::Alphanumeric, Rng};
 use rand_chacha::{rand_core::SeedableRng, ChaCha20Rng};
 use serde::{Deserialize, Serialize};
@@ -31,14 +33,14 @@ impl Default for Code {
 
 // TODO specialisation
 impl std::convert::TryFrom<String> for Code {
-    type Error = crate::cs::error::Error;
+    type Error = Error;
 
     /// Returns an error if the [`String`] is of incorrect length.
     fn try_from(c: String) -> Result<Self, Self::Error> {
         if c.len() == Self::LEN {
             Ok(Self(c))
         } else {
-            Err(crate::cs::error::Error::IncorrectCodeLength(c))
+            Err(Error::InvalidCode)
         }
     }
 }

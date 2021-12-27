@@ -6,9 +6,14 @@ use code_map::code_map_manager;
 use connection_map::connection_map_manager;
 use signing_bytes::signing_bytes_manager;
 
+use bincode::serialize;
 use lib::cs::{
     key::SigningBytes,
-    protocol::{ClientRequest, Error, ServerResponse, SuccesfulResponse},
+    protocol::{
+        error::Error,
+        request::Request,
+        response::{GetKey, GetSigningBytes, Register},
+    },
 };
 use tokio::{
     io::{AsyncReadExt, AsyncWriteExt},
@@ -26,7 +31,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let _connection_map_manager = tokio::spawn(connection_map_manager(conn_rx));
     let _signing_bytes_manager = tokio::spawn(signing_bytes_manager(sign_rx));
 
-    let listener = TcpListener::bind("0.0.0.0:8389").await?;
+    let listener = TcpListener::bind("0.0.0.0:1117").await?;
 
     loop {
         let (socket, _addr) = listener.accept().await?;
@@ -53,17 +58,18 @@ async fn handle_request(
     mut socket: TcpStream,
     code_tx: mpsc::Sender<code_map::Command>,
     _conn_tx: mpsc::Sender<connection_map::Command>,
-    _sign_tx: mpsc::Sender<oneshot::Sender<SigningBytes>>,
+    sign_tx: mpsc::Sender<oneshot::Sender<SigningBytes>>,
 ) -> Result<(), Box<dyn SendError>> {
     let mut buf = vec![0; 1024];
 
     // This is inside an async block so I can easily propagate errors that should be sent.
-    let resp: ServerResponse = async {
+    // TODO return types and dat
+    let resp: Result<Vec<u8>, Error> = async {
         socket.read_to_end(&mut buf).await?;
-        let request: ClientRequest = bincode::deserialize(&buf)?;
+        let request: Request = bincode::deserialize(&buf)?;
 
         match request {
-            ClientRequest::Register(key) => {
+            Request::Register(key) => {
                 let (resp_tx, resp_rx) = oneshot::channel();
 
                 code_tx
@@ -71,9 +77,9 @@ async fn handle_request(
                     .await?;
                 let code = resp_rx.await?;
 
-                Ok(SuccesfulResponse::Register(code))
+                Ok(serialize(&Result::<Register, Error>::Ok(Register(code))).unwrap())
             }
-            ClientRequest::GetKey(code) => {
+            Request::GetKey(code) => {
                 let (resp_tx, resp_rx) = oneshot::channel();
 
                 code_tx
@@ -84,22 +90,39 @@ async fn handle_request(
                     .await?;
                 let key = resp_rx.await?.ok_or(Error::InvalidCode)?;
 
-                Ok(SuccesfulResponse::GetKey(key))
+                Ok(serialize(&Result::<GetKey, Error>::Ok(GetKey(key))).unwrap())
             }
-            ClientRequest::RequestConnection { .. } => {
+            Request::GetSigningBytes => {
+                let (resp_tx, resp_rx) = oneshot::channel();
+
+                sign_tx.send(resp_tx).await?;
+                let signing_bytes = resp_rx.await?;
+
+                Ok(
+                    serialize(&Result::<GetSigningBytes, Error>::Ok(GetSigningBytes(
+                        signing_bytes,
+                    )))
+                    .unwrap(),
+                )
+            }
+            Request::RequestConnection { .. } => {
                 todo!();
             }
-            ClientRequest::Ping { .. } => {
+            Request::CheckConnection(_) => {
                 todo!();
             }
-            _ => {
+            Request::Ping { .. } => {
                 todo!();
             }
         }
     }
     .await;
 
-    let resp = bincode::serialize(&resp).unwrap();
+    let resp = match resp {
+        Ok(b) => b,
+        Err(e) => serialize(&e).unwrap(),
+    };
+
     socket.write(&resp).await.unwrap();
 
     Ok(())

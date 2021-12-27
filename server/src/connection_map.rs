@@ -10,11 +10,12 @@ pub enum Command {
     RequestConnection {
         initiator_key: PublicKey,
         initiator_socket: SocketAddr,
-        target: PublicKey,
-        resp: oneshot::Sender<Option<String>>,
+        target_key: PublicKey,
+        resp: oneshot::Sender<()>,
     },
     CheckConnection {
-        // TODO
+        target_key: PublicKey,
+        target_socket: SocketAddr,
     },
 }
 
@@ -35,22 +36,42 @@ impl std::cmp::PartialEq for HashablePublicKey {
     }
 }
 
+impl From<PublicKey> for HashablePublicKey {
+    fn from(k: PublicKey) -> Self {
+        Self(k)
+    }
+}
+
+impl From<HashablePublicKey> for PublicKey {
+    fn from(k: HashablePublicKey) -> Self {
+        k.0
+    }
+}
+
 pub async fn connection_map_manager(mut rx: mpsc::Receiver<Command>) {
-    let _map: HashMap<HashablePublicKey, SocketAddr> = HashMap::new();
+    let mut sockets: HashMap<HashablePublicKey, SocketAddr> = HashMap::new();
+    let mut requests: HashMap<HashablePublicKey, PublicKey> = HashMap::new();
 
     while let Some(cmd) = rx.recv().await {
         match cmd {
-            #[allow(unused_variables)]
             Command::RequestConnection {
                 initiator_key,
                 initiator_socket,
-                target,
+                target_key,
                 resp,
             } => {
-                todo!();
+                // TODO multiple people want to connect to same target (hashmap value is vec)
+                // TODO only connections approved by initiator
+                sockets.insert(initiator_key.into(), initiator_socket);
+                requests.insert(target_key.into(), initiator_key);
+                let _ = resp.send(());
             }
-            Command::CheckConnection {} => {
-                todo!();
+            #[allow(unused_variables)]
+            Command::CheckConnection {
+                target_key,
+                target_socket,
+            } => {
+                // TODO only accept connections from trusted keys
             }
         }
     }

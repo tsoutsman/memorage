@@ -1,4 +1,4 @@
-pub use crate::cs::error::Result;
+pub use crate::cs::protocol::error::Result;
 
 pub use ed25519_dalek::{PublicKey, Signature, Verifier};
 use rand::RngCore;

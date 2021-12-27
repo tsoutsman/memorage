@@ -23,6 +23,8 @@ pub async fn code_map_manager(mut rx: mpsc::Receiver<Command>) {
             }
             Command::Generate { key, resp } => {
                 let mut code = Code::new();
+
+                // TODO exploitable
                 while !map.contains_key(&code) {
                     code = Code::new()
                 }
