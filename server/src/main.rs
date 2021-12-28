@@ -7,11 +7,11 @@ use connection_map::connection_map_manager;
 use signing_bytes::signing_bytes_manager;
 
 use lib::cs::{
-    key::SigningBytes,
+    key::{PublicKey, SigningBytes, VerifiablePublicKey},
     protocol::{
         error::Error,
         request::Request,
-        response::{GetKey, GetSigningBytes, Register, RequestConnection},
+        response::{CheckConnection, GetKey, GetSigningBytes, Ping, Register, RequestConnection},
     },
 };
 use tokio::{
@@ -68,11 +68,17 @@ macro_rules! serialize {
 
 async fn signing_bytes(
     sign_tx: mpsc::Sender<oneshot::Sender<SigningBytes>>,
-    // TODO concrete error type
 ) -> Result<SigningBytes, Error> {
     let (resp_tx, resp_rx) = oneshot::channel();
     sign_tx.send(resp_tx).await.map_err(|_| Error::Generic)?;
     resp_rx.await.map_err(|_| Error::Generic)
+}
+
+async fn verify_key(
+    key: VerifiablePublicKey,
+    sign_tx: mpsc::Sender<oneshot::Sender<SigningBytes>>,
+) -> Result<PublicKey, Error> {
+    key.into_key(&signing_bytes(sign_tx).await?)
 }
 
 async fn handle_request(
@@ -138,11 +144,35 @@ async fn handle_request(
                 let _ = resp_rx.await?;
                 serialize!(RequestConnection)
             }
-            Request::CheckConnection(_) => {
-                todo!();
+            Request::CheckConnection(target_key) => {
+                let target_key = verify_key(target_key, sign_tx).await?;
+                let target_socket = socket.peer_addr()?;
+                let (resp_tx, resp_rx) = oneshot::channel();
+
+                conn_tx
+                    .send(connection_map::Command::CheckConnection {
+                        target_key,
+                        target_socket,
+                        resp: resp_tx,
+                    })
+                    .await?;
+
+                let initiator_socket = resp_rx.await?;
+                serialize!(CheckConnection(initiator_socket))
             }
-            Request::Ping { .. } => {
-                todo!();
+            Request::Ping => {
+                let initiator_socket = socket.peer_addr()?;
+                let (resp_tx, resp_rx) = oneshot::channel();
+
+                conn_tx
+                    .send(connection_map::Command::Ping {
+                        initiator_socket,
+                        resp: resp_tx,
+                    })
+                    .await?;
+
+                let target_socket = resp_rx.await?;
+                serialize!(Ping(target_socket))
             }
         }
     }
