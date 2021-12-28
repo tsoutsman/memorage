@@ -1,3 +1,5 @@
+use std::net::SocketAddr;
+
 use crate::cs::{
     key::{PublicKey, SigningBytes},
     Code,
@@ -18,7 +20,7 @@ pub struct GetSigningBytes(pub SigningBytes);
 pub struct RequestConnection;
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
-pub struct CheckConnection(pub Option<PublicKey>);
+pub struct CheckConnection(pub Option<SocketAddr>);
 
-// #[derive(Copy, Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
-// pub struct Ping(pub Option<SocketAddr>);
+#[derive(Copy, Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct Ping(pub Option<SocketAddr>);

@@ -1,6 +1,5 @@
 use std::net::SocketAddr;
 
-use hashbrown::HashMap;
 use lib::cs::key::PublicKey;
 use tokio::sync::{mpsc, oneshot};
 
@@ -16,10 +15,16 @@ pub enum Command {
     CheckConnection {
         target_key: PublicKey,
         target_socket: SocketAddr,
+        // TODO also initiator_key
+        resp: oneshot::Sender<Option<SocketAddr>>,
+    },
+    Ping {
+        initiator_socket: SocketAddr,
+        resp: oneshot::Sender<Option<SocketAddr>>,
     },
 }
 
-#[derive(Clone, Debug, Eq)]
+#[derive(Copy, Clone, Debug, Eq)]
 pub struct HashablePublicKey(pub PublicKey);
 
 // TODO https://github.com/dalek-cryptography/ed25519-dalek/issues/52
@@ -49,8 +54,8 @@ impl From<HashablePublicKey> for PublicKey {
 }
 
 pub async fn connection_map_manager(mut rx: mpsc::Receiver<Command>) {
-    let mut sockets: HashMap<HashablePublicKey, SocketAddr> = HashMap::new();
-    let mut requests: HashMap<HashablePublicKey, PublicKey> = HashMap::new();
+    let mut sockets: bimap::BiMap<HashablePublicKey, SocketAddr> = bimap::BiMap::new();
+    let mut requests: bimap::BiMap<HashablePublicKey, HashablePublicKey> = bimap::BiMap::new();
 
     while let Some(cmd) = rx.recv().await {
         match cmd {
@@ -63,15 +68,38 @@ pub async fn connection_map_manager(mut rx: mpsc::Receiver<Command>) {
                 // TODO multiple people want to connect to same target (hashmap value is vec)
                 // TODO only connections approved by initiator
                 sockets.insert(initiator_key.into(), initiator_socket);
-                requests.insert(target_key.into(), initiator_key);
+                requests.insert(initiator_key.into(), target_key.into());
+                // TODO do we even need resp
                 let _ = resp.send(());
             }
-            #[allow(unused_variables)]
             Command::CheckConnection {
                 target_key,
                 target_socket,
+                resp,
             } => {
                 // TODO only accept connections from trusted keys
+                let result = match requests.get_by_right(&target_key.into()) {
+                    Some(initiator_key) => {
+                        // TODO add socket here or in both branches?
+                        sockets.insert(target_key.into(), target_socket);
+                        sockets.get_by_left(&(*initiator_key)).cloned()
+                    }
+                    None => None,
+                };
+                let _ = resp.send(result);
+            }
+            Command::Ping {
+                initiator_socket,
+                resp,
+            } => {
+                let result = match sockets.get_by_right(&initiator_socket) {
+                    Some(initiator_key) => match requests.get_by_left(initiator_key) {
+                        Some(target_key) => sockets.get_by_left(target_key).cloned(),
+                        None => None,
+                    },
+                    None => None,
+                };
+                let _ = resp.send(result);
             }
         }
     }

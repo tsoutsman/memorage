@@ -11,3 +11,4 @@ lib = { version = "*", path = "../lib" }
 hashbrown = "*"
 serde = "*"
 bincode = "*"
+bimap = "*"
