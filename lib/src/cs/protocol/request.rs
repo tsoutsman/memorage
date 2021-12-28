@@ -14,8 +14,8 @@ pub enum Request {
     GetSigningBytes,
     /// Request to connect to a given [`VerifiablePublicKey`].
     RequestConnection {
-        initiator: VerifiablePublicKey,
-        target: PublicKey,
+        initiator_key: VerifiablePublicKey,
+        target_key: PublicKey,
     },
     /// Request any [`SocketAddr`](std::net::SocketAddr) that have made a request to
     /// the given [`VerifiablePublicKey`].
