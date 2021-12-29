@@ -1,4 +1,7 @@
-use std::pin::Pin;
+use std::{
+    net::{IpAddr, Ipv4Addr, SocketAddr},
+    pin::Pin,
+};
 
 use lib::cs::key::PublicKey;
 use tokio::io::{AsyncRead, AsyncWrite};
@@ -9,6 +12,7 @@ lazy_static::lazy_static! {
         218, 166, 35, 37, 175, 2, 26, 104, 247, 7, 81, 26,
     ])
     .unwrap();
+    pub static ref ADDR_1: SocketAddr = SocketAddr::new(IpAddr::V4(Ipv4Addr::new(1, 2, 3, 4)), 8080);
 }
 
 pub struct MockRequest {
