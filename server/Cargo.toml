@@ -12,3 +12,6 @@ hashbrown = "*"
 serde = "*"
 bincode = "*"
 bimap = "*"
+
+[dev-dependencies]
+lazy_static = "*"

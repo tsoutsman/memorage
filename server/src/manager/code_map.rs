@@ -25,7 +25,7 @@ pub async fn manager(mut rx: mpsc::Receiver<Command>) {
                 let mut code = Code::new();
 
                 // TODO exploitable
-                while !map.contains_key(&code) {
+                while map.contains_key(&code) {
                     code = Code::new()
                 }
 

@@ -24,5 +24,5 @@ where
     T: serde::Serialize,
 {
     // TODO unwrap
-    Ok(bincode::serialize(&Result::<_, ::lib::cs::protocol::error::Error>::Ok(o)).unwrap())
+    Ok(bincode::serialize(&o).unwrap())
 }
