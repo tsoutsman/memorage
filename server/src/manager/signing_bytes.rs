@@ -7,7 +7,7 @@ use tokio::sync::{mpsc, oneshot};
 /// if the signing bytes are requested.
 const SIGNING_BYTES_REFRESH_TIME: u64 = 60;
 
-pub async fn signing_bytes_manager(mut rx: mpsc::Receiver<oneshot::Sender<SigningBytes>>) {
+pub async fn manager(mut rx: mpsc::Receiver<oneshot::Sender<SigningBytes>>) {
     let mut signing_bytes = SigningBytes::new();
     let mut time_generated = Instant::now();
 

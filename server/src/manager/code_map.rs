@@ -13,7 +13,7 @@ pub enum Command {
     },
 }
 
-pub async fn code_map_manager(mut rx: mpsc::Receiver<Command>) {
+pub async fn manager(mut rx: mpsc::Receiver<Command>) {
     let mut map: HashMap<Code, PublicKey> = HashMap::new();
 
     while let Some(cmd) = rx.recv().await {

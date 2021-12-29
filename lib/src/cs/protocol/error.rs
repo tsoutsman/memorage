@@ -16,6 +16,9 @@ impl From<bincode::Error> for Error {
     }
 }
 
+// TODO we are importing the entirety of Tokio just for these two
+// From implementations.
+
 impl From<tokio::sync::oneshot::error::RecvError> for Error {
     fn from(_: tokio::sync::oneshot::error::RecvError) -> Self {
         Self::Generic
