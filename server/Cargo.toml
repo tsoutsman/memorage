@@ -10,7 +10,6 @@ tokio = { version = "*", features = ["full"] }
 lib = { version = "*", path = "../lib" }
 hashbrown = "*"
 serde = "*"
-bincode = "*"
 bimap = "*"
 
 [dev-dependencies]

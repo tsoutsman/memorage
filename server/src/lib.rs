@@ -7,7 +7,10 @@ use std::net::SocketAddr;
 
 use util::serialize;
 
-use lib::cs::protocol::{error::Error, request::Request, response::GetSigningBytes};
+use lib::{
+    bincode,
+    cs::protocol::{error::Error, request::Request, response::GetSigningBytes},
+};
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 
 pub use setup::setup;

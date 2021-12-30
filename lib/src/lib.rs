@@ -15,3 +15,5 @@
 pub mod cs;
 #[cfg(feature = "p2p")]
 pub mod p2p;
+
+pub use bincode;

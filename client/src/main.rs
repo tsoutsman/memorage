@@ -1,3 +1,6 @@
+use client::Config;
+
 fn main() {
-    println!("Hello, world!");
+    let _config = Config::default();
+    // client::establish_connection()
 }
