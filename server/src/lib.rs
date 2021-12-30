@@ -9,7 +9,7 @@ use util::serialize;
 
 use lib::{
     bincode,
-    cs::protocol::{error::Error, request::Request, response::GetSigningBytes},
+    cs::protocol::{error::Error, request::RequestType, response::GetSigningBytes},
 };
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 
@@ -25,34 +25,24 @@ where
 
     let resp: Result<Vec<u8>, Error> = async {
         socket.read(&mut buf).await?;
-        let request: Request = bincode::deserialize(&buf)?;
+        let request: RequestType = bincode::deserialize(&buf)?;
 
+        // TODO remove serialize from every branch
         match request {
-            Request::Register(key) => serialize(handler::register(channels, key).await),
-            Request::GetKey(code) => serialize(handler::get_key(channels, code).await),
-            Request::GetSigningBytes => {
+            RequestType::Register(r) => serialize(handler::register(channels, r).await),
+            RequestType::GetKey(r) => serialize(handler::get_key(channels, r).await),
+            RequestType::GetSigningBytes(_) => {
                 let signing_bytes = util::signing_bytes(channels.sign).await?;
                 serialize(Result::<_, Error>::Ok(GetSigningBytes(signing_bytes)))
             }
-            Request::RequestConnection {
-                initiator_key,
-                target_key,
-            } => serialize(
-                handler::request_connection(
-                    channels,
-                    initiator_key,
-                    target_key,
-                    // initiator address
-                    address,
-                )
-                .await,
-            ),
-            Request::CheckConnection(target_key) => {
-                // target address
-                serialize(handler::check_connection(channels, target_key, address).await)
+            RequestType::RequestConnection(r) => {
+                serialize(handler::request_connection(channels, r, address).await)
+            }
+            RequestType::CheckConnection(r) => {
+                serialize(handler::check_connection(channels, r, address).await)
             }
             // initiator address
-            Request::Ping => serialize(handler::ping(channels, address).await),
+            RequestType::Ping(_) => serialize(handler::ping(channels, address).await),
         }
     }
     .await;
@@ -60,7 +50,7 @@ where
     let resp = match resp {
         Ok(b) => b,
         // TODO unwrap
-        Err(e) => bincode::serialize::<Result<Request, Error>>(&Err(e)).unwrap(),
+        Err(e) => bincode::serialize::<Result<RequestType, Error>>(&Err(e)).unwrap(),
     };
 
     // TODO unwrap

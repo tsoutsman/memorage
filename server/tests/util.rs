@@ -3,9 +3,9 @@ use std::{
     pin::Pin,
 };
 
-use lib::cs::{
-    key::Keypair,
-    protocol::{error::Error, request::Request},
+use lib::{
+    bincode,
+    cs::{key::Keypair, protocol::request::Request},
 };
 use server::setup::Channels;
 use tokio::io::{AsyncRead, AsyncWrite};
@@ -23,9 +23,13 @@ lazy_static::lazy_static! {
     pub static ref ADDR_2: SocketAddr = SocketAddr::new(IpAddr::V4(Ipv4Addr::new(2, 3, 4, 5)), 2);
 }
 
-pub async fn request<T>(request: Request, addr: SocketAddr, channels: Channels) -> Result<T, Error>
+pub async fn request<T>(
+    request: T,
+    addr: SocketAddr,
+    channels: Channels,
+) -> lib::cs::protocol::error::Result<T::Response>
 where
-    T: serde::de::DeserializeOwned,
+    T: serde::Serialize + Request,
 {
     let mut buffer = MockRequest::from(request);
     server::handle_request(&mut buffer, addr, channels).await;
@@ -39,11 +43,11 @@ pub struct MockRequest {
 
 impl<T> From<T> for MockRequest
 where
-    T: serde::Serialize,
+    T: serde::Serialize + Request,
 {
     fn from(r: T) -> Self {
         // TODO unwrap
-        Self::new(bincode::serialize(&r).unwrap())
+        Self::new(bincode::serialize(&r.to_enum()).unwrap())
     }
 }
 

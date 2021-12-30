@@ -2,18 +2,17 @@ use std::net::SocketAddr;
 
 use crate::{manager::connection_map, setup::Channels, util::signing_bytes};
 
-use lib::cs::{
-    key::{PublicKey, VerifiablePublicKey},
-    protocol::{error::Error, response::RequestConnection},
-};
+use lib::cs::protocol::{error::Result, request, response};
 
 #[inline]
 pub async fn request_connection(
     channels: Channels,
-    initiator_key: VerifiablePublicKey,
-    target_key: PublicKey,
+    request::RequestConnection {
+        initiator_key,
+        target_key,
+    }: request::RequestConnection,
     initiator_address: SocketAddr,
-) -> Result<RequestConnection, Error> {
+) -> Result<response::RequestConnection> {
     let signing_bytes = signing_bytes(channels.sign).await?;
     let initiator_key = initiator_key.into_key(&signing_bytes)?;
     let (resp_tx, resp_rx) = tokio::sync::oneshot::channel();
@@ -29,5 +28,5 @@ pub async fn request_connection(
         .await?;
 
     let _ = resp_rx.await?;
-    Ok(RequestConnection)
+    Ok(response::RequestConnection)
 }

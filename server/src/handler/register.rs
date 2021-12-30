@@ -1,12 +1,12 @@
 use crate::{manager::code_map, setup::Channels};
 
-use lib::cs::{
-    key::PublicKey,
-    protocol::{error::Error, response::Register},
-};
+use lib::cs::protocol::{error::Result, request, response};
 
 #[inline]
-pub async fn register(channels: Channels, key: PublicKey) -> Result<Register, Error> {
+pub async fn register(
+    channels: Channels,
+    request::Register(key): request::Register,
+) -> Result<response::Register> {
     let (resp_tx, resp_rx) = tokio::sync::oneshot::channel();
 
     channels
@@ -15,5 +15,5 @@ pub async fn register(channels: Channels, key: PublicKey) -> Result<Register, Er
         .await?;
 
     let code = resp_rx.await?;
-    Ok(Register(code))
+    Ok(response::Register(code))
 }

@@ -1,12 +1,15 @@
 use crate::{manager::code_map, setup::Channels};
 
-use lib::cs::{
-    protocol::{error::Error, response::GetKey},
-    Code,
+use lib::cs::protocol::{
+    error::{Error, Result},
+    request, response,
 };
 
 #[inline]
-pub async fn get_key(channels: Channels, code: Code) -> Result<GetKey, Error> {
+pub async fn get_key(
+    channels: Channels,
+    request::GetKey(code): request::GetKey,
+) -> Result<response::GetKey> {
     let (resp_tx, resp_rx) = tokio::sync::oneshot::channel();
 
     channels
@@ -17,5 +20,5 @@ pub async fn get_key(channels: Channels, code: Code) -> Result<GetKey, Error> {
         })
         .await?;
     let key = resp_rx.await?.ok_or(Error::InvalidCode)?;
-    Ok(GetKey(key))
+    Ok(response::GetKey(key))
 }

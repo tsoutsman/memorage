@@ -2,17 +2,14 @@ use std::net::SocketAddr;
 
 use crate::{manager::connection_map, setup::Channels, util::verify_key};
 
-use lib::cs::{
-    key::VerifiablePublicKey,
-    protocol::{error::Error, response::CheckConnection},
-};
+use lib::cs::protocol::{error::Result, request, response};
 
 #[inline]
 pub async fn check_connection(
     channels: Channels,
-    target_key: VerifiablePublicKey,
+    request::CheckConnection(target_key): request::CheckConnection,
     target_address: SocketAddr,
-) -> Result<CheckConnection, Error> {
+) -> Result<response::CheckConnection> {
     let target_key = verify_key(target_key, channels.sign).await?;
     let (resp_tx, resp_rx) = tokio::sync::oneshot::channel();
 
@@ -26,5 +23,5 @@ pub async fn check_connection(
         .await?;
 
     let initiator_socket = resp_rx.await?;
-    Ok(CheckConnection(initiator_socket))
+    Ok(response::CheckConnection(initiator_socket))
 }

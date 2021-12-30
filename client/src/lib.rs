@@ -5,11 +5,8 @@ mod error;
 use crate::{conn::Connection, error::Result};
 
 use lib::cs::{
-    key::{Keypair, PublicKey, SigningBytes, VerifiablePublicKey},
-    protocol::{
-        request::Request,
-        response::{Ping, RequestConnection},
-    },
+    key::{Keypair, PublicKey, VerifiablePublicKey},
+    protocol::request,
 };
 
 const SERVER_ADDRESS: &str = "some address";
@@ -24,13 +21,11 @@ pub async fn establish_connection(
 ) -> Result<Connection> {
     let mut server = Connection::try_to(SERVER_ADDRESS).await?;
 
-    let signing_bytes = server
-        .request::<SigningBytes>(Request::GetSigningBytes)
-        .await?;
+    let signing_bytes = server.request(request::GetSigningBytes).await?.0;
     let initiator_key = VerifiablePublicKey::new(keypair, &signing_bytes);
 
     server
-        .request::<RequestConnection>(Request::RequestConnection {
+        .request(request::RequestConnection {
             initiator_key,
             target_key,
         })
@@ -39,7 +34,7 @@ pub async fn establish_connection(
     loop {
         // TODO configure sleep time
         tokio::time::sleep(config.server_ping_delay).await;
-        if let Some(target_address) = server.request::<Ping>(Request::Ping).await?.0 {
+        if let Some(target_address) = server.request(request::Ping).await?.0 {
             // TODO i don't think this is how u do nat traversal :)
             return Connection::try_to(target_address).await;
         }
