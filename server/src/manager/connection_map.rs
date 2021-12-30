@@ -94,6 +94,7 @@ pub async fn manager(mut rx: mpsc::Receiver<Command>) {
             } => {
                 let result = match sockets.get_by_right(&initiator_address) {
                     Some(initiator_key) => match requests.get_by_left(initiator_key) {
+                        // TODO delete request?
                         Some(target_key) => sockets.get_by_left(target_key).cloned(),
                         None => None,
                     },
