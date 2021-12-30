@@ -3,16 +3,33 @@ use std::{
     pin::Pin,
 };
 
-use lib::cs::key::PublicKey;
+use lib::cs::{
+    key::Keypair,
+    protocol::{error::Error, request::Request},
+};
+use server::setup::Channels;
 use tokio::io::{AsyncRead, AsyncWrite};
 
 lazy_static::lazy_static! {
-    pub static ref KEY_1: PublicKey = PublicKey::from_bytes(&[
-        215, 90, 152, 1, 130, 177, 10, 183, 213, 75, 254, 211, 201, 100, 7, 58, 14, 225, 114, 243,
-        218, 166, 35, 37, 175, 2, 26, 104, 247, 7, 81, 26,
-    ])
-    .unwrap();
-    pub static ref ADDR_1: SocketAddr = SocketAddr::new(IpAddr::V4(Ipv4Addr::new(1, 2, 3, 4)), 8080);
+    pub static ref KEYPAIR_1: Keypair = {
+        let mut csprng = rand::rngs::OsRng;
+        Keypair::generate(&mut csprng)
+    };
+    pub static ref KEYPAIR_2: Keypair = {
+        let mut csprng = rand::rngs::OsRng;
+        Keypair::generate(&mut csprng)
+    };
+    pub static ref ADDR_1: SocketAddr = SocketAddr::new(IpAddr::V4(Ipv4Addr::new(1, 2, 3, 4)), 1);
+    pub static ref ADDR_2: SocketAddr = SocketAddr::new(IpAddr::V4(Ipv4Addr::new(2, 3, 4, 5)), 2);
+}
+
+pub async fn request<T>(request: Request, addr: SocketAddr, channels: Channels) -> Result<T, Error>
+where
+    T: serde::de::DeserializeOwned,
+{
+    let mut buffer = MockRequest::from(request);
+    server::handle_request(&mut buffer, addr, channels).await;
+    bincode::deserialize(&buffer.output()).unwrap()
 }
 
 pub struct MockRequest {

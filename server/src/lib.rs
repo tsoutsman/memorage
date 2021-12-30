@@ -1,6 +1,6 @@
 mod handler;
 mod manager;
-mod setup;
+pub mod setup;
 mod util;
 
 use std::net::SocketAddr;
@@ -34,26 +34,22 @@ where
             Request::RequestConnection {
                 initiator_key,
                 target_key,
-            } => {
-                serialize(
-                    handler::request_connection(
-                        channels,
-                        initiator_key,
-                        target_key,
-                        // initiator address
-                        address,
-                    )
-                    .await,
+            } => serialize(
+                handler::request_connection(
+                    channels,
+                    initiator_key,
+                    target_key,
+                    // initiator address
+                    address,
                 )
-            }
+                .await,
+            ),
             Request::CheckConnection(target_key) => {
                 // target address
                 serialize(handler::check_connection(channels, target_key, address).await)
             }
-            Request::Ping => {
-                // initiator address
-                serialize(handler::ping(channels, address).await)
-            }
+            // initiator address
+            Request::Ping => serialize(handler::ping(channels, address).await),
         }
     }
     .await;

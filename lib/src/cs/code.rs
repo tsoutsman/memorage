@@ -14,6 +14,7 @@ impl Code {
     /// The length of the code in characters.
     pub const LEN: usize = 6;
 
+    /// Create a random code.
     pub fn new() -> Self {
         Self(
             ChaCha20Rng::from_entropy()

@@ -12,7 +12,7 @@ pub enum Request {
     /// Request to get the [`PublicKey`] associated with a given code.
     GetKey(Code),
     GetSigningBytes,
-    /// Request to connect to a given [`VerifiablePublicKey`].
+    /// Request to connect to a given [`PublicKey`].
     RequestConnection {
         initiator_key: VerifiablePublicKey,
         target_key: PublicKey,
