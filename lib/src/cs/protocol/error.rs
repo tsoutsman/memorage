@@ -5,9 +5,9 @@ pub type Result<T> = std::result::Result<T, Error>;
 #[derive(Copy, Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub enum Error {
     InvalidCode,
-    InvalidKey,
     Generic,
     Serialization,
+    InvalidSignature,
 }
 
 impl From<bincode::Error> for Error {
@@ -37,6 +37,12 @@ impl From<std::io::Error> for Error {
     }
 }
 
+impl From<ed25519_dalek::SignatureError> for Error {
+    fn from(_: ed25519_dalek::SignatureError) -> Self {
+        Self::InvalidSignature
+    }
+}
+
 impl std::fmt::Display for Error {
     fn fmt(&self, _f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         todo!();
@@ -46,11 +52,5 @@ impl std::fmt::Display for Error {
 impl std::error::Error for Error {
     fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
         None
-    }
-}
-
-impl From<ed25519_dalek::SignatureError> for Error {
-    fn from(_: ed25519_dalek::SignatureError) -> Self {
-        Self::InvalidKey
     }
 }

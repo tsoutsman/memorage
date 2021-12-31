@@ -1,6 +1,6 @@
-use crate::cs::{
-    key::{PublicKey, VerifiablePublicKey},
-    Code,
+use crate::{
+    cs::{key::PublicKey, Code},
+    Verifiable,
 };
 
 use serde::{Deserialize, Serialize};
@@ -20,8 +20,6 @@ pub enum RequestType {
     GetSigningBytes(GetSigningBytes),
     /// Request to connect to a given [`PublicKey`].
     RequestConnection(RequestConnection),
-    /// Request any [`SocketAddr`](std::net::SocketAddr) that have made a request to
-    /// the given [`VerifiablePublicKey`].
     CheckConnection(CheckConnection),
     /// Request any socket addresses that have replied to the request for connection.
     Ping(Ping),
@@ -38,12 +36,20 @@ pub struct GetSigningBytes;
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct RequestConnection {
-    pub initiator_key: VerifiablePublicKey,
+    pub initiator_key: Verifiable<PublicKey>,
     pub target_key: PublicKey,
 }
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
-pub struct CheckConnection(pub VerifiablePublicKey);
+pub struct CheckConnection(pub Verifiable<PublicKey>);
+
+impl std::ops::Deref for CheckConnection {
+    type Target = Verifiable<PublicKey>;
+
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Ping;

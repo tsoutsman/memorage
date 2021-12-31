@@ -1,6 +1,9 @@
-use lib::cs::{
-    key::{PublicKey, SigningBytes, VerifiablePublicKey},
-    protocol::error::Error,
+use lib::{
+    cs::{
+        key::{PublicKey, SigningBytes},
+        protocol::error::Error,
+    },
+    Verifiable,
 };
 use tokio::sync::{mpsc, oneshot};
 
@@ -13,10 +16,11 @@ pub async fn signing_bytes(
 }
 
 pub async fn verify_key(
-    key: VerifiablePublicKey,
+    key: Verifiable<PublicKey>,
     sign_tx: mpsc::Sender<oneshot::Sender<SigningBytes>>,
 ) -> Result<PublicKey, Error> {
-    key.into_key(&signing_bytes(sign_tx).await?)
+    key.into_verifier(&signing_bytes(sign_tx).await?)
+        .map_err(|e| e.into())
 }
 
 pub fn serialize<T>(o: T) -> Result<Vec<u8>, Error>

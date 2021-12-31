@@ -1,20 +1,19 @@
 mod util;
 
-use lib::cs::{
-    key::VerifiablePublicKey,
-    protocol::{request, response},
-};
+use lib::cs::protocol::{request, response};
 use util::{ADDR_1, ADDR_2, KEYPAIR_1, KEYPAIR_2};
 
 #[tokio::test]
 async fn basic() {
+    tracing_subscriber::fmt::init();
+
     let (channels, _handles) = server::setup();
 
     let request = request::GetSigningBytes;
     let response = util::request(request, *ADDR_1, channels.clone()).await;
     let signing_bytes = response.unwrap().0;
 
-    let initiator_key = VerifiablePublicKey::new(&KEYPAIR_1, &signing_bytes);
+    let initiator_key = signing_bytes.create_verifiable_key(&KEYPAIR_1);
     let request = request::RequestConnection {
         initiator_key,
         target_key: KEYPAIR_2.public,
@@ -26,7 +25,7 @@ async fn basic() {
     let response = util::request(request, *ADDR_1, channels.clone()).await;
     assert_eq!(response, Ok(response::Ping(None)));
 
-    let target_key = VerifiablePublicKey::new(&KEYPAIR_2, &signing_bytes);
+    let target_key = signing_bytes.create_verifiable_key(&KEYPAIR_2);
     let request = request::CheckConnection(target_key);
     let response = util::request(request, *ADDR_2, channels.clone()).await;
     assert_eq!(response, Ok(response::CheckConnection(Some(*ADDR_1))));

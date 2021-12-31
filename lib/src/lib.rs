@@ -16,4 +16,7 @@ pub mod cs;
 #[cfg(feature = "p2p")]
 pub mod p2p;
 
+mod verify;
+pub use verify::Verifiable;
+
 pub use bincode;

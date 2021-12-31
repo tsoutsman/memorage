@@ -4,7 +4,7 @@ use lib::cs::key::PublicKey;
 use tokio::sync::{mpsc, oneshot};
 
 #[allow(clippy::large_enum_variant)]
-#[allow(dead_code)]
+#[derive(Debug)]
 pub enum Command {
     RequestConnection {
         initiator_key: PublicKey,

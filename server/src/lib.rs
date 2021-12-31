@@ -15,6 +15,7 @@ use tokio::io::{AsyncReadExt, AsyncWriteExt};
 
 pub use setup::setup;
 
+#[tracing::instrument(skip(socket, channels))]
 pub async fn handle_request<T>(mut socket: T, address: SocketAddr, channels: setup::Channels)
 where
     // TODO buffered read and write?

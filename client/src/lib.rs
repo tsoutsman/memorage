@@ -5,7 +5,7 @@ mod error;
 use crate::{conn::Connection, error::Result};
 
 use lib::cs::{
-    key::{Keypair, PublicKey, VerifiablePublicKey},
+    key::{Keypair, PublicKey},
     protocol::request,
 };
 
@@ -22,7 +22,7 @@ pub async fn establish_connection(
     let mut server = Connection::try_to(SERVER_ADDRESS).await?;
 
     let signing_bytes = server.request(request::GetSigningBytes).await?.0;
-    let initiator_key = VerifiablePublicKey::new(keypair, &signing_bytes);
+    let initiator_key = signing_bytes.create_verifiable_key(keypair);
 
     server
         .request(request::RequestConnection {

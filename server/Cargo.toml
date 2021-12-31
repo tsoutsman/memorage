@@ -11,7 +11,10 @@ lib = { version = "*", path = "../lib" }
 hashbrown = "*"
 serde = "*"
 bimap = "*"
+tracing = "*"
 
 [dev-dependencies]
 lazy_static = "*"
-rand = "*"
+rand = "0.7"
+tracing-subscriber = "*"
+log = "*"

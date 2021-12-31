@@ -8,6 +8,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     loop {
         let (socket, addr) = listener.accept().await?;
+        tracing::event!(tracing::Level::INFO, "connection from {:#?}", addr);
         tokio::spawn(server::handle_request(socket, addr, channels.clone()));
     }
 
