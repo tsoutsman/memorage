@@ -1,0 +1,13 @@
+[package]
+name = "soter-cs"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+ed25519-dalek = "*"
+rand = "*"
+rand_chacha = "*"
+serde = "*"
+serde-big-array = { version = "*", features = ["const-generics"] }
+soter-core = { path = "../soter-core" }
+bincode = "*"

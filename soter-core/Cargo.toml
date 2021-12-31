@@ -1,0 +1,8 @@
+[package]
+name = "soter-core"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+ed25519-dalek = { version = "*", features = ["serde"] }
+serde = { version = "*", features = ["derive"] }

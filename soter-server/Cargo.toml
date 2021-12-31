@@ -1,0 +1,17 @@
+[package]
+name = "soter-server"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+soter-core = { path = "../soter-core" }
+soter-cs = { path = "../soter-cs" }
+tokio = { version = "*", features = ["sync",  "io-util", "net", "macros", "rt-multi-thread"] }
+hashbrown = "*"
+serde = "*"
+bimap = "*"
+# tracing = "*"
+
+[dev-dependencies]
+lazy_static = "*"
+rand = "0.7"

@@ -1,0 +1,19 @@
+use tokio::net::TcpListener;
+
+#[tokio::main]
+async fn main() -> Result<(), Box<dyn std::error::Error>> {
+    let (channels, _handles) = soter_server::setup();
+
+    let listener = TcpListener::bind("0.0.0.0:1117").await?;
+
+    loop {
+        let (socket, addr) = listener.accept().await?;
+        tokio::spawn(soter_server::handle_request(socket, addr, channels.clone()));
+    }
+
+    #[allow(unreachable_code)]
+    {
+        _handles.join().await?;
+        Ok(())
+    }
+}
