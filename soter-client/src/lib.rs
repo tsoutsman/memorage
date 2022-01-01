@@ -30,7 +30,6 @@ pub mod fs;
 
 pub async fn establish_connection(
     keypair: &Keypair,
-    // TODO can we take ref
     target_key: PublicKey,
     config: &Config,
 ) -> Result<Connection> {
@@ -47,7 +46,6 @@ pub async fn establish_connection(
         .await?;
 
     loop {
-        // TODO configure sleep time
         tokio::time::sleep(config.server_ping_delay).await;
         if let Some(target_address) = server.request(request::Ping).await?.0 {
             // TODO i don't think this is how u do nat traversal :)

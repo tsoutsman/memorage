@@ -11,6 +11,7 @@
     clippy::missing_safety_doc
 )]
 
+mod error;
 mod handler;
 mod manager;
 pub mod setup;
@@ -18,24 +19,22 @@ mod util;
 
 use std::net::SocketAddr;
 
-use soter_cs::{request::RequestType, response, serialize, Error};
+use soter_cs::{request::RequestType, response, serialize};
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 
+pub use error::{Error, Result};
 pub use setup::setup;
 pub use util::public_address;
 
-pub async fn handle_connection(
-    conn: quinn::Connecting,
-    channels: setup::Channels,
-) -> Result<(), ()> {
+pub async fn handle_connection(conn: quinn::Connecting, channels: setup::Channels) -> Result<()> {
     // remote_address must be called before awaiting the connection
     let addr = conn.remote_address();
-    let quinn::NewConnection { mut bi_streams, .. } = conn.await.map_err(|_| ())?;
+    let quinn::NewConnection { mut bi_streams, .. } = conn.await?;
     while let Some(stream) = bi_streams.next().await {
         let stream: (quinn::SendStream, quinn::RecvStream) = match stream {
             Ok(s) => s,
             Err(quinn::ConnectionError::ApplicationClosed { .. }) => return Ok(()),
-            Err(_) => return Err(()),
+            Err(e) => return Err(e.into()),
         };
         // TODO what happens if handle_request returns error
         tokio::spawn(handle_request(stream, addr, channels.clone()));
@@ -49,19 +48,19 @@ pub async fn handle_request<S, R>(
     (mut send, mut recv): (S, R),
     address: SocketAddr,
     channels: setup::Channels,
-    // TODO error type
-) -> Result<(), ()>
+) -> Result<()>
 where
-    // TODO buffered read and write?
     S: tokio::io::AsyncWrite + std::marker::Unpin,
     R: tokio::io::AsyncRead + std::marker::Unpin,
 {
     // TODO buf length
     let mut buf = vec![0; 1024];
 
-    let request: Result<RequestType, Error> = async {
-        recv.read(&mut buf).await.map_err(|_| Error::Generic)?;
-        soter_cs::deserialize(&buf).map_err(|_| Error::Generic)
+    let request: soter_cs::Result<RequestType> = async {
+        recv.read(&mut buf)
+            .await
+            .map_err(|_| soter_cs::Error::Generic)?;
+        soter_cs::deserialize(&buf).map_err(|_| soter_cs::Error::Generic)
     }
     .await;
 
@@ -71,10 +70,8 @@ where
                 RequestType::Register(r) => serialize(handler::register(channels, r).await),
                 RequestType::GetKey(r) => serialize(handler::get_key(channels, r).await),
                 RequestType::GetSigningBytes(_) => match util::signing_bytes(channels.sign).await {
-                    Ok(signing_bytes) => serialize(Result::<_, Error>::Ok(
-                        response::GetSigningBytes(signing_bytes),
-                    )),
-                    Err(e) => serialize(Result::<soter_cs::response::GetSigningBytes, _>::Err(e)),
+                    Ok(signing_bytes) => serialize(Ok(response::GetSigningBytes(signing_bytes))),
+                    Err(e) => serialize(soter_cs::Result::<response::GetSigningBytes>::Err(e)),
                 },
                 RequestType::RequestConnection(r) => {
                     serialize(handler::request_connection(channels, r, address).await)
@@ -87,13 +84,11 @@ where
             }
         }
         // TODO not sure if this is sound. alternatively we can just ignore the request.
-        Err(e) => serialize(Result::<soter_cs::response::Register, _>::Err(e)),
-    };
+        Err(e) => serialize(soter_cs::Result::<response::Register>::Err(e)),
+    }?;
 
-    eprintln!("rueaoehcrluoeahlrcuoaehcr {:?}", resp);
-    // TODO clean up all these maps
-    send.write(&resp.map_err(|_| ())?)
-        .await
-        .map(|_| ())
-        .map_err(|_| ())
+    match send.write(&resp).await {
+        Ok(_) => Ok(()),
+        Err(e) => Err(e.into()),
+    }
 }

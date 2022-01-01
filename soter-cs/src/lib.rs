@@ -14,15 +14,15 @@
 mod bytes;
 mod code;
 mod error;
+pub mod serde;
 
-pub use crate::serde::{deserialize, serialize};
+pub use crate::serde::{deserialize, serialize, Deserialize, Serialize};
 pub use bytes::SigningBytes;
 pub use code::PairingCode;
 pub use error::{Error, Result};
 
 pub mod request;
 pub mod response;
-pub mod serde;
 
 mod private {
     pub trait Sealed {}

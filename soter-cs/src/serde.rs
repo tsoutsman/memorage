@@ -1,4 +1,6 @@
-pub trait SerializableRequestOrResponse: crate::private::Sealed {
+pub use bincode::{Error, Result};
+
+pub trait Serialize: crate::private::Sealed {
     type TransmissionType: serde::Serialize;
 
     fn transmission_form(self) -> Self::TransmissionType;
@@ -6,12 +8,12 @@ pub trait SerializableRequestOrResponse: crate::private::Sealed {
 
 // Ensures that the enum `RequestType` is deserialized and not the request structs
 // such as `Register`.
-pub trait DeserializableRequestOrResponse:
-    crate::private::Sealed + serde::de::DeserializeOwned
-{
-}
+pub trait Deserialize: crate::private::Sealed + serde::de::DeserializeOwned {}
 
-impl<T> crate::serde::SerializableRequestOrResponse for T
+impl<T> crate::private::Sealed for crate::Result<T> where T: crate::response::Response {}
+
+// Serializable Types
+impl<T> Serialize for T
 where
     T: crate::request::Request,
 {
@@ -21,9 +23,7 @@ where
         self.to_enum()
     }
 }
-
-impl<T> crate::private::Sealed for crate::Result<T> where T: crate::response::Response {}
-impl<T> SerializableRequestOrResponse for crate::Result<T>
+impl<T> Serialize for crate::Result<T>
 where
     T: crate::response::Response,
 {
@@ -33,25 +33,23 @@ where
         self
     }
 }
-impl<T> DeserializableRequestOrResponse for crate::Result<T> where T: crate::response::Response {}
 
-impl DeserializableRequestOrResponse for crate::request::RequestType {}
+// Deserializable Types
+impl<T> Deserialize for crate::Result<T> where T: crate::response::Response {}
+impl Deserialize for crate::request::RequestType {}
 
-// TODO error type
-#[allow(clippy::result_unit_err)]
-pub fn serialize<T>(r: T) -> Result<Vec<u8>, ()>
+// Functions
+pub fn serialize<T>(r: T) -> bincode::Result<Vec<u8>>
 where
-    T: SerializableRequestOrResponse,
+    T: Serialize,
 {
-    bincode::serialize(&r.transmission_form()).map_err(|_| ())
+    bincode::serialize(&r.transmission_form())
 }
 
-// TODO error type
-#[allow(clippy::result_unit_err)]
-pub fn deserialize<B, T>(r: B) -> Result<T, ()>
+pub fn deserialize<B, T>(r: B) -> bincode::Result<T>
 where
     B: AsRef<[u8]>,
-    T: DeserializableRequestOrResponse,
+    T: Deserialize,
 {
-    bincode::deserialize(r.as_ref()).map_err(|_| ())
+    bincode::deserialize(r.as_ref())
 }

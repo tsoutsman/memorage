@@ -26,7 +26,7 @@ pub async fn request<T>(
     channels: Channels,
 ) -> soter_cs::Result<T::Response>
 where
-    T: soter_cs::serde::SerializableRequestOrResponse + soter_cs::request::Request,
+    T: soter_cs::Serialize + soter_cs::request::Request,
 {
     let request = AsyncBuf(soter_cs::serialize(request).unwrap());
     let mut output = AsyncBuf(Vec::new());
