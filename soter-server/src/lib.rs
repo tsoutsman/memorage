@@ -22,22 +22,45 @@ use soter_cs::{request::RequestType, response, serialize, Error};
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 
 pub use setup::setup;
+pub use util::public_address;
 
-pub async fn handle_request<T>(
-    mut socket: T,
+pub async fn handle_connection(
+    conn: quinn::Connecting,
+    channels: setup::Channels,
+) -> Result<(), ()> {
+    // remote_address must be called before awaiting the connection
+    let addr = conn.remote_address();
+    let quinn::NewConnection { mut bi_streams, .. } = conn.await.map_err(|_| ())?;
+    while let Some(stream) = bi_streams.next().await {
+        let stream: (quinn::SendStream, quinn::RecvStream) = match stream {
+            Ok(s) => s,
+            Err(quinn::ConnectionError::ApplicationClosed { .. }) => return Ok(()),
+            Err(_) => return Err(()),
+        };
+        // TODO what happens if handle_request returns error
+        tokio::spawn(handle_request(stream, addr, channels.clone()));
+    }
+
+    Ok(())
+}
+
+#[inline]
+pub async fn handle_request<S, R>(
+    (mut send, mut recv): (S, R),
     address: SocketAddr,
     channels: setup::Channels,
     // TODO error type
 ) -> Result<(), ()>
 where
     // TODO buffered read and write?
-    T: tokio::io::AsyncRead + tokio::io::AsyncWrite + std::marker::Unpin,
+    S: tokio::io::AsyncWrite + std::marker::Unpin,
+    R: tokio::io::AsyncRead + std::marker::Unpin,
 {
     // TODO buf length
     let mut buf = vec![0; 1024];
 
     let request: Result<RequestType, Error> = async {
-        socket.read(&mut buf).await.map_err(|_| Error::Generic)?;
+        recv.read(&mut buf).await.map_err(|_| Error::Generic)?;
         soter_cs::deserialize(&buf).map_err(|_| Error::Generic)
     }
     .await;
@@ -67,9 +90,9 @@ where
         Err(e) => serialize(Result::<soter_cs::response::Register, _>::Err(e)),
     };
 
+    eprintln!("rueaoehcrluoeahlrcuoaehcr {:?}", resp);
     // TODO clean up all these maps
-    socket
-        .write(&resp.map_err(|_| ())?)
+    send.write(&resp.map_err(|_| ())?)
         .await
         .map(|_| ())
         .map_err(|_| ())

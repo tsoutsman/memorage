@@ -28,70 +28,46 @@ pub async fn request<T>(
 where
     T: soter_cs::serde::SerializableRequestOrResponse + soter_cs::request::Request,
 {
-    let mut buffer = MockRequest::from(request);
-    soter_server::handle_request(&mut buffer, addr, channels)
+    let request = AsyncBuf(soter_cs::serialize(request).unwrap());
+    let mut output = AsyncBuf(Vec::new());
+    soter_server::handle_request((&mut output, request), addr, channels)
         .await
         .unwrap();
-    soter_cs::deserialize(&buffer.output()).unwrap()
+    soter_cs::deserialize(output.0).unwrap()
 }
 
-pub struct MockRequest {
-    input: Vec<u8>,
-    output: Vec<u8>,
-}
+pub struct AsyncBuf(pub Vec<u8>);
 
-impl<T> From<T> for MockRequest
-where
-    T: soter_cs::serde::SerializableRequestOrResponse,
-{
-    fn from(r: T) -> Self {
-        Self::new(soter_cs::serialize(r).unwrap())
-    }
-}
-
-impl MockRequest {
-    pub fn new(input: Vec<u8>) -> Self {
-        Self {
-            input,
-            output: Vec::new(),
-        }
-    }
-
-    pub fn output(self) -> Vec<u8> {
-        self.output
-    }
-}
-
-impl AsyncWrite for MockRequest {
+impl AsyncWrite for AsyncBuf {
     fn poll_write(
         mut self: std::pin::Pin<&mut Self>,
         cx: &mut std::task::Context<'_>,
         buf: &[u8],
     ) -> std::task::Poll<Result<usize, std::io::Error>> {
-        Pin::new(&mut self.output).poll_write(cx, buf)
+        Pin::new(&mut self.0).poll_write(cx, buf)
     }
 
     fn poll_flush(
         mut self: std::pin::Pin<&mut Self>,
         cx: &mut std::task::Context<'_>,
     ) -> std::task::Poll<Result<(), std::io::Error>> {
-        Pin::new(&mut self.output).poll_flush(cx)
+        Pin::new(&mut self.0).poll_flush(cx)
     }
 
     fn poll_shutdown(
         mut self: std::pin::Pin<&mut Self>,
         cx: &mut std::task::Context<'_>,
     ) -> std::task::Poll<Result<(), std::io::Error>> {
-        Pin::new(&mut self.output).poll_shutdown(cx)
+        Pin::new(&mut self.0).poll_shutdown(cx)
     }
 }
 
-impl AsyncRead for MockRequest {
+impl AsyncRead for AsyncBuf {
     fn poll_read(
         self: std::pin::Pin<&mut Self>,
         cx: &mut std::task::Context<'_>,
         buf: &mut tokio::io::ReadBuf<'_>,
     ) -> std::task::Poll<std::io::Result<()>> {
-        Pin::new(&mut &self.input[..]).poll_read(cx, buf)
+        Pin::new(&mut &self.0[..]).poll_read(cx, buf)
     }
 }
