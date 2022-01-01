@@ -17,7 +17,7 @@ mod error;
 
 use crate::conn::Connection;
 
-use soter_core::{Keypair, PublicKey};
+use soter_core::{KeyPair, PublicKey};
 use soter_cs::request;
 
 const SERVER_ADDRESS: &str = "some address";
@@ -29,10 +29,12 @@ pub mod crypto;
 pub mod fs;
 
 pub async fn establish_connection(
-    keypair: &Keypair,
+    keypair: &KeyPair,
     target_key: PublicKey,
     config: &Config,
 ) -> Result<Connection> {
+    let _cert_key_pair = rcgen::KeyPair::from_der(keypair.as_ref());
+
     let mut server = Connection::try_to(SERVER_ADDRESS).await?;
 
     let signing_bytes = server.request(request::GetSigningBytes).await?.0;

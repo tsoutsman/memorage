@@ -14,7 +14,7 @@ pub async fn request_connection(
     initiator_address: SocketAddr,
 ) -> Result<response::RequestConnection> {
     let signing_bytes = signing_bytes(channels.sign).await?;
-    let initiator_key = initiator_key.into_verifier(&signing_bytes)?;
+    let initiator_key = initiator_key.into_key(&signing_bytes)?;
     let (resp_tx, resp_rx) = tokio::sync::oneshot::channel();
 
     channels

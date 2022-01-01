@@ -14,7 +14,7 @@ async fn basic() {
     let initiator_key = signing_bytes.create_verifiable_key(&KEYPAIR_1);
     let request = request::RequestConnection {
         initiator_key,
-        target_key: KEYPAIR_2.public,
+        target_key: KEYPAIR_2.public_key(),
     };
     let response = util::request(request, *ADDR_1, channels.clone()).await;
     assert_eq!(response, Ok(response::RequestConnection));

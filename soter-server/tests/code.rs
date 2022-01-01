@@ -7,7 +7,7 @@ use soter_cs::{request, response, Error, PairingCode};
 #[tokio::test]
 async fn correct_code() {
     let (channels, _handles) = soter_server::setup();
-    let public_key = KEYPAIR_1.public;
+    let public_key = KEYPAIR_1.public_key();
 
     let request = request::Register(public_key);
     let response = util::request(request, *ADDR_1, channels.clone()).await;
@@ -27,7 +27,7 @@ async fn correct_code() {
 #[tokio::test]
 async fn incorrect_code() {
     let (channels, _handles) = soter_server::setup();
-    let public_key = KEYPAIR_1.public;
+    let public_key = KEYPAIR_1.public_key();
 
     let request = request::Register(public_key);
     let response = util::request(request, *ADDR_1, channels.clone()).await;

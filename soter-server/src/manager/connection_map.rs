@@ -30,14 +30,14 @@ pub struct HashablePublicKey(pub PublicKey);
 // TODO https://github.com/dalek-cryptography/ed25519-dalek/issues/52
 impl std::hash::Hash for HashablePublicKey {
     fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
-        self.0.as_bytes().hash(state);
+        self.0.as_ref().hash(state);
     }
 }
 
 // TODO https://github.com/dalek-cryptography/ed25519-dalek/issues/52
 impl std::cmp::PartialEq for HashablePublicKey {
     fn eq(&self, other: &Self) -> bool {
-        self.0.as_bytes() == other.0.as_bytes()
+        self.0.as_ref() == other.0.as_ref()
     }
 }
 

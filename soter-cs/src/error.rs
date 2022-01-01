@@ -10,9 +10,9 @@ pub enum Error {
     InvalidSignature,
 }
 
-impl From<ed25519_dalek::SignatureError> for Error {
-    fn from(_: ed25519_dalek::SignatureError) -> Self {
-        Self::InvalidSignature
+impl From<()> for Error {
+    fn from(_: ()) -> Self {
+        Self::Generic
     }
 }
 

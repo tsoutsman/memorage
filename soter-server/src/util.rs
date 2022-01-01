@@ -53,6 +53,6 @@ pub async fn verify_key(
     key: Verifiable<PublicKey>,
     sign_tx: mpsc::Sender<oneshot::Sender<SigningBytes>>,
 ) -> soter_cs::Result<PublicKey> {
-    key.into_verifier(&signing_bytes(sign_tx).await?)
+    key.into_key(&signing_bytes(sign_tx).await?)
         .map_err(|e| e.into())
 }

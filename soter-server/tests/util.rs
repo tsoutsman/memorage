@@ -3,18 +3,18 @@ use std::{
     pin::Pin,
 };
 
-use soter_core::Keypair;
+use soter_core::KeyPair;
 use soter_server::setup::Channels;
 use tokio::io::{AsyncRead, AsyncWrite};
 
 lazy_static::lazy_static! {
-    pub static ref KEYPAIR_1: Keypair = {
-        let mut csprng = rand::rngs::OsRng;
-        Keypair::generate(&mut csprng)
+    pub static ref KEYPAIR_1: KeyPair = {
+        let mut rand = soter_core::rand::SystemRandom::new();
+        KeyPair::generate(&mut rand).unwrap()
     };
-    pub static ref KEYPAIR_2: Keypair = {
-        let mut csprng = rand::rngs::OsRng;
-        Keypair::generate(&mut csprng)
+    pub static ref KEYPAIR_2: KeyPair = {
+        let mut rand = soter_core::rand::SystemRandom::new();
+        KeyPair::generate(&mut rand).unwrap()
     };
     pub static ref ADDR_1: SocketAddr = SocketAddr::new(IpAddr::V4(Ipv4Addr::new(1, 2, 3, 4)), 1);
     pub static ref ADDR_2: SocketAddr = SocketAddr::new(IpAddr::V4(Ipv4Addr::new(2, 3, 4, 5)), 2);

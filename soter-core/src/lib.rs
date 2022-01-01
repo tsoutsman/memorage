@@ -11,7 +11,9 @@
     clippy::missing_safety_doc
 )]
 
+mod crypto;
 mod verify;
 
-pub use ed25519_dalek::{Keypair, PublicKey};
+pub use crypto::{KeyPair, PublicKey, Signature};
+pub use ring::rand;
 pub use verify::Verifiable;

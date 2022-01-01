@@ -1,9 +1,8 @@
-use ed25519_dalek::{ExpandedSecretKey, Keypair, PublicKey, Signature, Signer};
 use rand::RngCore;
 use rand_chacha::{rand_core::SeedableRng, ChaCha20Rng};
 use serde::{Deserialize, Serialize};
 use serde_big_array::BigArray;
-use soter_core::Verifiable;
+use soter_core::{KeyPair, PublicKey, Verifiable};
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct SigningBytes(#[serde(with = "BigArray")] [u8; Self::LEN]);
@@ -19,26 +18,14 @@ impl SigningBytes {
         Self(bytes)
     }
 
-    pub fn bytes(&self) -> &[u8] {
-        &self.0
+    pub fn create_verifiable<T>(&self, kp: &KeyPair, inner: T) -> Verifiable<T> {
+        let signature = kp.sign(self);
+        Verifiable::new(signature, inner)
     }
 
-    pub fn create_verifiable<S, T>(
-        &self,
-        signer: S,
-        inner: T,
-    ) -> Result<Verifiable<T>, ed25519_dalek::ed25519::Error>
-    where
-        S: Signer<Signature>,
-    {
-        let signature = signer.try_sign(self.bytes())?;
-        Ok(Verifiable::new(signature, inner))
-    }
-
-    pub fn create_verifiable_key(&self, keypair: &Keypair) -> Verifiable<PublicKey> {
-        let signature =
-            ExpandedSecretKey::from(&keypair.secret).sign(self.bytes(), &keypair.public);
-        let inner = keypair.public;
+    pub fn create_verifiable_key(&self, kp: &KeyPair) -> Verifiable<PublicKey> {
+        let signature = kp.sign(self);
+        let inner = kp.public_key();
 
         Verifiable::new(signature, inner)
     }

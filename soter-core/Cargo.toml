@@ -4,5 +4,7 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-ed25519-dalek = { version = "*", features = ["serde"] }
+ring = "*"
+serde-big-array = { version = "*", features = ["const-generics"] }
+serde_bytes = "*"
 serde = { version = "*", features = ["derive"] }

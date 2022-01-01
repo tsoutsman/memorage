@@ -1,4 +1,5 @@
-use ed25519_dalek::{Signature, SignatureError, Verifier};
+use crate::{PublicKey, Signature};
+
 use serde::{Deserialize, Serialize};
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -12,25 +13,31 @@ impl<T> Verifiable<T> {
         Self { signature, inner }
     }
 
-    pub fn verify<B, V>(self, bytes: &B, verifier: &V) -> Result<T, SignatureError>
+    #[allow(clippy::result_unit_err)]
+    pub fn verify<B>(self, bytes: &B, public_key: &PublicKey) -> Result<T, ()>
     where
         B: AsRef<[u8]>,
-        V: Verifier<Signature>,
     {
-        verifier.verify(bytes.as_ref(), &self.signature)?;
-        Ok(self.inner)
+        let public_key =
+            ring::signature::UnparsedPublicKey::new(&ring::signature::ED25519, public_key.as_ref());
+        match public_key.verify(bytes.as_ref(), self.signature.as_ref()) {
+            Ok(_) => Ok(self.inner),
+            Err(_) => Err(()),
+        }
     }
 }
 
-impl<V> Verifiable<V>
-where
-    V: Verifier<Signature>,
-{
-    pub fn into_verifier<B>(self, bytes: &B) -> Result<V, SignatureError>
+impl Verifiable<PublicKey> {
+    #[allow(clippy::result_unit_err)]
+    pub fn into_key<B>(self, bytes: &B) -> Result<PublicKey, ()>
     where
         B: AsRef<[u8]>,
     {
-        self.inner.verify(bytes.as_ref(), &self.signature)?;
-        Ok(self.inner)
+        let public_key =
+            ring::signature::UnparsedPublicKey::new(&ring::signature::ED25519, self.inner.as_ref());
+        match public_key.verify(bytes.as_ref(), self.signature.as_ref()) {
+            Ok(_) => Ok(self.inner),
+            Err(_) => Err(()),
+        }
     }
 }
