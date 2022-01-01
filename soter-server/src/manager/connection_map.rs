@@ -24,38 +24,9 @@ pub enum Command {
     },
 }
 
-#[derive(Copy, Clone, Debug, Eq)]
-pub struct HashablePublicKey(pub PublicKey);
-
-// TODO https://github.com/dalek-cryptography/ed25519-dalek/issues/52
-impl std::hash::Hash for HashablePublicKey {
-    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
-        self.0.as_ref().hash(state);
-    }
-}
-
-// TODO https://github.com/dalek-cryptography/ed25519-dalek/issues/52
-impl std::cmp::PartialEq for HashablePublicKey {
-    fn eq(&self, other: &Self) -> bool {
-        self.0.as_ref() == other.0.as_ref()
-    }
-}
-
-impl From<PublicKey> for HashablePublicKey {
-    fn from(k: PublicKey) -> Self {
-        Self(k)
-    }
-}
-
-impl From<HashablePublicKey> for PublicKey {
-    fn from(k: HashablePublicKey) -> Self {
-        k.0
-    }
-}
-
 pub async fn manager(mut rx: mpsc::Receiver<Command>) {
-    let mut sockets: bimap::BiMap<HashablePublicKey, SocketAddr> = bimap::BiMap::new();
-    let mut requests: bimap::BiMap<HashablePublicKey, HashablePublicKey> = bimap::BiMap::new();
+    let mut sockets: bimap::BiMap<PublicKey, SocketAddr> = bimap::BiMap::new();
+    let mut requests: bimap::BiMap<PublicKey, PublicKey> = bimap::BiMap::new();
 
     while let Some(cmd) = rx.recv().await {
         match cmd {
@@ -67,8 +38,8 @@ pub async fn manager(mut rx: mpsc::Receiver<Command>) {
             } => {
                 // TODO multiple people want to connect to same target (hashmap value is vec)
                 // TODO only connections approved by initiator
-                sockets.insert(initiator_key.into(), initiator_address);
-                requests.insert(initiator_key.into(), target_key.into());
+                sockets.insert(initiator_key, initiator_address);
+                requests.insert(initiator_key, target_key);
                 // TODO do we even need resp
                 let _ = resp.send(());
             }
@@ -78,10 +49,10 @@ pub async fn manager(mut rx: mpsc::Receiver<Command>) {
                 resp,
             } => {
                 // TODO only accept connections from trusted keys
-                let result = match requests.get_by_right(&target_key.into()) {
+                let result = match requests.get_by_right(&target_key) {
                     Some(initiator_key) => {
                         // TODO add socket here or in both branches?
-                        sockets.insert(target_key.into(), target_address);
+                        sockets.insert(target_key, target_address);
                         sockets.get_by_left(&(*initiator_key)).cloned()
                     }
                     None => None,

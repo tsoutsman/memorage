@@ -2,7 +2,7 @@ use crate::Signature;
 
 use serde::{Deserialize, Serialize};
 
-#[derive(Copy, Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Copy, Clone, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub struct PublicKey([u8; 32]);
 
 impl AsRef<[u8]> for PublicKey {
