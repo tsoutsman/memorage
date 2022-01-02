@@ -5,6 +5,7 @@ use crate::{manager::connection_map, setup::Channels};
 use soter_cs::{response::Ping, Error};
 
 #[inline]
+#[tracing::instrument(skip(channels))]
 pub async fn ping(channels: Channels, initiator_address: SocketAddr) -> Result<Ping, Error> {
     let (resp_tx, resp_rx) = tokio::sync::oneshot::channel();
 

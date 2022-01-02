@@ -12,7 +12,8 @@ hashbrown = "*"
 serde = "*"
 bimap = "*"
 quinn = { git = "https://github.com/quinn-rs/quinn" }
-# tracing = "*"
+tracing = "*"
+tracing-subscriber = "*"
 
 [dev-dependencies]
 lazy_static = "*"

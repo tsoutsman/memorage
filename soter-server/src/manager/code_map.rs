@@ -2,6 +2,7 @@ use hashbrown::HashMap;
 use soter_core::PublicKey;
 use soter_cs::PairingCode;
 use tokio::sync::{mpsc, oneshot};
+use tracing::{info, info_span};
 
 #[derive(Debug)]
 pub enum Command {
@@ -15,10 +16,12 @@ pub enum Command {
     },
 }
 
+#[tracing::instrument]
 pub async fn manager(mut rx: mpsc::Receiver<Command>) {
     let mut map: HashMap<PairingCode, PublicKey> = HashMap::new();
 
     while let Some(cmd) = rx.recv().await {
+        let span = info_span!("received command", ?cmd).entered();
         match cmd {
             Command::Get { code, resp } => {
                 let _ = resp.send(map.remove(&code));
@@ -30,10 +33,12 @@ pub async fn manager(mut rx: mpsc::Receiver<Command>) {
                 while map.contains_key(&code) {
                     code = PairingCode::new()
                 }
-
                 map.insert(code.clone(), key);
+
+                info!(?code, "generated pairing code");
                 let _ = resp.send(code);
             }
         }
+        drop(span);
     }
 }

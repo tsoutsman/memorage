@@ -21,6 +21,7 @@ use std::net::SocketAddr;
 
 use soter_cs::{request::RequestType, response, serialize};
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
+use tracing::{info, warn};
 
 pub use error::{Error, Result};
 pub use setup::setup;
@@ -43,6 +44,7 @@ pub async fn handle_connection(conn: quinn::Connecting, channels: setup::Channel
 }
 
 #[inline]
+#[tracing::instrument(skip(send, recv, channels))]
 pub async fn handle_request<S, R>(
     (mut send, mut recv): (S, R),
     address: SocketAddr,
@@ -52,6 +54,7 @@ where
     S: tokio::io::AsyncWrite + std::marker::Unpin,
     R: tokio::io::AsyncRead + std::marker::Unpin,
 {
+    info!("accepted connection");
     // TODO buf length
     let mut buf = vec![0; 1024];
 
@@ -64,8 +67,9 @@ where
     .await;
 
     let resp = match request {
-        Ok(request) => {
-            match request {
+        Ok(ty) => {
+            info!(?ty, "decoded type");
+            match ty {
                 RequestType::Register(r) => serialize(handler::register(channels, r).await),
                 RequestType::GetKey(r) => serialize(handler::get_key(channels, r).await),
                 RequestType::GetSigningBytes(_) => match util::signing_bytes(channels.sign).await {
@@ -87,7 +91,13 @@ where
     }?;
 
     match send.write(&resp).await {
-        Ok(_) => Ok(()),
-        Err(e) => Err(e.into()),
+        Ok(_) => {
+            info!("closing connection");
+            Ok(())
+        }
+        Err(e) => {
+            warn!(?e, "error sending response");
+            Err(e.into())
+        }
     }
 }

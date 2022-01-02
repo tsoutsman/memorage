@@ -5,6 +5,7 @@ use crate::{manager::connection_map, setup::Channels, util::verify_key};
 use soter_cs::{request, response, Error, Result};
 
 #[inline]
+#[tracing::instrument(skip(channels))]
 pub async fn check_connection(
     channels: Channels,
     request::CheckConnection(target_key): request::CheckConnection,

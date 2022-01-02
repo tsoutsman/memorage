@@ -2,6 +2,8 @@ use std::net::{IpAddr, Ipv4Addr, SocketAddr};
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
+    tracing_subscriber::fmt().init();
+
     let (channels, handles) = soter_server::setup();
 
     let public_address = soter_cert::public_address(soter_cert::DEFAULT_STUN_SERVER)

@@ -3,6 +3,7 @@ use crate::{manager::code_map, setup::Channels};
 use soter_cs::{request, response, Error, Result};
 
 #[inline]
+#[tracing::instrument(skip(channels))]
 pub async fn register(
     channels: Channels,
     request::Register(key): request::Register,

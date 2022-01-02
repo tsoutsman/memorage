@@ -2,6 +2,7 @@ use std::net::SocketAddr;
 
 use soter_core::PublicKey;
 use tokio::sync::{mpsc, oneshot};
+use tracing::{info, info_span, warn};
 
 #[allow(clippy::large_enum_variant)]
 #[derive(Debug)]
@@ -24,11 +25,13 @@ pub enum Command {
     },
 }
 
+#[tracing::instrument]
 pub async fn manager(mut rx: mpsc::Receiver<Command>) {
     let mut sockets: bimap::BiMap<PublicKey, SocketAddr> = bimap::BiMap::new();
     let mut requests: bimap::BiMap<PublicKey, PublicKey> = bimap::BiMap::new();
 
     while let Some(cmd) = rx.recv().await {
+        let span = info_span!("received command", ?cmd).entered();
         match cmd {
             Command::RequestConnection {
                 initiator_key,
@@ -53,9 +56,14 @@ pub async fn manager(mut rx: mpsc::Receiver<Command>) {
                     Some(initiator_key) => {
                         // TODO add socket here or in both branches?
                         sockets.insert(target_key, target_address);
-                        sockets.get_by_left(&(*initiator_key)).cloned()
+                        let initiator_socket = sockets.get_by_left(&(*initiator_key)).cloned();
+                        info!(?initiator_key, ?initiator_socket, "check connection some");
+                        initiator_socket
                     }
-                    None => None,
+                    None => {
+                        info!("check connection none");
+                        None
+                    }
                 };
                 let _ = resp.send(result);
             }
@@ -66,13 +74,21 @@ pub async fn manager(mut rx: mpsc::Receiver<Command>) {
                 let result = match sockets.get_by_right(&initiator_address) {
                     Some(initiator_key) => match requests.get_by_left(initiator_key) {
                         // TODO delete request?
-                        Some(target_key) => sockets.get_by_left(target_key).cloned(),
+                        Some(target_key) => {
+                            info!(?target_key, "ping result");
+                            sockets.get_by_left(target_key).cloned()
+                        }
                         None => None,
                     },
-                    None => None,
+                    None => {
+                        // TODO return err?
+                        warn!("ping from unknown address");
+                        None
+                    }
                 };
                 let _ = resp.send(result);
             }
         }
+        drop(span);
     }
 }

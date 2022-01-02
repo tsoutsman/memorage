@@ -5,6 +5,7 @@ use crate::{manager::connection_map, setup::Channels, util::signing_bytes};
 use soter_cs::{request, response, Error, Result};
 
 #[inline]
+#[tracing::instrument(skip(channels))]
 pub async fn request_connection(
     channels: Channels,
     request::RequestConnection {
