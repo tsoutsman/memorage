@@ -5,10 +5,7 @@ pub enum Error {
     Connection(quinn::ConnectionError),
     Serde(soter_cs::serde::Error),
     Io(std::io::Error),
-    CertificateGeneration(rcgen::RcgenError),
-    TlsConfig(rustls::Error),
-    Stun(soter_stun::Error),
-    NoAddress,
+    Stun(soter_cert::Error),
 }
 
 impl From<quinn::ConnectionError> for Error {
@@ -29,20 +26,8 @@ impl From<std::io::Error> for Error {
     }
 }
 
-impl From<rcgen::RcgenError> for Error {
-    fn from(e: rcgen::RcgenError) -> Self {
-        Self::CertificateGeneration(e)
-    }
-}
-
-impl From<rustls::Error> for Error {
-    fn from(e: rustls::Error) -> Self {
-        Self::TlsConfig(e)
-    }
-}
-
-impl From<soter_stun::Error> for Error {
-    fn from(e: soter_stun::Error) -> Self {
+impl From<soter_cert::Error> for Error {
+    fn from(e: soter_cert::Error) -> Self {
         Self::Stun(e)
     }
 }
@@ -60,9 +45,6 @@ impl std::error::Error for Error {
             Error::Connection(e) => Some(e),
             Error::Serde(e) => Some(e),
             Error::Io(e) => Some(e),
-            Error::CertificateGeneration(e) => Some(e),
-            Error::TlsConfig(e) => Some(e),
-            Error::Stun(e) => Some(e),
             _ => None,
         }
     }

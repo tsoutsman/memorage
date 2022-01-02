@@ -24,7 +24,6 @@ use tokio::io::{AsyncReadExt, AsyncWriteExt};
 
 pub use error::{Error, Result};
 pub use setup::setup;
-pub use util::public_address;
 
 pub async fn handle_connection(conn: quinn::Connecting, channels: setup::Channels) -> Result<()> {
     // remote_address must be called before awaiting the connection

@@ -1,0 +1,13 @@
+[package]
+name = "soter-cert"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+soter-core = { path = "../soter-core" }
+rand_chacha = "*"
+rand = { version = "*", features = ["getrandom"] }
+enumn = "*"
+tokio = { version = "*", features = ["net"] }
+rcgen = "*"
+rustls = "*"

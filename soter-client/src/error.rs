@@ -12,6 +12,7 @@ pub enum Error {
     /// An error that occurs during serialization or deserialization.
     Serde(bincode::Error),
     ServerConnection(soter_cs::Error),
+    Certificate(soter_cert::Error),
 }
 
 impl std::fmt::Display for Error {
@@ -24,6 +25,7 @@ impl std::fmt::Display for Error {
             Error::Utf8(_) => todo!(),
             Error::Serde(_) => todo!(),
             Error::ServerConnection(_) => todo!(),
+            Error::Certificate(_) => todo!(),
         };
 
         write!(f, "{}", s)
@@ -37,6 +39,7 @@ impl std::error::Error for Error {
             Error::Utf8(e) => Some(e),
             Error::Serde(e) => Some(e),
             Error::ServerConnection(e) => Some(e),
+            Error::Certificate(e) => Some(e),
             _ => None,
         }
     }
@@ -63,5 +66,11 @@ impl From<bincode::Error> for Error {
 impl From<soter_cs::Error> for Error {
     fn from(e: soter_cs::Error) -> Self {
         Self::ServerConnection(e)
+    }
+}
+
+impl From<soter_cert::Error> for Error {
+    fn from(e: soter_cert::Error) -> Self {
+        Self::Certificate(e)
     }
 }

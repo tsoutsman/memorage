@@ -29,16 +29,19 @@ pub mod crypto;
 pub mod fs;
 
 pub async fn establish_connection(
-    keypair: &KeyPair,
+    key_pair: &KeyPair,
     target_key: PublicKey,
     config: &Config,
 ) -> Result<Connection> {
-    let _cert_key_pair = rcgen::KeyPair::from_der(keypair.as_ref());
+    let public_address = soter_cert::public_address(soter_cert::DEFAULT_STUN_SERVER)
+        .await?
+        .ip();
+    let _crypto = soter_cert::gen_crypto(public_address, Some(key_pair));
 
     let mut server = Connection::try_to(SERVER_ADDRESS).await?;
 
     let signing_bytes = server.request(request::GetSigningBytes).await?.0;
-    let initiator_key = signing_bytes.create_verifiable_key(keypair);
+    let initiator_key = signing_bytes.create_verifiable_key(key_pair);
 
     server
         .request(request::RequestConnection {

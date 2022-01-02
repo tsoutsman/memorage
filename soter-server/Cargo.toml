@@ -6,14 +6,12 @@ edition = "2021"
 [dependencies]
 soter-core = { path = "../soter-core" }
 soter-cs = { path = "../soter-cs" }
-soter-stun = { path = "../soter-stun" }
+soter-cert = { path = "../soter-cert" }
 tokio = { version = "*", features = ["sync",  "io-util", "net", "macros", "rt-multi-thread"] }
 hashbrown = "*"
 serde = "*"
 bimap = "*"
 quinn = { git = "https://github.com/quinn-rs/quinn" }
-rcgen = "*"
-rustls = "*"
 # tracing = "*"
 
 [dev-dependencies]

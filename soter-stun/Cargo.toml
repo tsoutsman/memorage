@@ -1,9 +1,0 @@
-[package]
-name = "soter-stun"
-version = "0.1.0"
-edition = "2021"
-
-[dependencies]
-rand_chacha = "*"
-rand_core = { version = "0.6", features = ["getrandom"] }
-enumn = "*"

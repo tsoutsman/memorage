@@ -6,6 +6,7 @@ edition = "2021"
 [dependencies]
 soter-core = { path = "../soter-core" }
 soter-cs = { path = "../soter-cs" }
+soter-cert = { path = "../soter-cert" }
 tokio = { version = "*", features = ["net", "io-util", "time"] }
 serde = "*"
 blake3 = "*"
@@ -14,7 +15,6 @@ bincode = "*"
 chacha20poly1305 = "*"
 argon2 = "*"
 rand_chacha = "*"
-rcgen = "*"
 
 [dev-dependencies]
 rand = "*"
