@@ -1,5 +1,3 @@
-use crate::error::Error;
-
 use rand::{distributions::Alphanumeric, Rng};
 use rand_chacha::{rand_core::SeedableRng, ChaCha20Rng};
 use serde::{Deserialize, Serialize};
@@ -34,14 +32,14 @@ impl Default for PairingCode {
 
 // TODO specialisation
 impl std::convert::TryFrom<String> for PairingCode {
-    type Error = Error;
+    type Error = ();
 
     /// Returns an error if the [`String`] is of incorrect length.
     fn try_from(c: String) -> Result<Self, Self::Error> {
         if c.len() == Self::LEN {
             Ok(Self(c))
         } else {
-            Err(Error::InvalidCode)
+            Err(())
         }
     }
 }

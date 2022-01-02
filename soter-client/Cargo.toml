@@ -15,6 +15,7 @@ bincode = "*"
 chacha20poly1305 = "*"
 argon2 = "*"
 rand_chacha = "*"
+thiserror = "*"
 
 [dev-dependencies]
 rand = "*"

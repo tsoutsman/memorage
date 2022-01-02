@@ -1,7 +1,10 @@
 [package]
 name = "soter-server"
+authors = ["Klim Tsoutsman <klimusha@gmail.com>"]
 version = "0.1.0"
 edition = "2021"
+homepage = "https://github.com/tsoutsman/soter"
+repository = "https://github.com/tsoutsman/soter"
 
 [dependencies]
 soter-core = { path = "../soter-core" }
@@ -13,7 +16,9 @@ serde = "*"
 bimap = "*"
 quinn = { git = "https://github.com/quinn-rs/quinn" }
 tracing = "*"
-tracing-subscriber = "*"
+tracing-subscriber = { version = "*", features = ["env-filter"] }
+human-panic = "*"
+thiserror = "*"
 
 [dev-dependencies]
 lazy_static = "*"

@@ -1,87 +1,41 @@
 pub type Result<T> = std::result::Result<T, Error>;
 
-#[derive(Debug)]
+#[derive(thiserror::Error, Debug)]
 pub enum Error {
-    Stun(StunError),
-    Io(std::io::Error),
-    CertificateGeneration(rcgen::RcgenError),
-    TlsConfig(rustls::Error),
+    #[error("STUN decoding error")]
+    Stun(#[from] StunError),
+    #[error("unknown I/O error")]
+    Io(#[from] std::io::Error),
+    #[error("error generating certificate")]
+    CertificateGeneration(#[from] rcgen::RcgenError),
+    #[error("error generating server config")]
+    TlsConfig(#[from] rustls::Error),
 }
 
-impl From<StunError> for Error {
-    fn from(e: StunError) -> Self {
-        Self::Stun(e)
-    }
-}
-
-impl From<std::io::Error> for Error {
-    fn from(e: std::io::Error) -> Self {
-        Self::Io(e)
-    }
-}
-
-impl From<rcgen::RcgenError> for Error {
-    fn from(e: rcgen::RcgenError) -> Self {
-        Self::CertificateGeneration(e)
-    }
-}
-
-impl From<rustls::Error> for Error {
-    fn from(e: rustls::Error) -> Self {
-        Self::TlsConfig(e)
-    }
-}
-
-impl std::fmt::Display for Error {
-    fn fmt(&self, _f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        todo!()
-    }
-}
-
-impl std::error::Error for Error {
-    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
-        match self {
-            Self::Stun(e) => Some(e),
-            Self::Io(e) => Some(e),
-            Self::CertificateGeneration(e) => Some(e),
-            Self::TlsConfig(e) => Some(e),
-        }
-    }
-}
-
-#[derive(Debug)]
+#[derive(thiserror::Error, Debug)]
 pub enum StunError {
-    InvalidUtf8(std::string::FromUtf8Error),
+    #[error("UTF8 error")]
+    InvalidUtf8(#[from] std::string::FromUtf8Error),
+    #[error("invalid header")]
     InvalidHeader,
+    #[error("invalid type")]
     InvalidType,
+    #[error("invalid magic cookie")]
     InvalidMagicCookie,
+    #[error("invalid attribute type")]
     InvalidAttributeType,
+    #[error("incorrect attribute type")]
     IncorrectAttributeType,
+    #[error("attribute {0} too large")]
     AttributeTooLarge(&'static str),
+    #[error("incorrect attribute length")]
     IncorrectAttributeLength,
+    #[error("incorrect message length")]
     IncorrectMessageLength,
+    #[error("invalid address family")]
     InvalidAddressFamily,
+    #[error("invalid address")]
     InvalidAddress,
+    #[error("no xor-mapped address in message")]
     NoAddress,
-}
-
-impl From<std::string::FromUtf8Error> for StunError {
-    fn from(e: std::string::FromUtf8Error) -> Self {
-        Self::InvalidUtf8(e)
-    }
-}
-
-impl std::fmt::Display for StunError {
-    fn fmt(&self, _f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        todo!()
-    }
-}
-
-impl std::error::Error for StunError {
-    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
-        match self {
-            Self::InvalidUtf8(e) => Some(e),
-            _ => None,
-        }
-    }
 }

@@ -11,3 +11,4 @@ enumn = "*"
 tokio = { version = "*", features = ["net"] }
 rcgen = "*"
 rustls = "*"
+thiserror = "*"

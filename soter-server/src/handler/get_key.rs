@@ -21,6 +21,6 @@ pub async fn get_key(
     let key = resp_rx
         .await
         .map_err(|_| Error::Generic)?
-        .ok_or(Error::InvalidCode)?;
+        .ok_or(Error::InvalidPairingCode)?;
     Ok(response::GetKey(key))
 }

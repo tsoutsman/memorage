@@ -1,5 +1,5 @@
 use soter_core::{PublicKey, Verifiable};
-use soter_cs::SigningBytes;
+use soter_cs::{Error, SigningBytes};
 use tokio::sync::{mpsc, oneshot};
 
 pub async fn signing_bytes(
@@ -18,5 +18,5 @@ pub async fn verify_key(
     sign_tx: mpsc::Sender<oneshot::Sender<SigningBytes>>,
 ) -> soter_cs::Result<PublicKey> {
     key.into_key(&signing_bytes(sign_tx).await?)
-        .map_err(|e| e.into())
+        .map_err(|_| Error::Generic)
 }

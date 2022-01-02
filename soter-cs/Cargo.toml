@@ -11,3 +11,4 @@ serde = "*"
 serde-big-array = { version = "*", features = ["const-generics"] }
 soter-core = { path = "../soter-core" }
 bincode = "*"
+thiserror = "*"

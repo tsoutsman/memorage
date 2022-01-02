@@ -30,7 +30,7 @@ pub async fn public_address(addr: &str) -> crate::Result<SocketAddr> {
         method: crate::Method::Binding,
     });
     message.push(crate::attribute::Attribute::Software(
-        // Generates `Software` with a description something like "oxalis v0.1.0"
+        // Generates `Software` with a description something like "soter v0.1.0"
         crate::attribute::Software::try_from(concat!("soter v", env!("CARGO_PKG_VERSION")))?,
     ));
 
@@ -62,6 +62,7 @@ pub fn gen_crypto(
         None => None,
     };
     let mut cert_params = rcgen::CertificateParams::default();
+    cert_params.alg = &rcgen::PKCS_ED25519;
     cert_params.subject_alt_names = vec![rcgen::SanType::IpAddress(public_address)];
     cert_params.key_pair = key_pair;
     let cert = rcgen::Certificate::from_params(cert_params)?;
@@ -77,4 +78,16 @@ pub fn gen_crypto(
         .with_no_client_auth()
         .with_single_cert(vec![cert], key)
         .map_err(|e| e.into())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_basicji() {
+        let x = "127.0.0.1".parse().unwrap();
+        let rand = soter_core::rand::SystemRandom::new();
+        let y = gen_crypto(x, Some(&soter_core::KeyPair::generate(&rand).unwrap())).unwrap();
+    }
 }
