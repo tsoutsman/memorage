@@ -1,3 +1,5 @@
+mod schema;
+
 use rustls::{
     client::{ServerCertVerified, ServerName},
     Certificate,

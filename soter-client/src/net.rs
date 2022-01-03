@@ -22,10 +22,10 @@ pub struct Client {
 impl Client {
     // TODO: Take ref instead of Arc
     pub async fn new(key_pair: Arc<KeyPair>) -> Result<Self> {
-        let public_address = soter_cert::public_address(soter_cert::DEFAULT_STUN_SERVER).await?;
+        let public_address = soter_stun::public_address(soter_stun::DEFAULT_STUN_SERVER).await?;
         info!(%public_address, "received public address");
         let public_address = public_address.ip();
-        let server_config = soter_cert::gen_server_config(public_address, &key_pair)?;
+        let server_config = soter_cert::gen_recv_config(public_address, &key_pair)?;
         let (endpoint, incoming) = quinn::Endpoint::server(
             server_config,
             SocketAddr::new(IpAddr::V4(Ipv4Addr::new(0, 0, 0, 0)), soter_core::PORT),
@@ -42,7 +42,7 @@ impl Client {
         let (send, recv) = self
             .endpoint
             .connect_with(
-                soter_cert::gen_client_config(self.public_address, &self.key_pair, None)?,
+                soter_cert::gen_send_config(self.public_address, &self.key_pair, None)?,
                 address,
                 "ooga.com",
             )?
@@ -61,11 +61,7 @@ impl Client {
         let (send, recv) = self
             .endpoint
             .connect_with(
-                soter_cert::gen_client_config(
-                    self.public_address,
-                    &self.key_pair,
-                    Some(target_key),
-                )?,
+                soter_cert::gen_send_config(self.public_address, &self.key_pair, Some(target_key))?,
                 address,
                 "ooga.com",
             )?

@@ -10,6 +10,7 @@ repository = "https://github.com/tsoutsman/soter"
 soter-core = { path = "../soter-core" }
 soter-cs = { path = "../soter-cs" }
 soter-cert = { path = "../soter-cert" }
+soter-stun = { path = "../soter-stun" }
 tokio = { version = "*", features = ["net", "io-util", "time", "macros", "rt-multi-thread"] }
 serde = "*"
 blake3 = "*"

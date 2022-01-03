@@ -2,7 +2,7 @@ use std::{net::IpAddr, sync::Arc};
 
 use soter_core::{KeyPair, PublicKey};
 
-use crate::{verifier::ServerCertVerifier, Result};
+use crate::{verify::ServerCertVerifier, Result};
 
 #[inline]
 fn gen_cert(
@@ -24,7 +24,7 @@ fn gen_cert(
 }
 
 #[inline]
-pub fn gen_server_config(
+pub fn gen_recv_config(
     public_address: IpAddr,
     key_pair: &KeyPair,
     // TODO check validity of incoming connection certificates
@@ -39,7 +39,7 @@ pub fn gen_server_config(
 }
 
 #[inline]
-pub fn gen_client_config(
+pub fn gen_send_config(
     public_address: IpAddr,
     initiator_key_pair: &KeyPair,
     _target_key: Option<&PublicKey>,

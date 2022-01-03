@@ -1,5 +1,15 @@
+pub type Result<T> = std::result::Result<T, Error>;
+
 #[derive(thiserror::Error, Debug)]
 pub enum Error {
+    #[error("STUN decoding error")]
+    Stun(#[from] StunError),
+    #[error("unknown I/O error")]
+    Io(#[from] std::io::Error),
+}
+
+#[derive(thiserror::Error, Debug)]
+pub enum StunError {
     #[error("UTF8 error")]
     InvalidUtf8(#[from] std::string::FromUtf8Error),
     #[error("invalid header")]

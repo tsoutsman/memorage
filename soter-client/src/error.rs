@@ -19,6 +19,8 @@ pub enum Error {
     ServerConnection(#[from] soter_cs::Error),
     #[error("error generating server config")]
     ServerConfig(#[from] soter_cert::Error),
+    #[error("error determining public IP address")]
+    Stun(#[from] soter_stun::Error),
     #[error("unkown network read error")]
     Read(#[from] quinn::ReadError),
     #[error("unknown network write error")]

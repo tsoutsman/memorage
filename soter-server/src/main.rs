@@ -14,10 +14,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let (channels, handles) = soter_server::setup();
 
-    let public_address = soter_cert::public_address(soter_cert::DEFAULT_STUN_SERVER).await?;
+    let public_address = soter_stun::public_address(soter_stun::DEFAULT_STUN_SERVER).await?;
     info!(%public_address, "received public address");
     let key_pair = soter_core::KeyPair::generate(&soter_core::rand::SystemRandom::new())?;
-    let server_config = soter_cert::gen_server_config(public_address.ip(), &key_pair)?;
+    let server_config = soter_cert::gen_recv_config(public_address.ip(), &key_pair)?;
 
     let addr = SocketAddr::new(IpAddr::V4(Ipv4Addr::new(0, 0, 0, 0)), soter_core::PORT);
     let (_endpoint, mut incoming) = quinn::Endpoint::server(server_config, addr)?;

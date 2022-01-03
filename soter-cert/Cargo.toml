@@ -7,9 +7,8 @@ edition = "2021"
 soter-core = { path = "../soter-core" }
 rand_chacha = "*"
 rand = { version = "*", features = ["getrandom"] }
-enumn = "*"
-tokio = { version = "*", features = ["net"] }
 rcgen = "*"
 rustls = { version = "*", features = ["dangerous_configuration"] }
 thiserror = "*"
 quinn = { git = "https://github.com/quinn-rs/quinn" }
+simple_asn1 = "*"

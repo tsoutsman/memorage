@@ -12,42 +12,7 @@
 )]
 mod config;
 mod error;
-mod stun;
-mod verifier;
+mod verify;
 
-use std::net::SocketAddr;
-
-use tokio::net::UdpSocket;
-
-pub use config::{gen_client_config, gen_server_config};
+pub use config::{gen_recv_config, gen_send_config};
 pub use error::{Error, Result};
-
-pub const DEFAULT_STUN_SERVER: &str = "172.253.59.127:19302";
-
-#[inline]
-pub async fn public_address(addr: &str) -> crate::Result<SocketAddr> {
-    let mut message = stun::Message::new(stun::Type {
-        class: stun::Class::Request,
-        method: stun::Method::Binding,
-    });
-    message.push(stun::attribute::Attribute::Software(
-        stun::attribute::Software::try_from(concat!("soter v", env!("CARGO_PKG_VERSION")))?,
-    ));
-
-    let socket = UdpSocket::bind("0.0.0.0:0").await?;
-    socket.send_to(&<Vec<u8>>::from(message)[..], addr).await?;
-
-    let mut buf = [0u8; 32];
-    socket.recv_from(&mut buf).await?;
-
-    let received = stun::Message::try_from(&buf[..])?;
-
-    for attr in received.attrs() {
-        // TODO add non xor mapped address
-        if let stun::attribute::Attribute::XorMappedAddress(a) = attr {
-            return Ok(a.into());
-        }
-    }
-
-    Err(Error::Stun(stun::Error::NoAddress))
-}
