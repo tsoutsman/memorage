@@ -1,8 +1,8 @@
-use crate::{StunError, MAGIC_COOKIE};
+use crate::stun::{Error, MAGIC_COOKIE};
 
 use std::{convert::TryFrom, net};
 
-type Result<T> = std::result::Result<T, StunError>;
+type Result<T> = std::result::Result<T, Error>;
 
 /// An enum that contains all supported attributes that can be added to a STUN message.
 #[derive(Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
@@ -27,7 +27,7 @@ impl Attribute {
     pub fn from_bytes(data: Vec<u8>, tid: [u8; 12]) -> Result<(Self, usize)> {
         // Ensure future indexing won't panic.
         if data.len() < 2 {
-            return Err(StunError::InvalidAttributeType);
+            return Err(Error::InvalidAttributeType);
         }
 
         match u16::from_be_bytes(<[u8; 2]>::try_from(&data[0..2]).unwrap()) {
@@ -39,7 +39,7 @@ impl Attribute {
                 let result = XorMappedAddress::from_bytes(data, tid)?;
                 Ok((Attribute::XorMappedAddress(result.0), result.1))
             }
-            _ => Err(StunError::InvalidAttributeType),
+            _ => Err(Error::InvalidAttributeType),
         }
     }
 
@@ -116,13 +116,13 @@ pub trait AttributeExt: Sized {
 
         let expected_type = u16::from_be_bytes(<[u8; 2]>::try_from(&data[0..2]).unwrap());
         if expected_type != Self::TYPE {
-            return Err(StunError::IncorrectAttributeType);
+            return Err(Error::IncorrectAttributeType);
         }
 
         // Ensure that indexing further down won't panic.
         let expected_len = u16::from_be_bytes(<[u8; 2]>::try_from(&data[2..4]).unwrap());
         if expected_len as usize > data.len() - 4 {
-            return Err(StunError::IncorrectAttributeLength);
+            return Err(Error::IncorrectAttributeLength);
         }
 
         // TODO we don't need to clone the vec, but I don't know how to get a slice of a vec that is
@@ -161,7 +161,7 @@ impl Software {
 }
 
 impl std::convert::TryFrom<&str> for Software {
-    type Error = StunError;
+    type Error = Error;
 
     /// Attempts to create a new [`Software`] attribute. As required by [RFC 5389], the value for the
     /// attribute must be a valid UTF-8 string and have fewer than 128 characters.
@@ -170,7 +170,7 @@ impl std::convert::TryFrom<&str> for Software {
     fn try_from(value: &str) -> Result<Self> {
         let utf8_len = value.as_bytes().len();
         if utf8_len >= 128 {
-            Err(StunError::AttributeTooLarge("Software"))
+            Err(Error::AttributeTooLarge("Software"))
         } else {
             Ok(Software(value.to_owned()))
         }
@@ -291,7 +291,7 @@ impl AttributeExt for XorMappedAddress {
         // Make sure that getting the family (bytes 1-2 of the message) and decoding the port
         // (bytes 3-4 of the message) don't panic.
         if data.len() < 4 {
-            return Err(StunError::IncorrectAttributeLength);
+            return Err(Error::IncorrectAttributeLength);
         }
 
         let encoded_port = u16::from_be_bytes(<[u8; 2]>::try_from(&data[2..4]).unwrap());
@@ -304,7 +304,7 @@ impl AttributeExt for XorMappedAddress {
                 // If the address family is IPv4, the address must be 32 bits.
                 // 2 bytes (length) + 2 bytes (port) + 4 bytes (address) = 8 bytes
                 if data.len() != 8 {
-                    return Err(StunError::InvalidAddress);
+                    return Err(Error::InvalidAddress);
                 }
 
                 let encoded_address = u32::from_be_bytes(<[u8; 4]>::try_from(&data[4..8]).unwrap());
@@ -318,7 +318,7 @@ impl AttributeExt for XorMappedAddress {
                 // If the address family is IPv6, the address must be 128 bits.
                 // 2 bytes (length) + 2 bytes (port) + 16 bytes (address) = 20 bytes
                 if data.len() != 20 {
-                    return Err(StunError::IncorrectAttributeLength);
+                    return Err(Error::IncorrectAttributeLength);
                 }
 
                 let encoded_address =
@@ -338,7 +338,7 @@ impl AttributeExt for XorMappedAddress {
                 result.set_tid(tid);
                 Ok(result)
             }
-            _ => Err(StunError::InvalidAddressFamily),
+            _ => Err(Error::InvalidAddressFamily),
         }
     }
 
@@ -390,7 +390,7 @@ mod tests {
         }
         let software = Software::try_from(&long_string[..]);
 
-        if let Err(StunError::AttributeTooLarge("Software")) = software {
+        if let Err(Error::AttributeTooLarge("Software")) = software {
             // correct
         } else {
             panic!();

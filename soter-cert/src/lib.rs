@@ -10,28 +10,28 @@
     clippy::missing_panics_doc,
     clippy::missing_safety_doc
 )]
-mod attribute;
+mod config;
 mod error;
-mod message;
+mod stun;
+mod verifier;
 
-use std::net::{IpAddr, SocketAddr};
+use std::net::SocketAddr;
 
-use message::*;
 use tokio::net::UdpSocket;
 
-pub use error::*;
+pub use config::{gen_client_config, gen_server_config};
+pub use error::{Error, Result};
 
 pub const DEFAULT_STUN_SERVER: &str = "172.253.59.127:19302";
 
 #[inline]
 pub async fn public_address(addr: &str) -> crate::Result<SocketAddr> {
-    let mut message = crate::Message::new(crate::Type {
-        class: crate::Class::Request,
-        method: crate::Method::Binding,
+    let mut message = stun::Message::new(stun::Type {
+        class: stun::Class::Request,
+        method: stun::Method::Binding,
     });
-    message.push(crate::attribute::Attribute::Software(
-        // Generates `Software` with a description something like "soter v0.1.0"
-        crate::attribute::Software::try_from(concat!("soter v", env!("CARGO_PKG_VERSION")))?,
+    message.push(stun::attribute::Attribute::Software(
+        stun::attribute::Software::try_from(concat!("soter v", env!("CARGO_PKG_VERSION")))?,
     ));
 
     let socket = UdpSocket::bind("0.0.0.0:0").await?;
@@ -40,54 +40,14 @@ pub async fn public_address(addr: &str) -> crate::Result<SocketAddr> {
     let mut buf = [0u8; 32];
     socket.recv_from(&mut buf).await?;
 
-    let received = crate::Message::try_from(&buf[..])?;
+    let received = stun::Message::try_from(&buf[..])?;
 
     for attr in received.attrs() {
         // TODO add non xor mapped address
-        if let crate::attribute::Attribute::XorMappedAddress(a) = attr {
+        if let stun::attribute::Attribute::XorMappedAddress(a) = attr {
             return Ok(a.into());
         }
     }
 
-    Err(Error::Stun(StunError::NoAddress))
-}
-
-#[inline]
-pub fn gen_crypto(
-    public_address: IpAddr,
-    key_pair: Option<&soter_core::KeyPair>,
-) -> crate::Result<rustls::ServerConfig> {
-    let key_pair = match key_pair {
-        Some(kp) => Some(rcgen::KeyPair::from_der(kp.as_ref())?),
-        None => None,
-    };
-    let mut cert_params = rcgen::CertificateParams::default();
-    cert_params.alg = &rcgen::PKCS_ED25519;
-    cert_params.subject_alt_names = vec![rcgen::SanType::IpAddress(public_address)];
-    cert_params.key_pair = key_pair;
-    let cert = rcgen::Certificate::from_params(cert_params)?;
-
-    let key = cert.serialize_private_key_der();
-    let cert = cert.serialize_der()?;
-
-    let key = rustls::PrivateKey(key);
-    let cert = rustls::Certificate(cert);
-
-    rustls::ServerConfig::builder()
-        .with_safe_defaults()
-        .with_no_client_auth()
-        .with_single_cert(vec![cert], key)
-        .map_err(|e| e.into())
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_basicji() {
-        let x = "127.0.0.1".parse().unwrap();
-        let rand = soter_core::rand::SystemRandom::new();
-        let y = gen_crypto(x, Some(&soter_core::KeyPair::generate(&rand).unwrap())).unwrap();
-    }
+    Err(Error::Stun(stun::Error::NoAddress))
 }

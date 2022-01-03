@@ -1,13 +1,16 @@
 [package]
 name = "soter-client"
+authors = ["Klim Tsoutsman <klimusha@gmail.com>"]
 version = "0.1.0"
 edition = "2021"
+homepage = "https://github.com/tsoutsman/soter"
+repository = "https://github.com/tsoutsman/soter"
 
 [dependencies]
 soter-core = { path = "../soter-core" }
 soter-cs = { path = "../soter-cs" }
 soter-cert = { path = "../soter-cert" }
-tokio = { version = "*", features = ["net", "io-util", "time"] }
+tokio = { version = "*", features = ["net", "io-util", "time", "macros", "rt-multi-thread"] }
 serde = "*"
 blake3 = "*"
 lazy_static = "*"
@@ -16,6 +19,10 @@ chacha20poly1305 = "*"
 argon2 = "*"
 rand_chacha = "*"
 thiserror = "*"
+quinn = { git = "https://github.com/quinn-rs/quinn" }
+tracing = "*"
+tracing-subscriber = { version = "*", features = ["env-filter"] }
+human-panic = "*"
 
 [dev-dependencies]
 rand = "*"

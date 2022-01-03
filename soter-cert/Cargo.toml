@@ -10,5 +10,6 @@ rand = { version = "*", features = ["getrandom"] }
 enumn = "*"
 tokio = { version = "*", features = ["net"] }
 rcgen = "*"
-rustls = "*"
+rustls = { version = "*", features = ["dangerous_configuration"] }
 thiserror = "*"
+quinn = { git = "https://github.com/quinn-rs/quinn" }

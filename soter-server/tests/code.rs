@@ -21,7 +21,7 @@ async fn correct_code() {
     // Make sure server deletes code after it has been accessed
     let response = util::request(request.clone(), *ADDR_1, channels.clone()).await;
 
-    assert_eq!(response, Err(Error::InvalidCode));
+    assert_eq!(response, Err(Error::InvalidPairingCode));
 }
 
 #[tokio::test]
@@ -38,5 +38,5 @@ async fn incorrect_code() {
     let request = request::GetKey(PairingCode::new());
     let response = util::request(request, *ADDR_1, channels.clone()).await;
 
-    assert_eq!(response, Err(Error::InvalidCode));
+    assert_eq!(response, Err(Error::InvalidPairingCode));
 }

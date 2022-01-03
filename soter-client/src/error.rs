@@ -19,4 +19,12 @@ pub enum Error {
     ServerConnection(#[from] soter_cs::Error),
     #[error("error generating server config")]
     ServerConfig(#[from] soter_cert::Error),
+    #[error("unkown network read error")]
+    Read(#[from] quinn::ReadError),
+    #[error("unknown network write error")]
+    Write(#[from] quinn::WriteError),
+    #[error("invalid connection configuration")]
+    ConnectionConfig(#[from] quinn::ConnectError),
+    #[error("unknown connection error")]
+    Connection(#[from] quinn::ConnectionError),
 }

@@ -1,9 +1,9 @@
-use crate::{attribute::Attribute, StunError};
+use crate::stun::{attribute::Attribute, Error};
 
 use rand::{RngCore, SeedableRng};
 use rand_chacha::ChaCha20Rng;
 
-type Result<T> = std::result::Result<T, StunError>;
+type Result<T> = std::result::Result<T, Error>;
 
 /// The magic cookie field must contain the fixed value `0x2112A442` in network byte order.
 pub static MAGIC_COOKIE: u32 = 0x2112A442;
@@ -73,12 +73,12 @@ impl std::convert::From<Type> for [u8; 2] {
 }
 
 impl std::convert::TryFrom<u16> for Type {
-    type Error = StunError;
+    type Error = Error;
 
     fn try_from(value: u16) -> Result<Self> {
         // First 2 bytes must be 0.
         if (value & 0xC000) != 0 {
-            return Err(StunError::InvalidType);
+            return Err(Error::InvalidType);
         }
 
         // For details on how `Type` works and what the weird magic that follows is, see the
@@ -97,13 +97,13 @@ impl std::convert::TryFrom<u16> for Type {
         if let (Some(class), Some(method)) = (Class::n(c), Method::n(m)) {
             Ok(Self { class, method })
         } else {
-            Err(StunError::InvalidType)
+            Err(Error::InvalidType)
         }
     }
 }
 
 impl std::convert::TryFrom<[u8; 2]> for Type {
-    type Error = StunError;
+    type Error = Error;
 
     fn try_from(data: [u8; 2]) -> Result<Self> {
         Type::try_from(u16::from_be_bytes(data))
@@ -207,13 +207,13 @@ impl std::convert::From<Message> for Vec<u8> {
 }
 
 impl std::convert::TryFrom<&[u8]> for Message {
-    type Error = StunError;
+    type Error = Error;
 
     fn try_from(value: &[u8]) -> Result<Self> {
         // The message must at least contain a header which is 20 bytes in length. This check
         // prevents future indexing of value from panicking.
         if value.len() < 20 {
-            return Err(StunError::InvalidHeader);
+            return Err(Error::InvalidHeader);
         }
 
         let encoded_type = <[u8; 2]>::try_from(&value[0..2]).unwrap();
@@ -224,12 +224,12 @@ impl std::convert::TryFrom<&[u8]> for Message {
         // The message length must contain the size of the message in bytes, not including the
         // 20-byte STUN header.
         if len != value.len() as u16 - 20 {
-            return Err(StunError::IncorrectMessageLength);
+            return Err(Error::IncorrectMessageLength);
         }
 
         // The Magic Cookie field must contain the fixed value 0x2112A442 in network byte order.
         if u32::from_be_bytes(<[u8; 4]>::try_from(&value[4..8]).unwrap()) != MAGIC_COOKIE {
-            return Err(StunError::InvalidMagicCookie);
+            return Err(Error::InvalidMagicCookie);
         }
 
         let tid = <[u8; 12]>::try_from(&value[8..20]).unwrap();
@@ -251,7 +251,7 @@ impl std::convert::TryFrom<&[u8]> for Message {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::attribute::Software;
+    use crate::stun::attribute::Software;
     use std::convert::TryFrom;
 
     #[test]
@@ -311,7 +311,7 @@ mod tests {
         let message_bytes = vec![0; 10];
         assert!(matches!(
             Message::try_from(&message_bytes[..]),
-            Err(StunError::InvalidHeader)
+            Err(Error::InvalidHeader)
         ));
 
         // Incorrect length
@@ -334,7 +334,7 @@ mod tests {
 
         assert!(matches!(
             Message::try_from(&message_bytes[..]),
-            Err(StunError::IncorrectMessageLength)
+            Err(Error::IncorrectMessageLength)
         ));
 
         // Incorrect MAGIC_COOKIE
@@ -347,7 +347,7 @@ mod tests {
 
         assert!(matches!(
             Message::try_from(&message_bytes[..]),
-            Err(StunError::InvalidMagicCookie)
+            Err(Error::InvalidMagicCookie)
         ));
     }
 
@@ -434,6 +434,6 @@ mod tests {
         }
 
         // Should result in an error as the first 2 bits aren't 0.
-        assert!(matches!(Type::try_from(0xFF), Err(StunError::InvalidType)));
+        assert!(matches!(Type::try_from(0xFF), Err(Error::InvalidType)));
     }
 }

@@ -1,5 +1,7 @@
 use crate::{PublicKey, Signature};
 
+use ring::signature::Ed25519KeyPair;
+
 #[derive(Debug)]
 pub struct KeyPair {
     bytes: [u8; 85],
@@ -11,28 +13,22 @@ pub struct KeyPair {
 impl KeyPair {
     #[allow(clippy::missing_panics_doc)]
     #[allow(clippy::result_unit_err)]
-    pub fn generate(rng: &dyn ring::rand::SecureRandom) -> Result<Self, ()> {
-        use ring::signature::Ed25519KeyPair;
-
-        let document = Ed25519KeyPair::generate_pkcs8(rng).map_err(|_| ())?;
-        let keypair = Ed25519KeyPair::from_pkcs8(document.as_ref()).map_err(|_| ())?;
+    pub fn generate(rng: &dyn ring::rand::SecureRandom) -> Result<Self, KeyGenerationError> {
+        let document = Ed25519KeyPair::generate_pkcs8(rng).map_err(|_| KeyGenerationError)?;
+        let keypair =
+            Ed25519KeyPair::from_pkcs8(document.as_ref()).map_err(|_| KeyGenerationError)?;
         // SAFETY: the length of a document is always 85 bytes.
         let bytes = document.as_ref().try_into().unwrap();
 
         Ok(Self { bytes, keypair })
     }
 
-    // TODO proper errors
-    pub fn from_bytes<B>(bytes: B) -> Result<Self, &'static str>
+    pub fn from_bytes<B>(bytes: B) -> Result<Self, KeyGenerationError>
     where
         B: AsRef<[u8]>,
     {
-        let bytes: [u8; 85] = bytes
-            .as_ref()
-            .try_into()
-            .map_err(|_| "incorrect bytes length")?;
-        let keypair =
-            ring::signature::Ed25519KeyPair::from_pkcs8(&bytes).map_err(|_| "invalid key")?;
+        let bytes: [u8; 85] = bytes.as_ref().try_into().map_err(|_| KeyGenerationError)?;
+        let keypair = Ed25519KeyPair::from_pkcs8(&bytes).map_err(|_| KeyGenerationError)?;
         Ok(Self { bytes, keypair })
     }
 
@@ -75,3 +71,14 @@ impl<'de> serde::de::Deserialize<'de> for KeyPair {
         Self::from_bytes(bytes).map_err(serde::de::Error::custom)
     }
 }
+
+#[derive(Copy, Clone, Debug)]
+pub struct KeyGenerationError;
+
+impl std::fmt::Display for KeyGenerationError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "key generation failed")
+    }
+}
+
+impl std::error::Error for KeyGenerationError {}

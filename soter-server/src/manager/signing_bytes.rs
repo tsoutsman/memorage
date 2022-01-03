@@ -17,12 +17,11 @@ pub async fn manager(mut rx: mpsc::Receiver<oneshot::Sender<SigningBytes>>) {
 
         if time_generated.elapsed().as_secs() >= SIGNING_BYTES_REFRESH_TIME {
             signing_bytes = SigningBytes::new();
-            time_generated = Instant::now();
             info!(
                 life_of_previous_signing_bytes = %time_generated.elapsed().as_secs(),
-                new_bytes = ?signing_bytes,
                 "regenerated signing bytes"
             );
+            time_generated = Instant::now();
         }
 
         debug!(?signing_bytes, "sending signing bytes");

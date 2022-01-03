@@ -1,4 +1,4 @@
-use crate::Signature;
+use crate::{Signature, VerificationError};
 
 use serde::{Deserialize, Serialize};
 
@@ -13,7 +13,7 @@ impl AsRef<[u8]> for PublicKey {
 
 impl PublicKey {
     #[allow(clippy::result_unit_err)]
-    pub fn verify<B>(&self, bytes: B, signature: Signature) -> Result<(), ()>
+    pub fn verify<B>(&self, bytes: B, signature: Signature) -> Result<(), VerificationError>
     where
         B: AsRef<[u8]>,
     {
@@ -21,6 +21,6 @@ impl PublicKey {
             ring::signature::UnparsedPublicKey::new(&ring::signature::ED25519, self.as_ref());
         public_key
             .verify(bytes.as_ref(), signature.as_ref())
-            .map_err(|_| ())
+            .map_err(|_| VerificationError)
     }
 }
