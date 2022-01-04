@@ -11,4 +11,4 @@ rcgen = "*"
 rustls = { version = "*", features = ["dangerous_configuration"] }
 thiserror = "*"
 quinn = { git = "https://github.com/quinn-rs/quinn" }
-simple_asn1 = "*"
+x509-parser = { version = "*", features = ["verify", "validate"] }

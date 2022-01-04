@@ -2,7 +2,7 @@ use std::{net::IpAddr, sync::Arc};
 
 use soter_core::{KeyPair, PublicKey};
 
-use crate::{verify::ServerCertVerifier, Result};
+use crate::{verify::CertVerifier, Result};
 
 #[inline]
 fn gen_cert(
@@ -33,7 +33,7 @@ pub fn gen_recv_config(
 
     let rustls_config = rustls::ServerConfig::builder()
         .with_safe_defaults()
-        .with_no_client_auth()
+        .with_client_cert_verifier(Arc::new(CertVerifier))
         .with_single_cert(vec![cert], key)?;
     Ok(quinn::ServerConfig::with_crypto(Arc::new(rustls_config)))
 }
@@ -50,10 +50,7 @@ pub fn gen_send_config(
         .with_safe_default_cipher_suites()
         .with_safe_default_kx_groups()
         .with_safe_default_protocol_versions()?
-        // TODO
-        .with_custom_certificate_verifier(Arc::new(ServerCertVerifier(|| {
-            Ok(rustls::client::ServerCertVerified::assertion())
-        })))
+        .with_custom_certificate_verifier(Arc::new(CertVerifier))
         .with_single_cert(vec![cert], key)?;
     Ok(quinn::ClientConfig::new(Arc::new(rustls_config)))
 }

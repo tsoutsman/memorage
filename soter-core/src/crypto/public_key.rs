@@ -11,6 +11,16 @@ impl AsRef<[u8]> for PublicKey {
     }
 }
 
+impl TryFrom<&[u8]> for PublicKey {
+    type Error = KeyLengthError;
+
+    fn try_from(value: &[u8]) -> Result<Self, Self::Error> {
+        Ok(Self(
+            <[u8; 32]>::try_from(value).map_err(|_| KeyLengthError)?,
+        ))
+    }
+}
+
 impl PublicKey {
     #[allow(clippy::result_unit_err)]
     pub fn verify<B>(&self, bytes: B, signature: Signature) -> Result<(), VerificationError>
@@ -24,3 +34,14 @@ impl PublicKey {
             .map_err(|_| VerificationError)
     }
 }
+
+#[derive(Copy, Clone, Debug)]
+pub struct KeyLengthError;
+
+impl std::fmt::Display for KeyLengthError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "incorrect key length")
+    }
+}
+
+impl std::error::Error for KeyLengthError {}

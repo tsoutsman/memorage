@@ -29,7 +29,12 @@ pub use setup::setup;
 pub async fn handle_connection(conn: quinn::Connecting, channels: setup::Channels) -> Result<()> {
     // remote_address must be called before awaiting the connection
     let addr = conn.remote_address();
-    let quinn::NewConnection { mut bi_streams, .. } = conn.await?;
+    let quinn::NewConnection {
+        connection,
+        mut bi_streams,
+        ..
+    } = conn.await?;
+    info!(user_key = ?soter_cert::get_key_unchecked(&connection), "user key grabbed from connection");
     while let Some(stream) = bi_streams.next().await {
         let stream: (quinn::SendStream, quinn::RecvStream) = match stream {
             Ok(s) => s,

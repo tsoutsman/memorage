@@ -16,3 +16,4 @@ mod verify;
 
 pub use config::{gen_recv_config, gen_send_config};
 pub use error::{Error, Result};
+pub use verify::get_key_unchecked;

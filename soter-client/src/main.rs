@@ -10,6 +10,14 @@ async fn main() {
         .with_env_filter(tracing_subscriber::EnvFilter::from_default_env())
         .init();
 
-    let _keypair = soter_core::KeyPair::generate(&soter_core::rand::SystemRandom::new()).unwrap();
-    let _config = Config::default();
+    let keypair = soter_core::KeyPair::generate(&soter_core::rand::SystemRandom::new()).unwrap();
+    let target_key = soter_core::KeyPair::generate(&soter_core::rand::SystemRandom::new())
+        .unwrap()
+        .public_key();
+    let config = Config::default();
+
+    tracing::info!(?keypair, ?target_key, "trying to establish connection");
+    soter_client::establish_connection(std::sync::Arc::new(keypair), &target_key, &config)
+        .await
+        .unwrap();
 }
