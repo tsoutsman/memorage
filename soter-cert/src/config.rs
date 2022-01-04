@@ -24,34 +24,45 @@ fn gen_cert(
 }
 
 #[inline]
-pub fn gen_recv_config(
+pub fn gen_configs(
     public_address: IpAddr,
     key_pair: &KeyPair,
-    // TODO check validity of incoming connection certificates
-) -> Result<quinn::ServerConfig> {
-    let (cert, key) = gen_cert(public_address, key_pair)?;
-
-    let rustls_config = rustls::ServerConfig::builder()
-        .with_safe_defaults()
-        .with_client_cert_verifier(Arc::new(CertVerifier))
-        .with_single_cert(vec![cert], key)?;
-    Ok(quinn::ServerConfig::with_crypto(Arc::new(rustls_config)))
+    initiator_key: Option<Arc<PublicKey>>,
+) -> Result<(quinn::ClientConfig, quinn::ServerConfig)> {
+    Ok((
+        gen_send_config(public_address, key_pair, initiator_key.clone())?,
+        gen_recv_config(public_address, key_pair, initiator_key)?,
+    ))
 }
 
 #[inline]
 pub fn gen_send_config(
     public_address: IpAddr,
-    initiator_key_pair: &KeyPair,
-    // TODO: only allow certs signed by this public key
-    _target_key: Option<&PublicKey>,
+    key_pair: &KeyPair,
+    target_key: Option<Arc<PublicKey>>,
 ) -> Result<quinn::ClientConfig> {
-    let (cert, key) = gen_cert(public_address, initiator_key_pair)?;
+    let (cert, key) = gen_cert(public_address, key_pair)?;
 
     let rustls_config = rustls::ClientConfig::builder()
         .with_safe_default_cipher_suites()
         .with_safe_default_kx_groups()
         .with_safe_default_protocol_versions()?
-        .with_custom_certificate_verifier(Arc::new(CertVerifier))
+        .with_custom_certificate_verifier(Arc::new(CertVerifier::new(target_key)))
         .with_single_cert(vec![cert], key)?;
     Ok(quinn::ClientConfig::new(Arc::new(rustls_config)))
+}
+
+#[inline]
+pub fn gen_recv_config(
+    public_address: IpAddr,
+    key_pair: &KeyPair,
+    initiator_key: Option<Arc<PublicKey>>,
+) -> Result<quinn::ServerConfig> {
+    let (cert, key) = gen_cert(public_address, key_pair)?;
+
+    let rustls_config = rustls::ServerConfig::builder()
+        .with_safe_defaults()
+        .with_client_cert_verifier(Arc::new(CertVerifier::new(initiator_key)))
+        .with_single_cert(vec![cert], key)?;
+    Ok(quinn::ServerConfig::with_crypto(Arc::new(rustls_config)))
 }

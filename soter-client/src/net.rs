@@ -9,11 +9,12 @@ use soter_core::{KeyPair, PublicKey};
 use soter_cs::request::{self, Request};
 use tracing::info;
 
-pub async fn establish_connection<'a>(
-    client: &'a Client,
-    target_key: &PublicKey,
+pub async fn establish_connection(
+    key_pair: Arc<KeyPair>,
+    target_key: Arc<PublicKey>,
     config: &Config,
-) -> Result<PeerConnection<'a>> {
+) -> Result<PeerConnection> {
+    let client = Client::new(key_pair).await?;
     let server_address = SocketAddr::new(
         IpAddr::V4(Ipv4Addr::new(172, 105, 176, 37)),
         soter_core::PORT,
@@ -33,12 +34,9 @@ pub async fn establish_connection<'a>(
 }
 
 #[derive(Debug)]
-pub struct Client {
+struct Client {
     key_pair: Arc<KeyPair>,
     public_address: IpAddr,
-    endpoint: quinn::Endpoint,
-    #[allow(dead_code)]
-    incoming: quinn::Incoming,
 }
 
 impl Client {
@@ -47,60 +45,57 @@ impl Client {
         let public_address = soter_stun::public_address(soter_stun::DEFAULT_STUN_SERVER).await?;
         info!(%public_address, "received public address");
         let public_address = public_address.ip();
-        let server_config = soter_cert::gen_recv_config(public_address, &key_pair)?;
-        let (endpoint, incoming) = quinn::Endpoint::server(
-            server_config,
-            SocketAddr::new(IpAddr::V4(Ipv4Addr::new(0, 0, 0, 0)), soter_core::PORT),
-        )?;
         Ok(Self {
             key_pair,
             public_address,
+        })
+    }
+
+    pub async fn server_connection(&self, server_address: SocketAddr) -> Result<ServerConnection> {
+        let (send_config, recv_config) =
+            soter_cert::gen_configs(self.public_address, &self.key_pair, None)?;
+        let (endpoint, incoming) = quinn::Endpoint::server(
+            recv_config,
+            SocketAddr::new(IpAddr::V4(Ipv4Addr::new(0, 0, 0, 0)), 0),
+        )?;
+        Ok(ServerConnection {
+            send_config,
+            server_address,
             endpoint,
             incoming,
         })
     }
 
-    pub fn public_key(&self) -> PublicKey {
-        self.key_pair.public_key()
-    }
-
-    pub async fn server_connection<'a>(
-        &'_ self,
-        address: SocketAddr,
-    ) -> Result<ServerConnection<'_>> {
-        let config = soter_cert::gen_send_config(self.public_address, &self.key_pair, None)?;
-        let endpoint = &self.endpoint;
-        Ok(ServerConnection {
-            address,
-            endpoint,
-            config,
-        })
-    }
-
-    pub async fn peer_connection<'a>(
-        &'_ self,
-        address: SocketAddr,
-        target_key: &PublicKey,
-    ) -> Result<PeerConnection<'_>> {
-        let config =
-            soter_cert::gen_send_config(self.public_address, &self.key_pair, Some(target_key))?;
-        let endpoint = &self.endpoint;
+    pub async fn peer_connection(
+        &self,
+        peer_address: SocketAddr,
+        target_key: Arc<PublicKey>,
+    ) -> Result<PeerConnection> {
+        let (send_config, recv_config) =
+            soter_cert::gen_configs(self.public_address, &self.key_pair, Some(target_key))?;
+        let (endpoint, incoming) = quinn::Endpoint::server(
+            recv_config,
+            SocketAddr::new(IpAddr::V4(Ipv4Addr::new(0, 0, 0, 0)), 0),
+        )?;
         Ok(PeerConnection {
-            address,
+            send_config,
+            peer_address,
             endpoint,
-            config,
+            incoming,
         })
     }
 }
 
 #[derive(Debug)]
-pub struct ServerConnection<'a> {
-    address: SocketAddr,
-    config: quinn::ClientConfig,
-    endpoint: &'a quinn::Endpoint,
+pub struct ServerConnection {
+    send_config: quinn::ClientConfig,
+    server_address: SocketAddr,
+    endpoint: quinn::Endpoint,
+    #[allow(dead_code)]
+    incoming: quinn::Incoming,
 }
 
-impl<'a> ServerConnection<'a> {
+impl ServerConnection {
     pub async fn request<T>(&self, request: T) -> Result<T::Response>
     where
         T: soter_cs::Serialize + Request,
@@ -108,7 +103,7 @@ impl<'a> ServerConnection<'a> {
         let (mut send, recv) = self
             .endpoint
             // I don't think there is a way around this clone
-            .connect_with(self.config.clone(), self.address, "ooga.com")?
+            .connect_with(self.send_config.clone(), self.server_address, "ooga.com")?
             .await?
             .connection
             .open_bi()
@@ -125,8 +120,10 @@ impl<'a> ServerConnection<'a> {
 
 #[allow(dead_code)]
 #[derive(Debug)]
-pub struct PeerConnection<'a> {
-    address: SocketAddr,
-    config: quinn::ClientConfig,
-    endpoint: &'a quinn::Endpoint,
+pub struct PeerConnection {
+    send_config: quinn::ClientConfig,
+    peer_address: SocketAddr,
+    endpoint: quinn::Endpoint,
+    #[allow(dead_code)]
+    incoming: quinn::Incoming,
 }

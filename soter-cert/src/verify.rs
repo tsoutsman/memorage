@@ -1,3 +1,5 @@
+use std::sync::Arc;
+
 use crate::Error;
 
 use rustls::{
@@ -8,7 +10,44 @@ use rustls::{
 use soter_core::PublicKey;
 use x509_parser::{certificate::X509Certificate, traits::FromDer, validate::Validate};
 
-pub struct CertVerifier;
+pub struct CertVerifier(Option<Arc<PublicKey>>);
+
+impl CertVerifier {
+    pub fn new(permitted_key: Option<Arc<PublicKey>>) -> Self {
+        Self(permitted_key)
+    }
+
+    fn verify_cert(
+        &self,
+        end_entity: &Certificate,
+        intermediates: &[Certificate],
+    ) -> crate::Result<()> {
+        if !intermediates.is_empty() {
+            return Err(Error::IntermediatesNotEmpty);
+        }
+
+        let (rem, cert) = X509Certificate::from_der(end_entity.as_ref())?;
+
+        if !(rem.is_empty() || cert.validate_to_vec().0 || cert.validity().is_valid()) {
+            return Err(Error::InvalidCertificate);
+        }
+
+        cert.verify_signature(Some(cert.public_key()))?;
+
+        if let Some(permitted_key) = &self.0 {
+            match PublicKey::try_from(cert.public_key().subject_public_key.data) {
+                Ok(client_key) => {
+                    if client_key != **permitted_key {
+                        return Err(Error::KeyNotPermitted);
+                    }
+                }
+                Err(_) => return Err(Error::KeyNotPermitted),
+            }
+        }
+
+        Ok(())
+    }
+}
 
 impl ServerCertVerifier for CertVerifier {
     fn verify_server_cert(
@@ -20,11 +59,7 @@ impl ServerCertVerifier for CertVerifier {
         _ocsp_response: &[u8],
         _now: std::time::SystemTime,
     ) -> Result<ServerCertVerified, rustls::Error> {
-        // TODO
-        if !intermediates.is_empty() {
-            return Err(rustls::Error::InvalidCertificateSignature);
-        }
-        match verify_cert(end_entity.as_ref()) {
+        match self.verify_cert(end_entity, intermediates) {
             Ok(_) => Ok(ServerCertVerified::assertion()),
             Err(_) => Err(rustls::Error::InvalidCertificateSignature),
         }
@@ -44,10 +79,7 @@ impl ClientCertVerifier for CertVerifier {
         intermediates: &[Certificate],
         _now: std::time::SystemTime,
     ) -> Result<ClientCertVerified, rustls::Error> {
-        if !intermediates.is_empty() {
-            return Err(rustls::Error::InvalidCertificateSignature);
-        }
-        match verify_cert(end_entity.as_ref()) {
+        match self.verify_cert(end_entity, intermediates) {
             Ok(_) => Ok(ClientCertVerified::assertion()),
             Err(_) => Err(rustls::Error::InvalidCertificateSignature),
         }
@@ -73,16 +105,4 @@ pub fn get_key_unchecked(connection: &quinn::Connection) -> crate::Result<Public
     } else {
         Err(Error::CertificateData)
     }
-}
-
-#[inline]
-fn verify_cert(cert: &[u8]) -> crate::Result<()> {
-    let (rem, cert) = X509Certificate::from_der(cert)?;
-
-    if !(rem.is_empty() || cert.validate_to_vec().0 || cert.validity().is_valid()) {
-        return Err(Error::InvalidCertificate);
-    }
-
-    cert.verify_signature(Some(cert.public_key()))?;
-    Ok(())
 }

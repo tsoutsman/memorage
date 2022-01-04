@@ -12,6 +12,10 @@ pub enum Error {
     InvalidCertificate,
     #[error("error obtaining certificate from connection data")]
     CertificateData,
+    #[error("incoming connection provided intermediate certificates")]
+    IntermediatesNotEmpty,
+    #[error("key not permitted")]
+    KeyNotPermitted,
 }
 
 impl From<x509_parser::error::X509Error> for Error {

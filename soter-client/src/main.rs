@@ -1,4 +1,6 @@
-use soter_client::{net::establish_connection, net::Client, Config};
+use std::sync::Arc;
+
+use soter_client::{net::establish_connection, Config};
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -10,16 +12,18 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .with_env_filter(tracing_subscriber::EnvFilter::from_default_env())
         .init();
 
-    let key_pair = soter_core::KeyPair::generate(&soter_core::rand::SystemRandom::new()).unwrap();
-    let target_key = soter_core::KeyPair::generate(&soter_core::rand::SystemRandom::new())
-        .unwrap()
-        .public_key();
+    let key_pair =
+        Arc::new(soter_core::KeyPair::generate(&soter_core::rand::SystemRandom::new()).unwrap());
+    let target_key = Arc::new(
+        soter_core::KeyPair::generate(&soter_core::rand::SystemRandom::new())
+            .unwrap()
+            .public_key(),
+    );
     let config = Config::default();
 
     tracing::info!(public_key=?key_pair.public_key(), ?target_key, "trying to establish connection");
 
-    let client = Client::new(std::sync::Arc::new(key_pair)).await?;
-    let _peer_connection = establish_connection(&client, &target_key, &config).await?;
+    let _peer_connection = establish_connection(key_pair, target_key, &config).await?;
 
     Ok(())
 }
