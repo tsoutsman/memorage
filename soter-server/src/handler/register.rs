@@ -1,13 +1,11 @@
 use crate::{manager::code_map, setup::Channels};
 
-use soter_cs::{request, response, Error, Result};
+use soter_core::PublicKey;
+use soter_cs::{response, Error, Result};
 
 #[inline]
 #[tracing::instrument(skip(channels))]
-pub async fn register(
-    channels: Channels,
-    request::Register(key): request::Register,
-) -> Result<response::Register> {
+pub async fn register(channels: Channels, key: PublicKey) -> Result<response::Register> {
     let (resp_tx, resp_rx) = tokio::sync::oneshot::channel();
 
     channels

@@ -1,7 +1,7 @@
 use crate::PairingCode;
 
 use serde::{Deserialize, Serialize};
-use soter_core::{PublicKey, Verifiable};
+use soter_core::PublicKey;
 
 pub trait Request: crate::private::Sealed {
     type Response: crate::response::Response;
@@ -15,7 +15,6 @@ pub enum RequestType {
     Register(Register),
     /// Request to get the [`PublicKey`] associated with a given code.
     GetKey(GetKey),
-    GetSigningBytes(GetSigningBytes),
     /// Request to connect to a given [`PublicKey`].
     RequestConnection(RequestConnection),
     CheckConnection(CheckConnection),
@@ -26,22 +25,16 @@ pub enum RequestType {
 impl crate::private::Sealed for crate::request::RequestType {}
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
-pub struct Register(pub PublicKey);
+pub struct Register;
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct GetKey(pub PairingCode);
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
-pub struct GetSigningBytes;
+pub struct RequestConnection(pub PublicKey);
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
-pub struct RequestConnection {
-    pub initiator_key: Verifiable<PublicKey>,
-    pub target_key: PublicKey,
-}
-
-#[derive(Copy, Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
-pub struct CheckConnection(pub Verifiable<PublicKey>);
+pub struct CheckConnection;
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Ping;
@@ -63,11 +56,4 @@ macro_rules! impl_request {
     };
 }
 
-impl_request![
-    Register,
-    GetKey,
-    GetSigningBytes,
-    RequestConnection,
-    CheckConnection,
-    Ping,
-];
+impl_request![Register, GetKey, RequestConnection, CheckConnection, Ping,];

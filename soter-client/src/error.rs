@@ -22,7 +22,7 @@ pub enum Error {
     #[error("error determining public IP address")]
     Stun(#[from] soter_stun::Error),
     #[error("unkown network read error")]
-    Read(#[from] quinn::ReadError),
+    Read(#[from] quinn::ReadToEndError),
     #[error("unknown network write error")]
     Write(#[from] quinn::WriteError),
     #[error("invalid connection configuration")]

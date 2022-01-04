@@ -1,73 +1,52 @@
-use std::{
-    net::{IpAddr, Ipv4Addr, SocketAddr},
-    pin::Pin,
-};
+use std::net::{IpAddr, Ipv4Addr, SocketAddr};
 
-use soter_core::KeyPair;
+use soter_core::{KeyPair, PublicKey};
 use soter_server::setup::Channels;
-use tokio::io::{AsyncRead, AsyncWrite};
 
 lazy_static::lazy_static! {
-    pub static ref KEYPAIR_1: KeyPair = {
+    pub static ref ID_1: Identity = {
+        let address = SocketAddr::new(IpAddr::V4(Ipv4Addr::new(1, 2, 3, 4)), 1);
         let rand = soter_core::rand::SystemRandom::new();
-        KeyPair::generate(&rand).unwrap()
+        let public_key = KeyPair::generate(&rand).unwrap().public_key();
+
+        Identity {
+            public_key,
+            address,
+        }
     };
-    pub static ref KEYPAIR_2: KeyPair = {
+    pub static ref ID_2: Identity = {
+        let address = SocketAddr::new(IpAddr::V4(Ipv4Addr::new(2, 3, 4, 5)), 2);
         let rand = soter_core::rand::SystemRandom::new();
-        KeyPair::generate(&rand).unwrap()
+        let public_key = KeyPair::generate(&rand).unwrap().public_key();
+
+        Identity {
+            public_key,
+            address,
+        }
     };
-    pub static ref ADDR_1: SocketAddr = SocketAddr::new(IpAddr::V4(Ipv4Addr::new(1, 2, 3, 4)), 1);
-    pub static ref ADDR_2: SocketAddr = SocketAddr::new(IpAddr::V4(Ipv4Addr::new(2, 3, 4, 5)), 2);
+}
+
+pub struct Identity {
+    pub public_key: PublicKey,
+    pub address: SocketAddr,
 }
 
 pub async fn request<T>(
     request: T,
-    addr: SocketAddr,
+    identity: &Identity,
     channels: Channels,
 ) -> soter_cs::Result<T::Response>
 where
     T: soter_cs::Serialize + soter_cs::request::Request,
 {
-    let request = AsyncBuf(soter_cs::serialize(request).unwrap());
-    let mut output = AsyncBuf(Vec::new());
-    soter_server::handle_request((&mut output, request), addr, channels)
-        .await
-        .unwrap();
-    soter_cs::deserialize(output.0).unwrap()
-}
-
-pub struct AsyncBuf(pub Vec<u8>);
-
-impl AsyncWrite for AsyncBuf {
-    fn poll_write(
-        mut self: std::pin::Pin<&mut Self>,
-        cx: &mut std::task::Context<'_>,
-        buf: &[u8],
-    ) -> std::task::Poll<Result<usize, std::io::Error>> {
-        Pin::new(&mut self.0).poll_write(cx, buf)
-    }
-
-    fn poll_flush(
-        mut self: std::pin::Pin<&mut Self>,
-        cx: &mut std::task::Context<'_>,
-    ) -> std::task::Poll<Result<(), std::io::Error>> {
-        Pin::new(&mut self.0).poll_flush(cx)
-    }
-
-    fn poll_shutdown(
-        mut self: std::pin::Pin<&mut Self>,
-        cx: &mut std::task::Context<'_>,
-    ) -> std::task::Poll<Result<(), std::io::Error>> {
-        Pin::new(&mut self.0).poll_shutdown(cx)
-    }
-}
-
-impl AsyncRead for AsyncBuf {
-    fn poll_read(
-        self: std::pin::Pin<&mut Self>,
-        cx: &mut std::task::Context<'_>,
-        buf: &mut tokio::io::ReadBuf<'_>,
-    ) -> std::task::Poll<std::io::Result<()>> {
-        Pin::new(&mut &self.0[..]).poll_read(cx, buf)
-    }
+    let request = soter_cs::serialize(request).unwrap();
+    let output = soter_server::__test_handle_request(
+        Ok(request),
+        identity.public_key,
+        identity.address,
+        channels,
+    )
+    .await
+    .unwrap();
+    soter_cs::deserialize(output).unwrap()
 }

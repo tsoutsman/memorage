@@ -11,13 +11,11 @@
     clippy::missing_safety_doc
 )]
 
-mod bytes;
 mod code;
 mod error;
 pub mod serde;
 
 pub use crate::serde::{deserialize, serialize, Deserialize, Serialize};
-pub use bytes::SigningBytes;
 pub use code::PairingCode;
 pub use error::{Error, Result};
 

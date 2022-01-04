@@ -12,10 +12,8 @@
 )]
 
 mod crypto;
-mod verify;
 
-pub use crypto::{KeyPair, PublicKey, Signature};
+pub use crypto::*;
 pub use ring::rand;
-pub use verify::{Verifiable, VerificationError};
 
 pub const PORT: u16 = 1117;

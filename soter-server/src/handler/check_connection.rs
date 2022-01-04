@@ -1,17 +1,17 @@
 use std::net::SocketAddr;
 
-use crate::{manager::connection_map, setup::Channels, util::verify_key};
+use crate::{manager::connection_map, setup::Channels};
 
-use soter_cs::{request, response, Error, Result};
+use soter_core::PublicKey;
+use soter_cs::{response, Error, Result};
 
 #[inline]
 #[tracing::instrument(skip(channels))]
 pub async fn check_connection(
     channels: Channels,
-    request::CheckConnection(target_key): request::CheckConnection,
+    target_key: PublicKey,
     target_address: SocketAddr,
 ) -> Result<response::CheckConnection> {
-    let target_key = verify_key(target_key, channels.sign).await?;
     let (resp_tx, resp_rx) = tokio::sync::oneshot::channel();
 
     channels

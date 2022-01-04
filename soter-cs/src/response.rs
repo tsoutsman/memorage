@@ -1,6 +1,6 @@
 use std::net::SocketAddr;
 
-use crate::{PairingCode, SigningBytes};
+use crate::PairingCode;
 
 use serde::{Deserialize, Serialize};
 use soter_core::PublicKey;
@@ -15,9 +15,6 @@ pub struct Register(pub PairingCode);
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct GetKey(pub PublicKey);
-
-#[derive(Copy, Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
-pub struct GetSigningBytes(pub SigningBytes);
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct RequestConnection;
@@ -38,11 +35,4 @@ macro_rules! impl_response {
     };
 }
 
-impl_response![
-    Register,
-    GetKey,
-    GetSigningBytes,
-    RequestConnection,
-    CheckConnection,
-    Ping,
-];
+impl_response![Register, GetKey, RequestConnection, CheckConnection, Ping,];

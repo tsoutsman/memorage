@@ -16,6 +16,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let public_address = soter_stun::public_address(soter_stun::DEFAULT_STUN_SERVER).await?;
     info!(%public_address, "received public address");
+
     let key_pair = soter_core::KeyPair::generate(&soter_core::rand::SystemRandom::new())?;
     let server_config = soter_cert::gen_recv_config(public_address.ip(), &key_pair)?;
 

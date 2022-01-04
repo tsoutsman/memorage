@@ -15,12 +15,11 @@ mod error;
 mod handler;
 mod manager;
 pub mod setup;
-mod util;
 
 use std::net::SocketAddr;
 
+use soter_core::PublicKey;
 use soter_cs::{request::RequestType, response, serialize};
-use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tracing::{info, warn};
 
 pub use error::{Error, Result};
@@ -34,7 +33,9 @@ pub async fn handle_connection(conn: quinn::Connecting, channels: setup::Channel
         mut bi_streams,
         ..
     } = conn.await?;
-    info!(user_key = ?soter_cert::get_key_unchecked(&connection), "user key grabbed from connection");
+    let client_key = soter_cert::get_key_unchecked(&connection)?;
+    info!(?client_key, "user key grabbed from connection");
+
     while let Some(stream) = bi_streams.next().await {
         let stream: (quinn::SendStream, quinn::RecvStream) = match stream {
             Ok(s) => s,
@@ -42,50 +43,80 @@ pub async fn handle_connection(conn: quinn::Connecting, channels: setup::Channel
             Err(e) => return Err(e.into()),
         };
         // TODO what happens if handle_request returns error
-        tokio::spawn(handle_request(stream, addr, channels.clone()));
+        tokio::spawn(handle_quinn_request(
+            stream,
+            client_key,
+            addr,
+            channels.clone(),
+        ));
     }
 
     Ok(())
 }
 
-#[inline]
-#[tracing::instrument(skip(send, recv, channels))]
-pub async fn handle_request<S, R>(
-    (mut send, mut recv): (S, R),
+pub async fn handle_quinn_request(
+    (mut send, recv): (quinn::SendStream, quinn::RecvStream),
+    client_key: PublicKey,
     address: SocketAddr,
     channels: setup::Channels,
-) -> Result<()>
-where
-    S: tokio::io::AsyncWrite + std::marker::Unpin,
-    R: tokio::io::AsyncRead + std::marker::Unpin,
-{
-    info!("accepted connection");
-    // TODO buf length
-    let mut buf = vec![0; 1024];
+) -> Result<()> {
+    let maybe_buf = recv
+        .read_to_end(1024)
+        .await
+        .map_err(|_| soter_cs::Error::Generic);
 
-    let request: soter_cs::Result<RequestType> = async {
-        recv.read(&mut buf)
-            .await
-            .map_err(|_| soter_cs::Error::Generic)?;
-        soter_cs::deserialize(&buf).map_err(|_| soter_cs::Error::Generic)
+    let result = handle_request(maybe_buf, client_key, address, channels).await?;
+
+    match send.write_all(&result).await {
+        Ok(_) => {
+            info!("closing connection");
+            send.finish().await?;
+            Ok(())
+        }
+        Err(e) => {
+            warn!(?e, "error sending response");
+            Err(e.into())
+        }
     }
-    .await;
+}
 
+#[doc(hidden)]
+pub async fn __test_handle_request(
+    maybe_buf: soter_cs::Result<Vec<u8>>,
+    client_key: PublicKey,
+    address: SocketAddr,
+    channels: setup::Channels,
+) -> Result<Vec<u8>> {
+    handle_request(maybe_buf, client_key, address, channels).await
+}
+
+#[inline]
+#[tracing::instrument(skip(maybe_buf, channels))]
+async fn handle_request(
+    maybe_buf: soter_cs::Result<Vec<u8>>,
+    client_key: PublicKey,
+    address: SocketAddr,
+    channels: setup::Channels,
+) -> Result<Vec<u8>> {
+    info!("accepted connection");
+
+    let request: soter_cs::Result<RequestType> =
+        async { soter_cs::deserialize(&maybe_buf?).map_err(|_| soter_cs::Error::Generic) }.await;
+
+    // TODO: Verify that client_key matches address stored in hashmap.
     let resp = match request {
         Ok(ty) => {
             info!(?ty, "decoded type");
             match ty {
-                RequestType::Register(r) => serialize(handler::register(channels, r).await),
-                RequestType::GetKey(r) => serialize(handler::get_key(channels, r).await),
-                RequestType::GetSigningBytes(_) => match util::signing_bytes(channels.sign).await {
-                    Ok(signing_bytes) => serialize(Ok(response::GetSigningBytes(signing_bytes))),
-                    Err(e) => serialize(soter_cs::Result::<response::GetSigningBytes>::Err(e)),
-                },
-                RequestType::RequestConnection(r) => {
-                    serialize(handler::request_connection(channels, r, address).await)
+                RequestType::Register(_) => {
+                    serialize(handler::register(channels, client_key).await)
                 }
-                RequestType::CheckConnection(r) => {
-                    serialize(handler::check_connection(channels, r, address).await)
+                RequestType::GetKey(r) => serialize(handler::get_key(channels, r).await),
+                RequestType::RequestConnection(r) => {
+                    serialize(handler::request_connection(channels, r, client_key, address).await)
+                }
+                RequestType::CheckConnection(_) => {
+                    serialize(handler::check_connection(channels, client_key, address).await)
                 }
                 // initiator address
                 RequestType::Ping(_) => serialize(handler::ping(channels, address).await),
@@ -95,14 +126,5 @@ where
         Err(e) => serialize(soter_cs::Result::<response::Register>::Err(e)),
     }?;
 
-    match send.write(&resp).await {
-        Ok(_) => {
-            info!("closing connection");
-            Ok(())
-        }
-        Err(e) => {
-            warn!(?e, "error sending response");
-            Err(e.into())
-        }
-    }
+    Ok(resp)
 }

@@ -1,4 +1,4 @@
-use crate::{Signature, VerificationError};
+use crate::Signature;
 
 use serde::{Deserialize, Serialize};
 
@@ -22,7 +22,6 @@ impl TryFrom<&[u8]> for PublicKey {
 }
 
 impl PublicKey {
-    #[allow(clippy::result_unit_err)]
     pub fn verify<B>(&self, bytes: B, signature: Signature) -> Result<(), VerificationError>
     where
         B: AsRef<[u8]>,
@@ -45,3 +44,14 @@ impl std::fmt::Display for KeyLengthError {
 }
 
 impl std::error::Error for KeyLengthError {}
+
+#[derive(Copy, Clone, Debug)]
+pub struct VerificationError;
+
+impl std::fmt::Display for VerificationError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "invalid verification signature")
+    }
+}
+
+impl std::error::Error for VerificationError {}

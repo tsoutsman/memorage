@@ -42,6 +42,7 @@ pub fn gen_recv_config(
 pub fn gen_send_config(
     public_address: IpAddr,
     initiator_key_pair: &KeyPair,
+    // TODO: only allow certs signed by this public key
     _target_key: Option<&PublicKey>,
 ) -> Result<quinn::ClientConfig> {
     let (cert, key) = gen_cert(public_address, initiator_key_pair)?;

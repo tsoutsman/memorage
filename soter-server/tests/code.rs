@@ -1,25 +1,24 @@
 mod util;
 
-use util::{ADDR_1, KEYPAIR_1};
+use util::{ID_1, ID_2};
 
 use soter_cs::{request, response, Error, PairingCode};
 
 #[tokio::test]
 async fn correct_code() {
     let (channels, _handles) = soter_server::setup();
-    let public_key = KEYPAIR_1.public_key();
 
-    let request = request::Register(public_key);
-    let response = util::request(request, *ADDR_1, channels.clone()).await;
+    let request = request::Register;
+    let response = util::request(request, &ID_1, channels.clone()).await;
 
     let code = response.unwrap().0;
     let request = request::GetKey(code);
-    let response = util::request(request.clone(), *ADDR_1, channels.clone()).await;
+    let response = util::request(request.clone(), &ID_2, channels.clone()).await;
 
-    assert_eq!(response, Ok(response::GetKey(public_key)));
+    assert_eq!(response, Ok(response::GetKey(ID_1.public_key)));
 
     // Make sure server deletes code after it has been accessed
-    let response = util::request(request.clone(), *ADDR_1, channels.clone()).await;
+    let response = util::request(request.clone(), &ID_2, channels.clone()).await;
 
     assert_eq!(response, Err(Error::InvalidPairingCode));
 }
@@ -27,16 +26,15 @@ async fn correct_code() {
 #[tokio::test]
 async fn incorrect_code() {
     let (channels, _handles) = soter_server::setup();
-    let public_key = KEYPAIR_1.public_key();
 
-    let request = request::Register(public_key);
-    let response = util::request(request, *ADDR_1, channels.clone()).await;
+    let request = request::Register;
+    let response = util::request(request, &ID_1, channels.clone()).await;
 
     // Make sure there was no error adding the code.
     response.unwrap();
 
     let request = request::GetKey(PairingCode::new());
-    let response = util::request(request, *ADDR_1, channels.clone()).await;
+    let response = util::request(request, &ID_2, channels.clone()).await;
 
     assert_eq!(response, Err(Error::InvalidPairingCode));
 }

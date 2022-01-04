@@ -10,4 +10,6 @@ pub enum Error {
     Io(#[from] std::io::Error),
     #[error("error generating server config")]
     ServerConfig(#[from] soter_cert::Error),
+    #[error("error sending response")]
+    Write(#[from] quinn::WriteError),
 }
