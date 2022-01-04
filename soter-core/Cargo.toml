@@ -4,7 +4,6 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-ring = "*"
-serde-big-array = { version = "*", features = ["const-generics"] }
-serde_bytes = "*"
-serde = { version = "*", features = ["derive"] }
+ed25519-dalek = "*"
+rand = "0.7"
+rand_chacha = "*"

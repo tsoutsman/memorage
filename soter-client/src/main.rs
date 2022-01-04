@@ -12,16 +12,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .with_env_filter(tracing_subscriber::EnvFilter::from_default_env())
         .init();
 
-    let key_pair =
-        Arc::new(soter_core::KeyPair::generate(&soter_core::rand::SystemRandom::new()).unwrap());
-    let target_key = Arc::new(
-        soter_core::KeyPair::generate(&soter_core::rand::SystemRandom::new())
-            .unwrap()
-            .public_key(),
-    );
+    let key_pair = Arc::new(soter_core::KeyPair::from_entropy());
+    let target_key = Arc::new(soter_core::KeyPair::from_entropy().to_public());
     let config = Config::default();
 
-    tracing::info!(public_key=?key_pair.public_key(), ?target_key, "trying to establish connection");
+    tracing::info!(public_key=?key_pair.public(), ?target_key, "trying to establish connection");
 
     let _peer_connection = establish_connection(key_pair, target_key, &config).await?;
 

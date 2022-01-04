@@ -11,9 +11,9 @@
     clippy::missing_safety_doc
 )]
 
-mod crypto;
+mod key_pair;
 
-pub use crypto::*;
-pub use ring::rand;
+pub use key_pair::KeyPair;
+pub type PublicKey = [u8; 32];
 
 pub const PORT: u16 = 1117;

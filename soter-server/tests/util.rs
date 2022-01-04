@@ -6,8 +6,7 @@ use soter_server::setup::Channels;
 lazy_static::lazy_static! {
     pub static ref ID_1: Identity = {
         let address = SocketAddr::new(IpAddr::V4(Ipv4Addr::new(1, 2, 3, 4)), 1);
-        let rand = soter_core::rand::SystemRandom::new();
-        let public_key = KeyPair::generate(&rand).unwrap().public_key();
+        let public_key = KeyPair::from_entropy().to_public();
 
         Identity {
             public_key,
@@ -16,8 +15,7 @@ lazy_static::lazy_static! {
     };
     pub static ref ID_2: Identity = {
         let address = SocketAddr::new(IpAddr::V4(Ipv4Addr::new(2, 3, 4, 5)), 2);
-        let rand = soter_core::rand::SystemRandom::new();
-        let public_key = KeyPair::generate(&rand).unwrap().public_key();
+        let public_key = KeyPair::from_entropy().to_public();
 
         Identity {
             public_key,

@@ -9,6 +9,7 @@ use soter_core::{KeyPair, PublicKey};
 use soter_cs::request::{self, Request};
 use tracing::info;
 
+/// Establish a connection to a peer.
 pub async fn establish_connection(
     key_pair: Arc<KeyPair>,
     target_key: Arc<PublicKey>,
@@ -40,7 +41,6 @@ struct Client {
 }
 
 impl Client {
-    // TODO: Take ref instead of Arc
     pub async fn new(key_pair: Arc<KeyPair>) -> Result<Self> {
         let public_address = soter_stun::public_address(soter_stun::DEFAULT_STUN_SERVER).await?;
         info!(%public_address, "received public address");
@@ -102,7 +102,6 @@ impl ServerConnection {
     {
         let (mut send, recv) = self
             .endpoint
-            // I don't think there is a way around this clone
             .connect_with(self.send_config.clone(), self.server_address, "ooga.com")?
             .await?
             .connection

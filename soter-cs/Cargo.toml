@@ -4,11 +4,9 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-ring = "*"
 rand = "*"
 rand_chacha = "*"
-serde = "*"
-serde-big-array = { version = "*", features = ["const-generics"] }
+serde = { version = "*", features = ["derive"] }
 soter-core = { path = "../soter-core" }
 bincode = "*"
 thiserror = "*"
