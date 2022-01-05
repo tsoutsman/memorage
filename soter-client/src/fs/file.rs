@@ -1,11 +1,9 @@
 use std::path::PathBuf;
 
-use crate::{
-    crypto::{encrypt, FileEncryptionKey},
-    error::Result,
-};
+use crate::{crypto::encrypt, error::Result};
 
 use serde::{Deserialize, Serialize};
+use soter_core::PrivateKey;
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub(super) struct EncryptedFile {
@@ -20,7 +18,8 @@ pub struct File {
 }
 
 impl File {
-    pub(super) fn encrypt(&self, key: &FileEncryptionKey) -> Result<([u8; 32], EncryptedFile)> {
+    pub(super) fn encrypt(&self, key: &PrivateKey) -> Result<([u8; 32], EncryptedFile)> {
+        // TODO: lossy?
         let path_hash = blake3::hash(self.path.to_string_lossy().as_bytes()).into();
         let serialised = bincode::serialize(&self)?;
         let (nonce, encrypted_self) = encrypt(key, &serialised)?;

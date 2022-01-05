@@ -13,10 +13,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .init();
 
     let key_pair = Arc::new(soter_core::KeyPair::from_entropy());
-    let target_key = Arc::new(soter_core::KeyPair::from_entropy().to_public());
+    let target_key = Arc::new(soter_core::KeyPair::from_entropy().public);
     let config = Config::default();
 
-    tracing::info!(public_key=?key_pair.public(), ?target_key, "trying to establish connection");
+    tracing::info!(public_key=?key_pair.public, ?target_key, "trying to establish connection");
 
     let _peer_connection = establish_connection(key_pair, target_key, &config).await?;
 

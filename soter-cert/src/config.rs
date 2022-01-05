@@ -12,7 +12,7 @@ fn gen_cert(
     let mut cert_params = rcgen::CertificateParams::default();
     cert_params.alg = &rcgen::PKCS_ED25519;
     cert_params.subject_alt_names = vec![rcgen::SanType::IpAddress(public_address)];
-    cert_params.key_pair = Some(rcgen::KeyPair::from_der(key_pair.as_ref())?);
+    cert_params.key_pair = Some(rcgen::KeyPair::from_der(&key_pair.to_pkcs8())?);
     let cert = rcgen::Certificate::from_params(cert_params)?;
 
     let serialized_cert = cert.serialize_der()?;

@@ -1,10 +1,10 @@
 use crate::{
-    crypto::FileEncryptionKey,
     error::Result,
     fs::file::{EncryptedFile, File},
 };
 
 use serde::{Deserialize, Serialize};
+use soter_core::PrivateKey;
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct Backup {
@@ -34,7 +34,7 @@ impl Backup {
         Ok(temp.path_hashes)
     }
 
-    pub fn encrypt_and_add(&mut self, key: &FileEncryptionKey, file: File) -> Result<()> {
+    pub fn encrypt_and_add(&mut self, key: &PrivateKey, file: File) -> Result<()> {
         let encrypted = file.encrypt(key)?;
         self.path_hashes.push(encrypted.0);
         self.files.push(encrypted.1);
@@ -46,6 +46,7 @@ impl Backup {
 mod tests {
     use super::*;
     use crate::fs::file::FileContents;
+    use soter_core::KeyPair;
     use std::path::PathBuf;
 
     #[test]
@@ -63,7 +64,7 @@ mod tests {
         };
 
         let mut bf = Backup::with_version(1);
-        let key = FileEncryptionKey::from("hello");
+        let key = KeyPair::from_entropy().private;
         bf.encrypt_and_add(&key, f1).unwrap();
         bf.encrypt_and_add(&key, f2).unwrap();
 

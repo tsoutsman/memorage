@@ -1,7 +1,4 @@
-use crate::{
-    crypto::FileEncryptionKey,
-    error::{Error, Result},
-};
+use crate::error::{Error, Result};
 
 use chacha20poly1305::{
     aead::{Aead, NewAead},
@@ -11,9 +8,10 @@ use rand_chacha::{
     rand_core::{RngCore, SeedableRng},
     ChaCha20Rng,
 };
+use soter_core::PrivateKey;
 
-pub fn encrypt(key: &FileEncryptionKey, bytes: &[u8]) -> Result<([u8; 24], Vec<u8>)> {
-    let aed = XChaCha20Poly1305::new(&chacha20poly1305::Key::from(*key));
+pub fn encrypt(key: &PrivateKey, bytes: &[u8]) -> Result<([u8; 24], Vec<u8>)> {
+    let aed = XChaCha20Poly1305::new(chacha20poly1305::Key::from_slice(key.as_ref()));
 
     let mut rng = ChaCha20Rng::from_entropy();
     let nonce_value = &mut [0u8; 24];
@@ -29,8 +27,8 @@ pub fn encrypt(key: &FileEncryptionKey, bytes: &[u8]) -> Result<([u8; 24], Vec<u
     Ok((nonce_value.to_owned(), encrypted))
 }
 
-pub fn decrypt(key: &FileEncryptionKey, nonce: &[u8; 24], bytes: &[u8]) -> Result<Vec<u8>> {
-    let aed = XChaCha20Poly1305::new(&chacha20poly1305::Key::from(*key));
+pub fn decrypt(key: &PrivateKey, nonce: &[u8], bytes: &[u8]) -> Result<Vec<u8>> {
+    let aed = XChaCha20Poly1305::new(chacha20poly1305::Key::from_slice(key.as_ref()));
     let nonce = XNonce::from_slice(nonce);
 
     let decrypted = match aed.decrypt(nonce, bytes) {
@@ -44,10 +42,11 @@ pub fn decrypt(key: &FileEncryptionKey, nonce: &[u8; 24], bytes: &[u8]) -> Resul
 #[cfg(test)]
 mod tests {
     use super::*;
+    use soter_core::KeyPair;
 
     #[test]
     fn test_encrypt_correctly() {
-        let key = FileEncryptionKey::from("super secret key");
+        let key = KeyPair::from_entropy().private;
         let message = b"super secret message pls don't steal";
 
         let (nonce, encrypted) = encrypt(&key, message).unwrap();
@@ -58,12 +57,12 @@ mod tests {
 
     #[test]
     fn test_decrypt_incorrect_key() {
-        let key = FileEncryptionKey::from("super secret key");
+        let key = KeyPair::from_entropy().private;
         let message = b"super secret message pls don't steal";
 
         let (nonce, encrypted) = encrypt(&key, message).unwrap();
 
-        let incorrect_key = FileEncryptionKey::from("secret key");
+        let incorrect_key = KeyPair::from_entropy().private;
         let decrypted = decrypt(&incorrect_key, &nonce, &encrypted);
         assert!(matches!(decrypted, Err(Error::Decryption)));
     }
