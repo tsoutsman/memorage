@@ -11,6 +11,7 @@
     clippy::missing_safety_doc
 )]
 
+pub use rand;
 use serde::{Deserialize, Serialize};
 
 pub const PORT: u16 = 1117;
@@ -42,6 +43,7 @@ impl KeyPair {
 
     pub fn to_pkcs8(&self) -> [u8; 85] {
         // Adapted from https://github.com/briansmith/ring/blob/main/src/pkcs8.rs
+        // Poor man's DER encoding.
         const BEFORE_PRIVATE_KEY: [u8; 16] = [
             0x30, 0x43, 0x02, 0x01, 0x01, 0x30, 0x04, 0x06, 0x03, 0x2b, 0x65, 0x70, 0x04, 0x22,
             0x04, 0x20,
@@ -63,6 +65,12 @@ pub struct PublicKey(ed25519_dalek::PublicKey);
 impl AsRef<[u8]> for PublicKey {
     fn as_ref(&self) -> &[u8] {
         self.0.as_ref()
+    }
+}
+
+impl From<&PrivateKey> for PublicKey {
+    fn from(pk: &PrivateKey) -> Self {
+        Self((&pk.0).into())
     }
 }
 
@@ -90,6 +98,12 @@ impl std::cmp::PartialEq for PublicKey {
 
 #[derive(Debug)]
 pub struct PrivateKey(ed25519_dalek::SecretKey);
+
+impl PrivateKey {
+    pub fn public(&self) -> PublicKey {
+        PublicKey::from(self)
+    }
+}
 
 impl AsRef<[u8]> for PrivateKey {
     fn as_ref(&self) -> &[u8] {

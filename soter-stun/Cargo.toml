@@ -4,8 +4,7 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-rand = "*"
-rand_chacha = "*"
+soter-core = { path = "../soter-core" }
 enumn = "*"
 thiserror = "*"
 tokio = { version = "*", features = ["net"] }

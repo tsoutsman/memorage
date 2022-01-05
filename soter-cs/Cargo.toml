@@ -4,8 +4,6 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-rand = "*"
-rand_chacha = "*"
 serde = { version = "*", features = ["derive"] }
 soter-core = { path = "../soter-core" }
 bincode = "*"

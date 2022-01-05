@@ -4,16 +4,13 @@ use chacha20poly1305::{
     aead::{Aead, NewAead},
     XChaCha20Poly1305, XNonce,
 };
-use rand_chacha::{
-    rand_core::{RngCore, SeedableRng},
-    ChaCha20Rng,
-};
+use soter_core::rand::{thread_rng, RngCore};
 use soter_core::PrivateKey;
 
 pub fn encrypt(key: &PrivateKey, bytes: &[u8]) -> Result<([u8; 24], Vec<u8>)> {
     let aed = XChaCha20Poly1305::new(chacha20poly1305::Key::from_slice(key.as_ref()));
 
-    let mut rng = ChaCha20Rng::from_entropy();
+    let mut rng = thread_rng();
     let nonce_value = &mut [0u8; 24];
     rng.fill_bytes(&mut nonce_value[..]);
 

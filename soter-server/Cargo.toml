@@ -23,4 +23,3 @@ thiserror = "*"
 
 [dev-dependencies]
 lazy_static = "*"
-rand = "0.7"

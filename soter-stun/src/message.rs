@@ -1,7 +1,6 @@
 use crate::{attribute::Attribute, StunError};
 
-use rand::{RngCore, SeedableRng};
-use rand_chacha::ChaCha20Rng;
+use soter_core::rand::{thread_rng, RngCore};
 
 type Result<T> = std::result::Result<T, StunError>;
 
@@ -133,7 +132,7 @@ impl Message {
     pub fn new(ty: Type) -> Self {
         let mut tid = [0; 12];
 
-        let mut rng = ChaCha20Rng::from_entropy();
+        let mut rng = thread_rng();
         rng.fill_bytes(&mut tid);
 
         Self {

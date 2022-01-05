@@ -19,7 +19,6 @@ lazy_static = "*"
 bincode = "*"
 chacha20poly1305 = "*"
 argon2 = "*"
-rand_chacha = "*"
 thiserror = "*"
 quinn = { git = "https://github.com/quinn-rs/quinn" }
 tracing = "*"
@@ -27,6 +26,5 @@ tracing-subscriber = { version = "*", features = ["env-filter"] }
 human-panic = "*"
 
 [dev-dependencies]
-rand = "*"
 efes = "*"
 tempfile = "*"

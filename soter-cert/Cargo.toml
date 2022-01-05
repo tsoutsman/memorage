@@ -5,8 +5,6 @@ edition = "2021"
 
 [dependencies]
 soter-core = { path = "../soter-core" }
-rand_chacha = "*"
-rand = { version = "*", features = ["getrandom"] }
 rcgen = "*"
 rustls = { version = "*", features = ["dangerous_configuration"] }
 thiserror = "*"

@@ -1,6 +1,5 @@
-use rand::{distributions::Alphanumeric, Rng};
-use rand_chacha::{rand_core::SeedableRng, ChaCha20Rng};
 use serde::{Deserialize, Serialize};
+use soter_core::rand::{distributions::Alphanumeric, thread_rng, Rng};
 
 /// Struct representing the code used during pairing.
 ///
@@ -15,7 +14,7 @@ impl PairingCode {
     /// Create a random code.
     pub fn new() -> Self {
         Self(
-            ChaCha20Rng::from_entropy()
+            thread_rng()
                 .sample_iter(&Alphanumeric)
                 .take(Self::LEN)
                 .map(char::from)
