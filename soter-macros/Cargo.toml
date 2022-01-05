@@ -1,0 +1,15 @@
+[package]
+name = "soter-macros"
+version = "0.1.0"
+edition = "2021"
+
+[lib]
+proc-macro = true
+
+[dependencies]
+syn = "*"
+quote = "*"
+
+[features]
+default = []
+client = []

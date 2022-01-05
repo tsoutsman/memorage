@@ -11,6 +11,7 @@ soter-core = { path = "../soter-core" }
 soter-cs = { path = "../soter-cs" }
 soter-cert = { path = "../soter-cert" }
 soter-stun = { path = "../soter-stun" }
+soter-macros = { path = "../soter-macros", features = ["client"] }
 tokio = { version = "*", features = ["net", "io-util", "time", "macros", "rt-multi-thread"] }
 serde = "*"
 blake3 = "*"
