@@ -23,6 +23,31 @@ fn gen_cert(
     Ok((cert, key))
 }
 
+/// Generate both a config for sending and receiving.
+///
+/// ```
+/// # use soter_cert::{gen_configs};
+/// # fn main() -> Result<(), Box<dyn std::error::Error>> {
+/// # let public_address = std::net::IpAddr::V4(std::net::Ipv4Addr::new(0, 0, 0, 0));
+/// # let key_pair = soter_core::KeyPair::from_entropy();
+/// # let initiator_key = None;
+/// let (send_config, recv_config) = gen_configs(public_address, &key_pair, initiator_key)?;
+/// # Ok(())
+/// # }
+/// ```
+/// is equivalent to
+/// ```
+/// # use soter_cert::{gen_send_config, gen_recv_config};
+/// # fn main() -> Result<(), Box<dyn std::error::Error>> {
+/// # let public_address = std::net::IpAddr::V4(std::net::Ipv4Addr::new(0, 0, 0, 0));
+/// # let key_pair = soter_core::KeyPair::from_entropy();
+/// # let initiator_key = None;
+/// let send_config = gen_send_config(public_address, &key_pair, initiator_key)?;
+/// # let initiator_key = None;
+/// let recv_config = gen_recv_config(public_address, &key_pair, initiator_key)?;
+/// # Ok(())
+/// # }
+/// ```
 #[inline]
 pub fn gen_configs(
     public_address: IpAddr,
@@ -35,6 +60,7 @@ pub fn gen_configs(
     ))
 }
 
+/// Generate a config for outgoing connections.
 #[inline]
 pub fn gen_send_config(
     public_address: IpAddr,
@@ -52,6 +78,7 @@ pub fn gen_send_config(
     Ok(quinn::ClientConfig::new(Arc::new(rustls_config)))
 }
 
+/// Generate a config for incoming connections.
 #[inline]
 pub fn gen_recv_config(
     public_address: IpAddr,
