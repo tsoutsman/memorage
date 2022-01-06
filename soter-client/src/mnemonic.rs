@@ -100,7 +100,7 @@ impl From<MnemonicPhrase<'_>> for KeyPair {
     /// #     .hash_password_into(password, salt, &mut output);
     /// # output.try_into().unwrap()
     /// # }
-    /// use soter_client::crypto::MnemonicPhrase;
+    /// use soter_client::mnemonic::MnemonicPhrase;
     ///
     /// let key = soter_core::KeyPair::from(MnemonicPhrase::new(
     ///     vec!["ahead", "blanket", "captain", "diamond"],

@@ -24,6 +24,7 @@ quinn = { git = "https://github.com/quinn-rs/quinn" }
 tracing = "*"
 tracing-subscriber = { version = "*", features = ["env-filter"] }
 human-panic = "*"
+notify = "5.0.0-pre.13"
 
 [dev-dependencies]
 efes = "*"

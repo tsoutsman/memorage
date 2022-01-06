@@ -29,4 +29,6 @@ pub enum Error {
     ConnectionConfig(#[from] quinn::ConnectError),
     #[error("unknown connection error")]
     Connection(#[from] quinn::ConnectionError),
+    #[error("error monitoring directory")]
+    Monitoring(#[from] notify::Error),
 }

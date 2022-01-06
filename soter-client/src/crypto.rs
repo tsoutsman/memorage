@@ -42,7 +42,7 @@ mod tests {
     use soter_core::KeyPair;
 
     #[test]
-    fn test_encrypt_correctly() {
+    fn encrypt_correctly() {
         let key = KeyPair::from_entropy().private;
         let message = b"super secret message pls don't steal";
 
@@ -53,7 +53,7 @@ mod tests {
     }
 
     #[test]
-    fn test_decrypt_incorrect_key() {
+    fn decrypt_incorrect_key() {
         let key = KeyPair::from_entropy().private;
         let message = b"super secret message pls don't steal";
 
