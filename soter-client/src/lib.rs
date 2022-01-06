@@ -10,6 +10,7 @@
     clippy::missing_panics_doc,
     clippy::missing_safety_doc
 )]
+#![feature(int_roundings, concat_idents)]
 
 mod config;
 mod error;

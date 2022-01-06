@@ -1,81 +1,156 @@
 use crate::{
-    error::Result,
-    fs::file::{EncryptedFile, File},
+    crypto::{decrypt, encrypt},
+    fs::file::File,
 };
 
-use serde::{Deserialize, Serialize};
+use serde::{
+    de::{self, MapAccess, SeqAccess, Visitor},
+    ser::{self, SerializeStruct},
+    Deserialize, Serialize,
+};
 use soter_core::PrivateKey;
 
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug)]
 pub struct Backup {
-    pub version: u16,
-    path_hashes: Vec<[u8; 32]>,
-    files: Vec<EncryptedFile>,
+    /// The version of serialization used to create the backup.
+    ///
+    /// This is not the same as the version of soter used, as the serialization of backups
+    /// rarely changes.
+    version: u16,
+    /// The files contained within the backup.
+    files: Vec<File>,
 }
 
 impl Backup {
-    pub fn with_version(v: u16) -> Self {
-        Self {
-            version: v,
-            path_hashes: Vec::new(),
-            files: Vec::new(),
-        }
+    pub fn new(files: Vec<File>) -> Self {
+        Self { version: 1, files }
     }
 
-    pub fn deserialise_hashes(bytes: &[u8]) -> Result<Vec<[u8; 32]>> {
-        #[derive(Deserialize)]
-        struct BackupFileHashes {
-            #[allow(dead_code)]
-            version: u16,
-            path_hashes: Vec<[u8; 32]>,
-        }
-        // TODO does this deserialisation load the entire file into memory?
-        let temp: BackupFileHashes = bincode::deserialize(bytes)?;
-        Ok(temp.path_hashes)
+    pub fn push(&mut self, file: File) {
+        self.files.push(file);
     }
 
-    pub fn encrypt_and_add(&mut self, key: &PrivateKey, file: File) -> Result<()> {
-        let encrypted = file.encrypt(key)?;
-        self.path_hashes.push(encrypted.0);
-        self.files.push(encrypted.1);
-        Ok(())
+    pub fn encrypt(self, key: &PrivateKey) -> EncryptedBackup<'_> {
+        EncryptedBackup {
+            version: self.version,
+            key,
+            files: self.files,
+        }
     }
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use crate::fs::file::FileContents;
-    use soter_core::KeyPair;
-    use std::path::PathBuf;
+#[derive(Debug)]
+pub struct EncryptedBackup<'a> {
+    version: u16,
+    key: &'a PrivateKey,
+    files: Vec<File>,
+}
 
-    #[test]
-    fn test_backup_file_deserialise_hashes() {
-        let p1: PathBuf = "/example/path/file_1".into();
-        let f1 = File {
-            path: p1.clone(),
-            contents: FileContents::Uncompressed(vec![1, 2, 3, 4, 5]),
-        };
+impl<'a> Serialize for EncryptedBackup<'a> {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        let mut state = serializer.serialize_struct("Backup", 3)?;
+        state.serialize_field("version", &self.version)?;
+        // TODO: Do we have to use a specific serialization implementation here?
+        let files = bincode::serialize(&self.files).map_err(ser::Error::custom)?;
+        let (nonce, encrypted_data) = encrypt(self.key, &files).map_err(ser::Error::custom)?;
+        state.serialize_field("nonce", &nonce)?;
+        state.serialize_field("data", &encrypted_data)?;
+        state.end()
+    }
+}
 
-        let p2: PathBuf = "/example/path/file_2".into();
-        let f2 = File {
-            path: p2.clone(),
-            contents: FileContents::Uncompressed(vec![5, 6, 7]),
-        };
+#[derive(Debug)]
+pub struct BackupDeserializer<'a>(&'a PrivateKey);
 
-        let mut bf = Backup::with_version(1);
-        let key = KeyPair::from_entropy().private;
-        bf.encrypt_and_add(&key, f1).unwrap();
-        bf.encrypt_and_add(&key, f2).unwrap();
+impl<'de, 'a> serde::de::DeserializeSeed<'de> for BackupDeserializer<'a> {
+    type Value = Backup;
 
-        let bf_serialised = bincode::serialize(&bf).unwrap();
-        let result = Backup::deserialise_hashes(&bf_serialised).unwrap();
+    fn deserialize<D>(self, deserializer: D) -> Result<Self::Value, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        #[derive(Deserialize)]
+        #[serde(field_identifier, rename_all = "lowercase")]
+        enum Field {
+            Version,
+            Nonce,
+            Data,
+        }
 
-        let expected: Vec<[u8; 32]> = vec![
-            blake3::hash(p1.to_string_lossy().as_bytes()).into(),
-            blake3::hash(p2.to_string_lossy().as_bytes()).into(),
-        ];
+        struct BackupVisitor<'a>(&'a PrivateKey);
 
-        assert_eq!(result, expected);
+        impl<'de, 'a> Visitor<'de> for BackupVisitor<'a> {
+            type Value = Backup;
+
+            fn expecting(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+                formatter.write_str("struct Backup")
+            }
+
+            fn visit_seq<V>(self, mut seq: V) -> Result<Self::Value, V::Error>
+            where
+                V: SeqAccess<'de>,
+            {
+                let version = seq
+                    .next_element()?
+                    .ok_or_else(|| de::Error::invalid_length(0, &self))?;
+                let nonce = seq
+                    .next_element()?
+                    .ok_or_else(|| de::Error::invalid_length(1, &self))?;
+                let encrypted_data = seq
+                    .next_element()?
+                    .ok_or_else(|| de::Error::invalid_length(2, &self))?;
+                let data = decrypt(self.0, nonce, encrypted_data).map_err(de::Error::custom)?;
+                // TODO: See serialize impl
+                let files = bincode::deserialize(&data).map_err(de::Error::custom)?;
+                Ok(Backup { version, files })
+            }
+
+            // I don't think this function is strictly necessary as we only ever use bincode
+            // but might as well implement it for the sake of completeness.
+            fn visit_map<V>(self, mut map: V) -> Result<Self::Value, V::Error>
+            where
+                V: MapAccess<'de>,
+            {
+                let mut version = None;
+                let mut nonce = None;
+                let mut encrypted_data = None;
+                while let Some(key) = map.next_key()? {
+                    match key {
+                        Field::Version => {
+                            if version.is_some() {
+                                return Err(de::Error::duplicate_field("version"));
+                            }
+                            version = Some(map.next_value()?);
+                        }
+                        Field::Nonce => {
+                            if nonce.is_some() {
+                                return Err(de::Error::duplicate_field("nonce"));
+                            }
+                            nonce = Some(map.next_value()?);
+                        }
+                        Field::Data => {
+                            if encrypted_data.is_some() {
+                                return Err(de::Error::duplicate_field("data"));
+                            }
+                            encrypted_data = Some(map.next_value()?);
+                        }
+                    }
+                }
+                let version = version.ok_or_else(|| de::Error::missing_field("version"))?;
+                let nonce = nonce.ok_or_else(|| de::Error::missing_field("nonce"))?;
+                let encrypted_data =
+                    encrypted_data.ok_or_else(|| de::Error::missing_field("data"))?;
+                let data = decrypt(self.0, nonce, encrypted_data).map_err(de::Error::custom)?;
+                // TODO: See serialize impl
+                let files = bincode::deserialize(&data).map_err(de::Error::custom)?;
+                Ok(Backup { version, files })
+            }
+        }
+
+        const FIELDS: &[&str] = &["version", "nonce", "data"];
+        deserializer.deserialize_struct("Backup", FIELDS, BackupVisitor(self.0))
     }
 }
