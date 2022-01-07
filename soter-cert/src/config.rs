@@ -5,7 +5,7 @@ use soter_core::{KeyPair, PublicKey};
 use crate::{verify::CertVerifier, Result};
 
 #[inline]
-fn gen_cert(
+pub(crate) fn gen_cert(
     public_address: IpAddr,
     key_pair: &KeyPair,
 ) -> Result<(rustls::Certificate, rustls::PrivateKey)> {
