@@ -5,11 +5,11 @@ use soter_core::rand::{thread_rng, RngCore};
 type Result<T> = std::result::Result<T, StunError>;
 
 /// The magic cookie field must contain the fixed value `0x2112A442` in network byte order.
-pub static MAGIC_COOKIE: u32 = 0x2112A442;
+pub(crate) static MAGIC_COOKIE: u32 = 0x2112A442;
 
 #[repr(u8)]
 #[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug, enumn::N)]
-pub enum Class {
+pub(crate) enum Class {
     Request,
     Indication,
     Success,
@@ -24,7 +24,7 @@ pub enum Class {
 /// greater than 9, however, we still chose to represent it as a [`u16`] for compatibility.
 #[repr(u16)]
 #[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug, enumn::N)]
-pub enum Method {
+pub(crate) enum Method {
     Binding = 1,
     Allocate = 3,
     Refresh,
@@ -35,9 +35,9 @@ pub enum Method {
 }
 
 #[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
-pub struct Type {
-    pub class: Class,
-    pub method: Method,
+pub(crate) struct Type {
+    pub(crate) class: Class,
+    pub(crate) method: Method,
 }
 
 impl std::convert::From<Type> for u16 {
@@ -118,7 +118,7 @@ impl std::convert::TryFrom<[u8; 2]> for Type {
 /// request then you can use the same instance of `Message`. Otherwise, you must generate a new
 /// `Message` instance that will have a different transaction ID.
 #[derive(Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
-pub struct Message {
+pub(crate) struct Message {
     /// The transaction ID is a 96-bit identifier, used to uniquely identify stun transactions.
     ///
     /// It must be uniformly and randomly chosen from the interval 0 .. 2**96-1, and
@@ -129,7 +129,7 @@ pub struct Message {
 }
 
 impl Message {
-    pub fn new(ty: Type) -> Self {
+    pub(crate) fn new(ty: Type) -> Self {
         let mut tid = [0; 12];
 
         let mut rng = thread_rng();
@@ -142,23 +142,13 @@ impl Message {
         }
     }
 
-    /// The transaction ID of the message.
-    pub fn tid(&self) -> [u8; 12] {
-        self.tid
-    }
-
-    /// The type of message.
-    pub fn ty(&self) -> Type {
-        self.ty
-    }
-
     /// The attributes of the message.
-    pub fn attrs(&self) -> Vec<Attribute> {
+    pub(crate) fn attrs(&self) -> Vec<Attribute> {
         self.attrs.clone()
     }
 
     /// The total length of the message excluding the header, but including padding.
-    pub fn len(&self) -> usize {
+    pub(crate) fn len(&self) -> usize {
         let mut result = 0;
         for attr in self.attrs.iter() {
             result += attr.len();
@@ -166,16 +156,12 @@ impl Message {
         result
     }
 
-    pub fn is_empty(&self) -> bool {
-        self.len() == 0
-    }
-
     /// Append an attribute to the end of a message.
     ///
     /// Any attribute type may appear more than once in a STUN message. Unless specified otherwise,
     /// the order of appearance is significant: only the first occurrence needs to be processed by a
     /// receiver, and any duplicates may be ignored by a receiver.
-    pub fn push(&mut self, mut attr: Attribute) {
+    pub(crate) fn push(&mut self, mut attr: Attribute) {
         #[allow(clippy::single_match)]
         // Certain attributes require information about the message in order to be correctly encoded.
         match attr {
@@ -297,9 +283,9 @@ mod tests {
 
         let message = Message::try_from(&message_bytes[..]).unwrap();
 
-        assert_eq!(message.ty(), ty);
+        assert_eq!(message.ty, ty);
         assert_eq!(message.attrs(), attrs);
-        assert_eq!(message.tid().to_vec(), tid);
+        assert_eq!(message.tid.to_vec(), tid);
     }
 
     #[test]

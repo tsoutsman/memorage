@@ -41,7 +41,7 @@ struct Client {
 }
 
 impl Client {
-    pub async fn new(key_pair: Arc<KeyPair>) -> Result<Self> {
+    async fn new(key_pair: Arc<KeyPair>) -> Result<Self> {
         let public_address = soter_stun::public_address(soter_stun::DEFAULT_STUN_SERVER).await?;
         info!(%public_address, "received public address");
         let public_address = public_address.ip();
@@ -51,7 +51,7 @@ impl Client {
         })
     }
 
-    pub async fn server_connection(&self, server_address: SocketAddr) -> Result<ServerConnection> {
+    async fn server_connection(&self, server_address: SocketAddr) -> Result<ServerConnection> {
         let (send_config, recv_config) =
             soter_cert::gen_configs(self.public_address, &self.key_pair, None)?;
         let (endpoint, incoming) = quinn::Endpoint::server(
@@ -66,7 +66,7 @@ impl Client {
         })
     }
 
-    pub async fn peer_connection(
+    async fn peer_connection(
         &self,
         peer_address: SocketAddr,
         target_key: Arc<PublicKey>,

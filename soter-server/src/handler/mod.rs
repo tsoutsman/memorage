@@ -4,8 +4,8 @@ mod ping;
 mod register;
 mod request_connection;
 
-pub use check_connection::check_connection;
-pub use get_key::get_key;
-pub use ping::ping;
-pub use register::register;
-pub use request_connection::request_connection;
+pub(crate) use check_connection::check_connection;
+pub(crate) use get_key::get_key;
+pub(crate) use ping::ping;
+pub(crate) use register::register;
+pub(crate) use request_connection::request_connection;

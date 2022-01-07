@@ -10,10 +10,10 @@ use rustls::{
 use soter_core::PublicKey;
 use x509_parser::{certificate::X509Certificate, traits::FromDer, validate::Validate};
 
-pub struct CertVerifier(Option<Arc<PublicKey>>);
+pub(crate) struct CertVerifier(Option<Arc<PublicKey>>);
 
 impl CertVerifier {
-    pub fn new(permitted_key: Option<Arc<PublicKey>>) -> Self {
+    pub(crate) fn new(permitted_key: Option<Arc<PublicKey>>) -> Self {
         Self(permitted_key)
     }
 
@@ -88,7 +88,7 @@ impl ClientCertVerifier for CertVerifier {
     }
 }
 
-/// Get the subject key of the certificate used to authenticate this connection.
+/// Get the subject key of the certificate used to authenticate the provided connection.
 ///
 /// # Safety
 /// This function does not check the validity or authenticity of the certificate -

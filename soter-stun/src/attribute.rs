@@ -6,13 +6,13 @@ type Result<T> = std::result::Result<T, StunError>;
 
 /// An enum that contains all supported attributes that can be added to a STUN message.
 #[derive(Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
-pub enum Attribute {
+pub(crate) enum Attribute {
     Software(Software),
     XorMappedAddress(XorMappedAddress),
 }
 
 impl Attribute {
-    pub fn to_bytes(&self) -> Vec<u8> {
+    pub(crate) fn to_bytes(&self) -> Vec<u8> {
         match self {
             Attribute::Software(a) => a.to_bytes(),
             Attribute::XorMappedAddress(a) => a.to_bytes(),
@@ -24,7 +24,7 @@ impl Attribute {
     /// multiple attributes, it will only decode the top most one and return the decoded attribute
     /// and how many bytes were read while decoding it.
     #[allow(clippy::missing_panics_doc)]
-    pub fn from_bytes(data: Vec<u8>, tid: [u8; 12]) -> Result<(Self, usize)> {
+    pub(crate) fn from_bytes(data: Vec<u8>, tid: [u8; 12]) -> Result<(Self, usize)> {
         // Ensure future indexing won't panic.
         if data.len() < 2 {
             return Err(StunError::InvalidAttributeType);
@@ -44,7 +44,7 @@ impl Attribute {
     }
 
     #[allow(clippy::len_without_is_empty)]
-    pub fn len(&self) -> usize {
+    pub(crate) fn len(&self) -> usize {
         match self {
             Attribute::Software(a) => a.len(),
             Attribute::XorMappedAddress(a) => a.len(),
@@ -54,7 +54,7 @@ impl Attribute {
 
 /// The trait implemented by all STUN attributes.
 #[allow(clippy::len_without_is_empty)]
-pub trait AttributeExt: Sized {
+pub(crate) trait AttributeExt: Sized {
     /// The 2 byte value that STUN agents use to identify the type of attribute.
     #[doc(hidden)]
     const TYPE: u16;
@@ -152,13 +152,7 @@ pub trait AttributeExt: Sized {
 ///
 /// [RFC 5389]: https://datatracker.ietf.org/doc/html/rfc5389#section-15.10
 #[derive(Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug, Default)]
-pub struct Software(String);
-
-impl Software {
-    pub fn value(&self) -> String {
-        self.0.clone()
-    }
-}
+pub(crate) struct Software(String);
 
 impl std::convert::TryFrom<&str> for Software {
     type Error = StunError;
@@ -195,7 +189,7 @@ impl AttributeExt for Software {
 }
 
 #[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
-pub struct XorMappedAddress {
+pub(crate) struct XorMappedAddress {
     ip: net::IpAddr,
     /// If the address is ipv6 then the transaction id of the message is used in the xor function.
     #[doc(hidden)]
@@ -204,7 +198,7 @@ pub struct XorMappedAddress {
 }
 
 impl XorMappedAddress {
-    pub fn from(ip: net::IpAddr, port: u16) -> Self {
+    pub(crate) fn from(ip: net::IpAddr, port: u16) -> Self {
         Self {
             ip,
             tid: None,
@@ -212,25 +206,16 @@ impl XorMappedAddress {
         }
     }
 
-    pub fn ip(&self) -> net::IpAddr {
+    pub(crate) fn ip(&self) -> net::IpAddr {
         self.ip
     }
 
-    pub fn port(&self) -> u16 {
+    pub(crate) fn port(&self) -> u16 {
         self.port
     }
 
-    pub fn is_ipv4(&self) -> bool {
-        self.ip.is_ipv4()
-    }
-
-    pub fn is_ipv6(&self) -> bool {
-        self.ip.is_ipv6()
-    }
-
-    /// This function must only be called by the [`Message`](crate::stun::Message) that carries
-    /// the [`Software`] attribute. It should not be called by the user.
-    #[doc(hidden)]
+    /// This function must only be called by the [`Message`](crate::Message) that carries
+    /// the [`Software`] attribute.
     pub(crate) fn set_tid(&mut self, tid: [u8; 12]) {
         self.tid = Some(tid);
     }
@@ -471,7 +456,6 @@ mod tests {
         expected.extend_from_slice(&port_xor.to_be_bytes());
         expected.extend_from_slice(&address_xor.to_be_bytes());
 
-        assert!(address.is_ipv4());
         assert_eq!(address.len(), 12);
         assert_eq!(wrapper.len(), 12);
         assert_eq!(address.to_bytes(), expected);
@@ -507,7 +491,6 @@ mod tests {
         expected.extend_from_slice(&port_xor.to_be_bytes());
         expected.extend_from_slice(&address_xor.to_be_bytes());
 
-        assert!(address.is_ipv6());
         assert_eq!(address.len(), 24);
         assert_eq!(wrapper.len(), 24);
         assert_eq!(address.to_bytes(), expected);

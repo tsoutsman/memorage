@@ -1,2 +1,2 @@
-pub mod code_map;
-pub mod connection_map;
+pub(crate) mod code_map;
+pub(crate) mod connection_map;
