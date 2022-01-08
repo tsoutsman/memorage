@@ -25,6 +25,10 @@ tracing = "*"
 tracing-subscriber = { version = "*", features = ["env-filter"] }
 human-panic = "*"
 notify = "5.0.0-pre.13"
+clap = { version = "3.0.5", features = ["derive"] }
+serde_bytes = "*"
+toml = "*"
+dirs = "*"
 
 [dev-dependencies]
 efes = "*"

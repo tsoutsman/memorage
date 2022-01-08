@@ -31,14 +31,34 @@ impl Default for PairingCode {
 
 // TODO specialisation
 impl std::convert::TryFrom<String> for PairingCode {
-    type Error = ();
+    type Error = PairingCodeError;
 
     /// Returns an error if the [`String`] is of incorrect length.
-    fn try_from(c: String) -> Result<Self, Self::Error> {
-        if c.len() == Self::LEN {
-            Ok(Self(c))
+    fn try_from(s: String) -> Result<Self, Self::Error> {
+        s.parse()
+    }
+}
+
+impl std::str::FromStr for PairingCode {
+    type Err = PairingCodeError;
+
+    /// This implementation is only here for clap
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        if s.len() == Self::LEN {
+            Ok(Self(s.to_owned()))
         } else {
-            Err(())
+            Err(PairingCodeError)
         }
     }
 }
+
+#[derive(Copy, Clone, Debug)]
+pub struct PairingCodeError;
+
+impl std::fmt::Display for PairingCodeError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "invalid pairing code format")
+    }
+}
+
+impl std::error::Error for PairingCodeError {}

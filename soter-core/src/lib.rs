@@ -18,6 +18,11 @@ use serde::{Deserialize, Serialize};
 
 pub const PORT: u16 = 1117;
 
+const BEFORE_PRIVATE_KEY: [u8; 16] = [
+    0x30, 0x53, 0x02, 0x01, 0x01, 0x30, 0x05, 0x06, 0x03, 0x2b, 0x65, 0x70, 0x04, 0x22, 0x04, 0x20,
+];
+const AFTER_PRIVATE_KEY: [u8; 5] = [0xa1, 0x23, 0x03, 0x21, 0x00];
+
 #[derive(Debug)]
 pub struct KeyPair {
     pub public: PublicKey,
@@ -46,18 +51,26 @@ impl KeyPair {
     pub fn to_pkcs8(&self) -> [u8; 85] {
         // Adapted from https://github.com/briansmith/ring/blob/main/src/pkcs8.rs
         // Poor man's DER encoding.
-        const BEFORE_PRIVATE_KEY: [u8; 16] = [
-            0x30, 0x53, 0x02, 0x01, 0x01, 0x30, 0x05, 0x06, 0x03, 0x2b, 0x65, 0x70, 0x04, 0x22,
-            0x04, 0x20,
-        ];
-        const AFTER_PRIVATE_KEY: [u8; 5] = [0xa1, 0x23, 0x03, 0x21, 0x00];
-
         let mut bytes = [0; 85];
         bytes[..16].copy_from_slice(&BEFORE_PRIVATE_KEY);
         bytes[16..(16 + 32)].copy_from_slice(self.private.as_ref());
         bytes[(16 + 32)..(16 + 32 + 5)].copy_from_slice(&AFTER_PRIVATE_KEY);
         bytes[(16 + 32 + 5)..].copy_from_slice(self.public.as_ref());
         bytes
+    }
+
+    pub fn try_from_pkcs8(bytes: &[u8]) -> Result<Self, KeyGenerationError> {
+        if bytes.len() != 85
+            || bytes[..16] != BEFORE_PRIVATE_KEY
+            || bytes[(16 + 32)..(16 + 32 + 5)] != AFTER_PRIVATE_KEY
+        {
+            Err(KeyGenerationError)
+        } else {
+            Ok(Self {
+                private: PrivateKey::try_from(&bytes[16..(16 + 32)])?,
+                public: PublicKey::try_from(&bytes[(16 + 32 + 5)..])?,
+            })
+        }
     }
 }
 

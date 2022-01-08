@@ -52,10 +52,10 @@ pub(crate) fn gen_cert(
 pub fn gen_configs(
     public_address: IpAddr,
     key_pair: &KeyPair,
-    initiator_key: Option<Arc<PublicKey>>,
+    initiator_key: Option<PublicKey>,
 ) -> Result<(quinn::ClientConfig, quinn::ServerConfig)> {
     Ok((
-        gen_send_config(public_address, key_pair, initiator_key.clone())?,
+        gen_send_config(public_address, key_pair, initiator_key)?,
         gen_recv_config(public_address, key_pair, initiator_key)?,
     ))
 }
@@ -65,7 +65,7 @@ pub fn gen_configs(
 pub fn gen_send_config(
     public_address: IpAddr,
     key_pair: &KeyPair,
-    target_key: Option<Arc<PublicKey>>,
+    target_key: Option<PublicKey>,
 ) -> Result<quinn::ClientConfig> {
     let (cert, key) = gen_cert(public_address, key_pair)?;
 
@@ -83,7 +83,7 @@ pub fn gen_send_config(
 pub fn gen_recv_config(
     public_address: IpAddr,
     key_pair: &KeyPair,
-    initiator_key: Option<Arc<PublicKey>>,
+    initiator_key: Option<PublicKey>,
 ) -> Result<quinn::ServerConfig> {
     let (cert, key) = gen_cert(public_address, key_pair)?;
 

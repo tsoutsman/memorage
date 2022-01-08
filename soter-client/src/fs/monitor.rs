@@ -4,7 +4,7 @@ use notify::{RecursiveMode, Watcher};
 use tokio::sync::mpsc;
 use tracing::error;
 
-pub use notify::Event;
+use notify::Event;
 
 /// Returns a [`Receiver`](mpsc::Receiver) that will send any [`Events`](Event) that happen at the
 /// given path.

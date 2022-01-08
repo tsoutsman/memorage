@@ -2,7 +2,7 @@
     non_ascii_idents,
     // missing_docs,
     rust_2018_idioms,
-    rust_2021_compatibility,
+    // rust_2021_compatibility,
     future_incompatible,
     missing_debug_implementations,
     missing_copy_implementations,

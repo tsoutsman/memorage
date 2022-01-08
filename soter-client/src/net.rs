@@ -1,66 +1,31 @@
-use std::{
-    net::{IpAddr, Ipv4Addr, SocketAddr},
-    sync::Arc,
-};
+use std::net::{IpAddr, Ipv4Addr, SocketAddr};
 
 use crate::{Config, Result};
 
-use soter_core::{KeyPair, PublicKey};
-use soter_cs::request::{self, Request};
+use soter_core::PublicKey;
+use soter_cs::{
+    request::{self, Request},
+    PairingCode,
+};
 use tracing::info;
 
-/// Establish a connection to a peer.
-pub async fn establish_connection(
-    key_pair: Arc<KeyPair>,
-    target_key: Arc<PublicKey>,
-    config: &Config,
-) -> Result<PeerConnection> {
-    let client = Client::new(key_pair).await?;
-    let server_address = SocketAddr::new(
-        IpAddr::V4(Ipv4Addr::new(172, 105, 176, 37)),
-        soter_core::PORT,
-    );
-    let server = client.server_connection(server_address).await?;
-
-    server
-        .request(request::RequestConnection(*target_key))
-        .await?;
-
-    loop {
-        tokio::time::sleep(config.server_ping_delay).await;
-        if let Some(target_address) = server.request(request::Ping).await?.0 {
-            return client.peer_connection(target_address, target_key).await;
-        }
-    }
-}
-
 #[derive(Debug)]
-struct Client {
-    key_pair: Arc<KeyPair>,
+pub struct Client<'a> {
+    config: &'a Config,
     public_address: IpAddr,
 }
 
-impl Client {
-    async fn new(key_pair: Arc<KeyPair>) -> Result<Self> {
-        let public_address = soter_stun::public_address(soter_stun::DEFAULT_STUN_SERVER).await?;
-        info!(%public_address, "received public address");
-        let public_address = public_address.ip();
-        Ok(Self {
-            key_pair,
-            public_address,
-        })
-    }
-
-    async fn server_connection(&self, server_address: SocketAddr) -> Result<ServerConnection> {
+impl Client<'_> {
+    async fn server_connection(&self) -> Result<ServerConnection> {
         let (send_config, recv_config) =
-            soter_cert::gen_configs(self.public_address, &self.key_pair, None)?;
+            soter_cert::gen_configs(self.public_address, &self.config.key_pair, None)?;
         let (endpoint, incoming) = quinn::Endpoint::server(
             recv_config,
             SocketAddr::new(IpAddr::V4(Ipv4Addr::new(0, 0, 0, 0)), 0),
         )?;
         Ok(ServerConnection {
             send_config,
-            server_address,
+            server_address: self.config.server_socket_address(),
             endpoint,
             incoming,
         })
@@ -69,10 +34,10 @@ impl Client {
     async fn peer_connection(
         &self,
         peer_address: SocketAddr,
-        target_key: Arc<PublicKey>,
+        target_key: PublicKey,
     ) -> Result<PeerConnection> {
         let (send_config, recv_config) =
-            soter_cert::gen_configs(self.public_address, &self.key_pair, Some(target_key))?;
+            soter_cert::gen_configs(self.public_address, &self.config.key_pair, Some(target_key))?;
         let (endpoint, incoming) = quinn::Endpoint::server(
             recv_config,
             SocketAddr::new(IpAddr::V4(Ipv4Addr::new(0, 0, 0, 0)), 0),
@@ -83,6 +48,47 @@ impl Client {
             endpoint,
             incoming,
         })
+    }
+}
+
+impl<'a> Client<'a> {
+    pub async fn new(config: &'a Config) -> Result<Client<'a>> {
+        let public_address = soter_stun::public_address(soter_stun::DEFAULT_STUN_SERVER).await?;
+        info!(%public_address, "received public address");
+        let public_address = public_address.ip();
+        Ok(Self {
+            config,
+            public_address,
+        })
+    }
+
+    pub async fn register(&self) -> Result<PairingCode> {
+        let server = self.server_connection().await?;
+        Ok(server.request(request::Register).await?.0)
+    }
+
+    pub async fn get_key(&self, code: PairingCode) -> Result<PublicKey> {
+        let server = self.server_connection().await?;
+        Ok(server.request(request::GetKey(code)).await?.0)
+    }
+
+    /// Establish a connection to a peer.
+    #[allow(clippy::missing_panics_doc)]
+    pub async fn establish_peer_connection(&self) -> Result<PeerConnection> {
+        let server = self.server_connection().await?;
+        // TODO
+        let target_key = self.config.peer.unwrap();
+
+        server
+            .request(request::RequestConnection(target_key))
+            .await?;
+
+        loop {
+            tokio::time::sleep(self.config.server_ping_delay).await;
+            if let Some(target_address) = server.request(request::Ping).await?.0 {
+                return self.peer_connection(target_address, target_key).await;
+            }
+        }
     }
 }
 

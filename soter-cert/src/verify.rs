@@ -1,5 +1,3 @@
-use std::sync::Arc;
-
 use crate::Error;
 
 use rustls::{
@@ -10,10 +8,10 @@ use rustls::{
 use soter_core::PublicKey;
 use x509_parser::{certificate::X509Certificate, traits::FromDer, validate::Validate};
 
-pub(crate) struct CertVerifier(Option<Arc<PublicKey>>);
+pub(crate) struct CertVerifier(Option<PublicKey>);
 
 impl CertVerifier {
-    pub(crate) fn new(permitted_key: Option<Arc<PublicKey>>) -> Self {
+    pub(crate) fn new(permitted_key: Option<PublicKey>) -> Self {
         Self(permitted_key)
     }
 
@@ -36,10 +34,10 @@ impl CertVerifier {
 
         cert.verify_signature(Some(cert.public_key()))?;
 
-        if let Some(permitted_key) = &self.0 {
+        if let Some(permitted_key) = self.0 {
             match PublicKey::try_from(cert.public_key().subject_public_key.data) {
                 Ok(client_key) => {
-                    if client_key != **permitted_key {
+                    if client_key != permitted_key {
                         return Err(Error::KeyNotPermitted);
                     }
                 }
@@ -138,7 +136,7 @@ mod tests {
     #[test]
     fn cert_verifier_valid_unwanted() {
         let ip_addr = IpAddr::V4(Ipv4Addr::new(1, 1, 1, 1));
-        let cert_verifier = CertVerifier::new(Some(Arc::new(KeyPair::from_entropy().public)));
+        let cert_verifier = CertVerifier::new(Some(KeyPair::from_entropy().public));
 
         let (cert, _) = crate::config::gen_cert(ip_addr, &KeyPair::from_entropy()).unwrap();
         assert!(matches!(

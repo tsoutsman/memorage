@@ -31,4 +31,8 @@ pub enum Error {
     Connection(#[from] quinn::ConnectionError),
     #[error("error monitoring directory")]
     Monitoring(#[from] notify::Error),
+    #[error("error reading config")]
+    ConfigRead(#[from] toml::de::Error),
+    #[error("error writing config")]
+    ConfigWrite(#[from] toml::ser::Error),
 }
