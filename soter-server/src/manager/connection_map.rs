@@ -4,6 +4,8 @@ use soter_core::PublicKey;
 use tokio::sync::{mpsc, oneshot};
 use tracing::{info, info_span, warn};
 
+use crate::{hash_map::MaxSizeBiMap, REQUEST_MAP_SIZE, SOCKET_MAP_SIZE};
+
 #[allow(clippy::large_enum_variant)]
 #[derive(Debug)]
 pub enum Command {
@@ -27,8 +29,8 @@ pub enum Command {
 
 #[tracing::instrument]
 pub async fn manager(mut rx: mpsc::Receiver<Command>) {
-    let mut sockets: bimap::BiMap<PublicKey, SocketAddr> = bimap::BiMap::new();
-    let mut requests: bimap::BiMap<PublicKey, PublicKey> = bimap::BiMap::new();
+    let mut sockets = MaxSizeBiMap::<PublicKey, SocketAddr, SOCKET_MAP_SIZE>::new();
+    let mut requests = MaxSizeBiMap::<PublicKey, PublicKey, REQUEST_MAP_SIZE>::new();
 
     while let Some(cmd) = rx.recv().await {
         let span = info_span!("received command", ?cmd).entered();

@@ -1,4 +1,5 @@
-use hashbrown::HashMap;
+use crate::{hash_map::MaxSizeHashMap, CODE_MAP_SIZE};
+
 use soter_core::PublicKey;
 use soter_cs::PairingCode;
 use tokio::sync::{mpsc, oneshot};
@@ -18,7 +19,7 @@ pub enum Command {
 
 #[tracing::instrument]
 pub async fn manager(mut rx: mpsc::Receiver<Command>) {
-    let mut map: HashMap<PairingCode, PublicKey> = HashMap::new();
+    let mut map = MaxSizeHashMap::<_, _, CODE_MAP_SIZE>::new();
 
     while let Some(cmd) = rx.recv().await {
         let span = info_span!("received command", ?cmd).entered();
@@ -29,7 +30,7 @@ pub async fn manager(mut rx: mpsc::Receiver<Command>) {
             Command::Generate { key, resp } => {
                 let mut code = PairingCode::new();
 
-                // TODO exploitable
+                // TODO: Exploitable?
                 while map.contains_key(&code) {
                     code = PairingCode::new()
                 }

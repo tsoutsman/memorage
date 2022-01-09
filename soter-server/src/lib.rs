@@ -13,8 +13,13 @@
     rustdoc::broken_intra_doc_links
 )]
 
+const CODE_MAP_SIZE: usize = 256;
+const SOCKET_MAP_SIZE: usize = 256;
+const REQUEST_MAP_SIZE: usize = 256;
+
 mod error;
 mod handler;
+mod hash_map;
 mod manager;
 pub mod setup;
 
