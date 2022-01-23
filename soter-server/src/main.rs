@@ -14,7 +14,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let (channels, handles) = soter_server::setup();
 
-    let public_address = soter_stun::public_address(soter_stun::DEFAULT_STUN_SERVER).await?;
+    let mut socket = tokio::net::UdpSocket::bind("0.0.0.0:0").await?;
+    let public_address =
+        soter_stun::public_address(&mut socket, soter_stun::DEFAULT_STUN_SERVER).await?;
     info!(%public_address, "received public address");
 
     let key_pair = soter_core::KeyPair::from_entropy();

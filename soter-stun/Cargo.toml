@@ -8,3 +8,6 @@ soter-core = { path = "../soter-core" }
 enumn = "*"
 thiserror = "*"
 tokio = { version = "*", features = ["net"] }
+
+[dev-dependencies]
+tokio = { version = "*", features = ["macros", "rt-multi-thread"] }

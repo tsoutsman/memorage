@@ -35,4 +35,6 @@ pub enum Error {
     ConfigRead(#[from] toml::de::Error),
     #[error("error writing config")]
     ConfigWrite(#[from] toml::ser::Error),
+    #[error("peer not set")]
+    PeerNotSet,
 }

@@ -26,7 +26,7 @@ use tokio::net::UdpSocket;
 pub const DEFAULT_STUN_SERVER: &str = "172.253.59.127:19302";
 
 #[inline]
-pub async fn public_address(addr: &str) -> crate::Result<SocketAddr> {
+pub async fn public_address(socket: &mut UdpSocket, addr: &str) -> crate::Result<SocketAddr> {
     let mut message = Message::new(Type {
         class: Class::Request,
         method: Method::Binding,
@@ -35,7 +35,6 @@ pub async fn public_address(addr: &str) -> crate::Result<SocketAddr> {
         attribute::Software::try_from(concat!("soter v", env!("CARGO_PKG_VERSION")))?,
     ));
 
-    let socket = UdpSocket::bind("0.0.0.0:0").await?;
     socket.send_to(&<Vec<u8>>::from(message)[..], addr).await?;
 
     let mut buf = [0u8; 32];
@@ -51,4 +50,21 @@ pub async fn public_address(addr: &str) -> crate::Result<SocketAddr> {
     }
 
     Err(Error::Stun(StunError::NoAddress))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[tokio::test]
+    async fn same_socket_same_address() {
+        let mut socket = UdpSocket::bind("0.0.0.0:0").await.unwrap();
+        let addr_1 = public_address(&mut socket, DEFAULT_STUN_SERVER)
+            .await
+            .unwrap();
+        let addr_2 = public_address(&mut socket, DEFAULT_STUN_SERVER)
+            .await
+            .unwrap();
+        assert_eq!(addr_1, addr_2);
+    }
 }

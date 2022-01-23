@@ -6,6 +6,7 @@ use std::{
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use soter_core::{KeyPair, PublicKey};
 
+// TODO: Other oses
 lazy_static::lazy_static! {
     static ref CONFIG_PATH: std::path::PathBuf = {
         let mut home_dir = dirs::home_dir().unwrap();
@@ -29,7 +30,6 @@ pub struct Config {
 
 impl Config {
     pub fn from_disk() -> crate::Result<Self> {
-        // TODO: other oses
         let content = std::fs::read_to_string(&*CONFIG_PATH)?;
         Ok(toml::from_str(&content)?)
     }
