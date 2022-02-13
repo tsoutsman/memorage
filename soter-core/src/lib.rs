@@ -13,8 +13,10 @@
     rustdoc::broken_intra_doc_links
 )]
 
-pub use rand;
 use serde::{Deserialize, Serialize};
+
+pub use rand;
+pub use time;
 
 pub const PORT: u16 = 1117;
 
@@ -76,6 +78,15 @@ impl KeyPair {
 
 #[derive(Copy, Clone, Debug, Eq, Serialize, Deserialize)]
 pub struct PublicKey(ed25519_dalek::PublicKey);
+
+impl std::fmt::Display for PublicKey {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        for byte in self.as_ref() {
+            write!(f, "{:02x}", byte)?;
+        }
+        Ok(())
+    }
+}
 
 impl AsRef<[u8]> for PublicKey {
     fn as_ref(&self) -> &[u8] {

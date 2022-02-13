@@ -3,7 +3,7 @@ use std::net::SocketAddr;
 use crate::PairingCode;
 
 use serde::{Deserialize, Serialize};
-use soter_core::PublicKey;
+use soter_core::{time::OffsetDateTime, PublicKey};
 
 pub trait Response:
     crate::private::Sealed + serde::Serialize + serde::de::DeserializeOwned
@@ -17,13 +17,19 @@ pub struct Register(pub PairingCode);
 pub struct GetKey(pub PublicKey);
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct RegisterResponse(pub PublicKey);
+
+#[derive(Copy, Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct RequestConnection;
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
-pub struct CheckConnection(pub Option<SocketAddr>);
+pub struct CheckConnection {
+    pub initiator: PublicKey,
+    pub time: OffsetDateTime,
+}
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
-pub struct Ping(pub Option<SocketAddr>);
+pub struct Ping(pub SocketAddr);
 
 macro_rules! impl_response {
     ($($t:ident),*$(,)?) => {
@@ -35,4 +41,11 @@ macro_rules! impl_response {
     };
 }
 
-impl_response![Register, GetKey, RequestConnection, CheckConnection, Ping,];
+impl_response![
+    Register,
+    GetKey,
+    RegisterResponse,
+    RequestConnection,
+    CheckConnection,
+    Ping,
+];

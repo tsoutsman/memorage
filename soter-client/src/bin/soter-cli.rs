@@ -27,12 +27,14 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     match args.command {
         Command::Register => {
             let client = net::Client::new(&config).await?;
-            client.register().await?;
+            let pairing_code = client.register().await?;
+            info!("Pairing Code: {}", pairing_code);
         }
         Command::Pair { code } => {
             let client = net::Client::new(&config).await?;
             let peer = client.get_key(code).await?;
             config.peer = Some(peer);
+            info!("Peer Public Key: {}", peer);
         }
         Command::Connect { server } => {
             if let Some(server) = server {

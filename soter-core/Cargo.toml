@@ -6,4 +6,5 @@ edition = "2021"
 [dependencies]
 ed25519-dalek = { version = "*", features = ["serde"] }
 serde = { version = "*", features = ["derive"] }
+time = { version = "*", features = ["serde"] }
 rand = "0.7"

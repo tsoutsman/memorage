@@ -29,6 +29,12 @@ impl Default for PairingCode {
     }
 }
 
+impl std::fmt::Display for PairingCode {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(&self.0)
+    }
+}
+
 // TODO specialisation
 impl std::convert::TryFrom<String> for PairingCode {
     type Error = PairingCodeError;

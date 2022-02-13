@@ -1,7 +1,7 @@
 use crate::PairingCode;
 
 use serde::{Deserialize, Serialize};
-use soter_core::PublicKey;
+use soter_core::{time::OffsetDateTime, PublicKey};
 
 pub trait Request: crate::private::Sealed {
     type Response: crate::response::Response;
@@ -15,10 +15,12 @@ pub enum RequestType {
     Register(Register),
     /// Request to get the [`PublicKey`] associated with a given code.
     GetKey(GetKey),
+    /// Request any [`PublicKey`] that used the client's [`PairingCode`].
+    RegisterResponse(RegisterResponse),
     /// Request to connect to a given [`PublicKey`].
     RequestConnection(RequestConnection),
+    /// Request any socket addresses that have requested a connection.
     CheckConnection(CheckConnection),
-    /// Request any socket addresses that have replied to the request for connection.
     Ping(Ping),
 }
 
@@ -31,13 +33,19 @@ pub struct Register;
 pub struct GetKey(pub PairingCode);
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
-pub struct RequestConnection(pub PublicKey);
+pub struct RegisterResponse;
+
+#[derive(Copy, Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct RequestConnection {
+    pub target: PublicKey,
+    pub time: OffsetDateTime,
+}
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct CheckConnection;
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
-pub struct Ping;
+pub struct Ping(pub PublicKey);
 
 macro_rules! impl_request {
     // IDK why this works with ident but not ty
@@ -56,4 +64,11 @@ macro_rules! impl_request {
     };
 }
 
-impl_request![Register, GetKey, RequestConnection, CheckConnection, Ping,];
+impl_request![
+    Register,
+    GetKey,
+    RegisterResponse,
+    RequestConnection,
+    CheckConnection,
+    Ping,
+];
