@@ -1,0 +1,12 @@
+[package]
+name = "memorage-cert"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+memorage-core = { path = "../core" }
+rcgen = "*"
+rustls = { version = "*", features = ["dangerous_configuration"] }
+thiserror = "*"
+quinn = { git = "https://github.com/quinn-rs/quinn" }
+x509-parser = { version = "*", features = ["verify", "validate"] }
