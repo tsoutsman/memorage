@@ -16,7 +16,7 @@ pub enum Error {
     #[error("error serializing or deserializing")]
     Serde(#[from] bincode::Error),
     #[error("server returned an error")]
-    ServerConnection(#[from] soter_cs::Error),
+    Server(#[from] soter_cs::Error),
     #[error("error generating server config")]
     ServerConfig(#[from] soter_cert::Error),
     #[error("error determining public IP address")]
@@ -37,4 +37,6 @@ pub enum Error {
     ConfigWrite(#[from] toml::ser::Error),
     #[error("peer not set")]
     PeerNotSet,
+    #[error("peer didn't respond to connection request")]
+    PeerNoResponse,
 }

@@ -12,4 +12,6 @@ pub enum Error {
     Serialization,
     #[error("invalid signature")]
     InvalidSignature,
+    #[error("server has no data on requested key")]
+    NoData,
 }

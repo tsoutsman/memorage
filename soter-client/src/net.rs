@@ -3,7 +3,7 @@ use std::net::{IpAddr, SocketAddr};
 use crate::{Config, Error, Result};
 
 use quinn::{Endpoint, EndpointConfig, Incoming};
-use soter_core::PublicKey;
+use soter_core::{time::OffsetDateTime, PublicKey};
 use soter_cs::{
     request::{self, Request},
     PairingCode,
@@ -81,28 +81,47 @@ impl<'a> Client<'a> {
     /// Establish a connection to a peer.
     #[allow(clippy::missing_panics_doc)]
     pub async fn establish_peer_connection(self) -> Result<PeerConnection> {
-        let target_key = match self.config.peer {
+        let target = match self.config.peer {
             Some(k) => k,
             None => return Err(Error::PeerNotSet),
         };
-        self.request(request::RequestConnection(target_key)).await?;
+        let time = OffsetDateTime::now_utc() + self.config.peer_connection_schedule_delay;
+
+        self.request(request::RequestConnection { target, time })
+            .await?;
+
+        let delay = time - OffsetDateTime::now_utc();
+        // TODO: Unwrap fails if delay is negative i.e. time < now
+        tokio::time::sleep(delay.try_into().unwrap()).await;
+
+        let mut counter: usize = 0;
 
         loop {
-            tokio::time::sleep(self.config.server_ping_delay).await;
-            if let Some(peer_address) = self.request(request::Ping).await?.0 {
-                // We have to use the same endpoint for
-                let (send_config, recv_config) = soter_cert::gen_configs(
-                    self.public_address,
-                    &self.config.key_pair,
-                    Some(target_key),
-                )?;
-                self.endpoint.set_server_config(Some(recv_config));
-                return Ok(PeerConnection {
-                    send_config,
-                    peer_address,
-                    endpoint: self.endpoint,
-                    incoming: self.incoming,
-                });
+            tokio::time::sleep(self.config.request_connection.ping_delay).await;
+            match self.request(request::Ping(target)).await {
+                Ok(soter_cs::response::Ping(peer_address)) => {
+                    // We have to use the same endpoint for
+                    let (send_config, recv_config) = soter_cert::gen_configs(
+                        self.public_address,
+                        &self.config.key_pair,
+                        Some(target),
+                    )?;
+                    self.endpoint.set_server_config(Some(recv_config));
+                    return Ok(PeerConnection {
+                        send_config,
+                        peer_address,
+                        endpoint: self.endpoint,
+                        incoming: self.incoming,
+                    });
+                }
+                Err(Error::Server(soter_cs::Error::NoData)) => {
+                    counter += 1;
+                }
+                Err(e) => return Err(e),
+            }
+
+            if counter == self.config.request_connection.tries {
+                return Err(Error::PeerNoResponse);
             }
         }
     }
