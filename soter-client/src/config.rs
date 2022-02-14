@@ -25,18 +25,26 @@ pub struct Config {
     pub key_pair: KeyPair,
     pub peer: Option<PublicKey>,
     pub server_address: IpAddr,
-    pub request_connection: RequestConnectionConfig,
+    pub register_response: RetryConfig,
+    pub request_connection: RetryConfig,
     pub peer_connection_schedule_delay: Duration,
 }
 
 #[derive(Copy, Clone, Debug, Serialize, Deserialize)]
-pub struct RequestConnectionConfig {
+pub struct RetryConfig {
     pub ping_delay: Duration,
     pub tries: usize,
 }
 
-impl Default for RequestConnectionConfig {
-    fn default() -> Self {
+impl RetryConfig {
+    fn register_response() -> Self {
+        Self {
+            ping_delay: Duration::from_secs(3),
+            tries: 20,
+        }
+    }
+
+    fn request_connection() -> Self {
         Self {
             ping_delay: Duration::from_secs(5),
             tries: 4,
@@ -71,7 +79,8 @@ impl From<KeyPair> for Config {
             peer: None,
             // TODO
             server_address: IpAddr::V4(std::net::Ipv4Addr::new(0, 0, 0, 0)),
-            request_connection: RequestConnectionConfig::default(),
+            register_response: RetryConfig::register_response(),
+            request_connection: RetryConfig::request_connection(),
             peer_connection_schedule_delay: Duration::from_secs(10 * 60),
         }
     }

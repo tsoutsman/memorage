@@ -54,6 +54,25 @@ impl<'a> Client<'a> {
         Ok(self.request(request::GetKey(code)).await?.0)
     }
 
+    pub async fn register_response(&self) -> Result<PublicKey> {
+        let mut counter: usize = 0;
+        loop {
+            tokio::time::sleep(self.config.register_response.ping_delay).await;
+
+            match self.request(request::RegisterResponse).await {
+                Ok(pk) => return Ok(pk.0),
+                Err(Error::Server(soter_cs::Error::NoData)) => {
+                    counter += 1;
+                }
+                Err(e) => return Err(e),
+            }
+
+            if counter == self.config.register_response.tries {
+                return Err(Error::PeerNoResponse);
+            }
+        }
+    }
+
     pub async fn request<T>(&self, request: T) -> Result<T::Response>
     where
         T: soter_cs::Serialize + Request,
@@ -97,7 +116,6 @@ impl<'a> Client<'a> {
         let mut counter: usize = 0;
 
         loop {
-            tokio::time::sleep(self.config.request_connection.ping_delay).await;
             match self.request(request::Ping(target)).await {
                 Ok(soter_cs::response::Ping(peer_address)) => {
                     // We have to use the same endpoint for
@@ -123,6 +141,8 @@ impl<'a> Client<'a> {
             if counter == self.config.request_connection.tries {
                 return Err(Error::PeerNoResponse);
             }
+
+            tokio::time::sleep(self.config.request_connection.ping_delay).await;
         }
     }
 }

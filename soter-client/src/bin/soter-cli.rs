@@ -18,6 +18,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     if let Command::NewKey = args.command {
         let config = Config::with_key_pair(soter_core::KeyPair::from_entropy());
+        info!("Public Key: {}", config.key_pair.public);
         config.save_to_disk()?;
         return Ok(());
     }
@@ -29,6 +30,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             let client = net::Client::new(&config).await?;
             let pairing_code = client.register().await?;
             info!("Pairing Code: {}", pairing_code);
+            let peer = client.register_response().await?;
+            info!("Peer Public Key: {}", peer);
+            config.peer = Some(peer);
         }
         Command::Pair { code } => {
             let client = net::Client::new(&config).await?;
