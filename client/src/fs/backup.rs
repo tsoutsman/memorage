@@ -3,12 +3,12 @@ use crate::{
     fs::file::File,
 };
 
+use memorage_core::PrivateKey;
 use serde::{
     de::{self, MapAccess, SeqAccess, Visitor},
     ser::{self, SerializeStruct},
     Deserialize, Serialize,
 };
-use memorage_core::PrivateKey;
 
 #[derive(Clone, Debug)]
 pub struct Backup {

@@ -1,7 +1,7 @@
 use crate::PairingCode;
 
-use serde::{Deserialize, Serialize};
 use memorage_core::{time::OffsetDateTime, PublicKey};
+use serde::{Deserialize, Serialize};
 
 pub trait Request: crate::private::Sealed {
     type Response: crate::response::Response;
@@ -16,7 +16,7 @@ pub enum RequestType {
     /// Request to get the [`PublicKey`] associated with a given code.
     GetKey(GetKey),
     /// Request any [`PublicKey`] that used the client's [`PairingCode`].
-    RegisterResponse(RegisterResponse),
+    GetRegisterResponse(GetRegisterResponse),
     /// Request to connect to a given [`PublicKey`].
     RequestConnection(RequestConnection),
     /// Request any socket addresses that have requested a connection.
@@ -33,11 +33,13 @@ pub struct Register;
 pub struct GetKey(pub PairingCode);
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
-pub struct RegisterResponse;
+pub struct GetRegisterResponse;
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct RequestConnection {
     pub target: PublicKey,
+    #[serde(serialize_with = "crate::time::serialize_offset_date_time")]
+    #[serde(deserialize_with = "crate::time::deserialize_offset_date_time")]
     pub time: OffsetDateTime,
 }
 
@@ -67,7 +69,7 @@ macro_rules! impl_request {
 impl_request![
     Register,
     GetKey,
-    RegisterResponse,
+    GetRegisterResponse,
     RequestConnection,
     CheckConnection,
     Ping,

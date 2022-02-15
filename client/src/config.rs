@@ -3,8 +3,8 @@ use std::{
     time::Duration,
 };
 
-use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use memorage_core::{KeyPair, PublicKey};
+use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
 // TODO: Other oses
 lazy_static::lazy_static! {

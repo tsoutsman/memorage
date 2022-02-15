@@ -5,8 +5,8 @@ use crate::{
     error::Result,
 };
 
-use serde::{Deserialize, Serialize};
 use memorage_core::PrivateKey;
+use serde::{Deserialize, Serialize};
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct EncryptedFile {

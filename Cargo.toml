@@ -1,5 +1,3 @@
-cargo-features = ["strip"]
-
 [workspace]
 members = ["core", "cs", "client", "server", "cert", "stun", "macros"]
 

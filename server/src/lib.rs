@@ -13,20 +13,19 @@
     rustdoc::broken_intra_doc_links
 )]
 
+const ADDRESS_MAP_SIZE: usize = 256;
 const CODE_MAP_SIZE: usize = 256;
-const SOCKET_MAP_SIZE: usize = 256;
 const REQUEST_MAP_SIZE: usize = 256;
 
+mod collections;
 mod error;
-mod handler;
-mod hash_map;
 mod manager;
 pub mod setup;
 
 use std::net::SocketAddr;
 
 use memorage_core::PublicKey;
-use memorage_cs::{request::RequestType, response, serialize};
+use memorage_cs::{deserialize, request::RequestType, response, serialize};
 use tracing::{info, warn};
 
 pub use error::{Error, Result};
@@ -97,18 +96,23 @@ pub async fn __test_handle_request(
     handle_request(maybe_buf, client_key, address, channels).await
 }
 
+#[doc(hidden)]
+pub fn __setup_logger() {
+    tracing_subscriber::fmt::fmt().init();
+}
+
 #[inline]
 #[tracing::instrument(skip(maybe_buf, channels))]
 async fn handle_request(
     maybe_buf: memorage_cs::Result<Vec<u8>>,
     client_key: PublicKey,
-    address: SocketAddr,
+    client_address: SocketAddr,
     channels: setup::Channels,
 ) -> Result<Vec<u8>> {
     info!("accepted connection");
 
     let request: memorage_cs::Result<RequestType> =
-        async { memorage_cs::deserialize(&maybe_buf?).map_err(|_| memorage_cs::Error::Generic) }.await;
+        async { Ok(deserialize(&maybe_buf?).unwrap()) }.await;
 
     // TODO: Verify that client_key matches address stored in hashmap.
     let resp = match request {
@@ -116,17 +120,122 @@ async fn handle_request(
             info!(?ty, "decoded type");
             match ty {
                 RequestType::Register(_) => {
-                    serialize(handler::register(channels, client_key).await)
+                    let (resp_tx, resp_rx) = tokio::sync::oneshot::channel();
+                    let cmd = manager::pair::Command::Register {
+                        key: client_key,
+                        resp: resp_tx,
+                    };
+
+                    let response: memorage_cs::Result<memorage_cs::response::Register> = async {
+                        channels
+                            .pair
+                            .send(cmd)
+                            .await
+                            .map_err(|_| memorage_cs::Error::Generic)?;
+                        resp_rx.await.map_err(|_| memorage_cs::Error::Generic)
+                    }
+                    .await;
+                    serialize(response)
                 }
-                RequestType::GetKey(r) => serialize(handler::get_key(channels, r).await),
+                RequestType::GetKey(r) => {
+                    let (resp_tx, resp_rx) = tokio::sync::oneshot::channel();
+                    let cmd = manager::pair::Command::GetKey {
+                        code: r.0,
+                        requestor: client_key,
+                        resp: resp_tx,
+                    };
+
+                    let response: memorage_cs::Result<memorage_cs::response::GetKey> = async {
+                        channels
+                            .pair
+                            .send(cmd)
+                            .await
+                            .map_err(|_| memorage_cs::Error::Generic)?;
+                        resp_rx.await.map_err(|_| memorage_cs::Error::Generic)?
+                    }
+                    .await;
+                    serialize(response)
+                }
+                RequestType::GetRegisterResponse(_) => {
+                    let (resp_tx, resp_rx) = tokio::sync::oneshot::channel();
+                    let cmd = manager::pair::Command::GetRegisterResponse {
+                        initiator: client_key,
+                        resp: resp_tx,
+                    };
+
+                    let response: memorage_cs::Result<memorage_cs::response::GetRegisterResponse> =
+                        async {
+                            channels
+                                .pair
+                                .send(cmd)
+                                .await
+                                .map_err(|_| memorage_cs::Error::Generic)?;
+                            resp_rx.await.map_err(|_| memorage_cs::Error::Generic)?
+                        }
+                        .await;
+                    serialize(response)
+                }
                 RequestType::RequestConnection(r) => {
-                    serialize(handler::request_connection(channels, r, client_key, address).await)
+                    let (resp_tx, resp_rx) = tokio::sync::oneshot::channel();
+                    let cmd = manager::request::Command::RequestConnection {
+                        initiator: client_key,
+                        target: r.target,
+                        time: r.time,
+                        resp: resp_tx,
+                    };
+
+                    let response: memorage_cs::Result<memorage_cs::response::RequestConnection> =
+                        async {
+                            channels
+                                .request
+                                .send(cmd)
+                                .await
+                                .map_err(|_| memorage_cs::Error::Generic)?;
+                            resp_rx.await.map_err(|_| memorage_cs::Error::Generic)
+                        }
+                        .await;
+                    serialize(response)
                 }
                 RequestType::CheckConnection(_) => {
-                    serialize(handler::check_connection(channels, client_key, address).await)
+                    let (resp_tx, resp_rx) = tokio::sync::oneshot::channel();
+                    let cmd = manager::request::Command::CheckConnection {
+                        target: client_key,
+                        resp: resp_tx,
+                    };
+
+                    let response: memorage_cs::Result<memorage_cs::response::CheckConnection> =
+                        async {
+                            channels
+                                .request
+                                .send(cmd)
+                                .await
+                                .map_err(|_| memorage_cs::Error::Generic)?;
+                            resp_rx.await.map_err(|_| memorage_cs::Error::Generic)?
+                        }
+                        .await;
+                    serialize(response)
                 }
                 // initiator address
-                RequestType::Ping(_) => serialize(handler::ping(channels, address).await),
+                RequestType::Ping(r) => {
+                    let (resp_tx, resp_rx) = tokio::sync::oneshot::channel();
+                    let cmd = manager::establish::Command::Ping {
+                        initiator_key: client_key,
+                        initiator_address: client_address,
+                        target: r.0,
+                        resp: resp_tx,
+                    };
+
+                    let response: memorage_cs::Result<memorage_cs::response::Ping> = async {
+                        channels
+                            .establish
+                            .send(cmd)
+                            .await
+                            .map_err(|_| memorage_cs::Error::Generic)?;
+                        resp_rx.await.map_err(|_| memorage_cs::Error::Generic)?
+                    }
+                    .await;
+                    serialize(response)
+                }
             }
         }
         // TODO not sure if this is sound. alternatively we can just ignore the request.

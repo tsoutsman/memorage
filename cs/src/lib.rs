@@ -16,6 +16,7 @@
 mod code;
 mod error;
 pub mod serde;
+mod time;
 
 pub use crate::serde::{deserialize, serialize, Deserialize, Serialize};
 pub use code::PairingCode;

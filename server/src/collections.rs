@@ -1,9 +1,6 @@
 use std::hash::Hash;
 
-use bimap::BiMap;
 use hashbrown::HashMap;
-
-pub(crate) use bimap::Overwritten;
 
 struct RingBuffer<K, const N: usize> {
     cursor: usize,
@@ -55,6 +52,10 @@ where
     }
 
     pub(crate) fn insert(&mut self, key: K, value: V) -> Option<V> {
+        // TODO: Do we want this
+        // if self.hash_map.get(&key) == Some(&value) {
+        //     return None;
+        // }
         // TODO: Remove clone?
         if let Some(oldest_key) = self.ring_buffer.push(key.clone()) {
             if let Some(x) = self.key_overwrites.get_mut(&oldest_key) {
@@ -76,9 +77,6 @@ where
             self.key_overwrites.insert(key.clone(), 1);
         }
 
-        debug_assert_eq!(self.hash_map.capacity(), N);
-        debug_assert_eq!(self.key_overwrites.capacity(), N);
-
         self.hash_map.insert(key, value)
     }
 
@@ -88,69 +86,6 @@ where
 
     pub(crate) fn remove(&mut self, key: &K) -> Option<V> {
         self.hash_map.remove(key)
-    }
-}
-
-pub(crate) struct MaxSizeBiMap<L, R, const N: usize>
-where
-    L: Hash + Eq + Clone,
-    R: Hash + Eq + Clone,
-{
-    bi_map: BiMap<L, R>,
-    // TODO: Ideally we wouldn't just blindly use the left one, but the one with
-    // the smallest size.
-    ring_buffer: RingBuffer<L, N>,
-    key_overwrites: HashMap<L, usize>,
-}
-
-impl<L, R, const N: usize> MaxSizeBiMap<L, R, N>
-where
-    L: Hash + Eq + Clone,
-    R: Hash + Eq + Clone,
-{
-    pub(crate) fn new() -> Self {
-        Self {
-            bi_map: BiMap::with_capacity(N),
-            ring_buffer: RingBuffer::new(),
-            key_overwrites: HashMap::with_capacity(N),
-        }
-    }
-
-    pub(crate) fn insert(&mut self, left: L, right: R) -> Overwritten<L, R> {
-        // TODO: Remove clone?
-        if let Some(oldest_key) = self.ring_buffer.push(left.clone()) {
-            if let Some(x) = self.key_overwrites.get_mut(&oldest_key) {
-                *x -= 1;
-                if *x == 0 {
-                    self.key_overwrites.remove(&oldest_key);
-                    // This may fail if user called Self::remove earlier but we don't
-                    // really care.
-                    self.bi_map.remove_by_left(&oldest_key);
-                }
-            } else {
-                debug_assert!(false, "oldest key not in key overwrites");
-            }
-        }
-
-        if let Some(x) = self.key_overwrites.get_mut(&left) {
-            *x += 1;
-        } else {
-            // TODO: Remove clone?
-            self.key_overwrites.insert(left.clone(), 1);
-        }
-
-        debug_assert_eq!(self.bi_map.capacity(), N);
-        debug_assert_eq!(self.key_overwrites.capacity(), N);
-
-        self.bi_map.insert(left, right)
-    }
-
-    pub(crate) fn get_by_left(&self, key: &L) -> Option<&R> {
-        self.bi_map.get_by_left(key)
-    }
-
-    pub(crate) fn get_by_right(&self, value: &R) -> Option<&L> {
-        self.bi_map.get_by_right(value)
     }
 }
 
@@ -303,100 +238,5 @@ mod tests {
             7 => "a",
             8 => "fool",
         }
-    }
-
-    #[test]
-    fn max_size_bi_map() {
-        macro_rules! assert_bi_map_contents {
-            ($i:ident;$($l:expr => $r:expr),*$(,)?) => {
-                $(
-                    assert_eq!($i.get_by_left(&$l), Some(&$r));
-                    assert_eq!($i.get_by_right(&$r), Some(&$l));
-                )*
-            }
-        }
-
-        let mut bi_map = MaxSizeBiMap::<_, _, 3>::new();
-        assert_eq!(bi_map.ring_buffer.cursor, 0);
-        assert_eq!(bi_map.ring_buffer.buffer, [None, None, None]);
-
-        assert_eq!(bi_map.insert(1, "Hit"), Overwritten::Neither);
-        assert_eq!(bi_map.ring_buffer.cursor, 1);
-        assert_eq!(bi_map.ring_buffer.buffer, [Some(1), None, None]);
-        assert_bi_map_contents! {
-            bi_map;
-            1 => "Hit",
-        }
-
-        assert_eq!(bi_map.insert(2, "the"), Overwritten::Neither);
-        assert_eq!(bi_map.ring_buffer.cursor, 2);
-        assert_eq!(bi_map.ring_buffer.buffer, [Some(1), Some(2), None]);
-        assert_bi_map_contents! {
-            bi_map;
-            1 => "Hit",
-            2 => "the",
-        }
-
-        assert_eq!(bi_map.insert(3, "dance"), Overwritten::Neither);
-        assert_eq!(bi_map.ring_buffer.cursor, 0);
-        assert_eq!(bi_map.ring_buffer.buffer, [Some(1), Some(2), Some(3)]);
-        assert_bi_map_contents! {
-            bi_map;
-            1 => "Hit",
-            2 => "the",
-            3 => "dance",
-        }
-
-        assert_eq!(bi_map.insert(4, "floor,"), Overwritten::Neither);
-        assert_eq!(bi_map.ring_buffer.cursor, 1);
-        assert_eq!(bi_map.ring_buffer.buffer, [Some(4), Some(2), Some(3)]);
-        assert_bi_map_contents! {
-            bi_map;
-            2 => "the",
-            3 => "dance",
-            4 => "floor,",
-        }
-        assert_eq!(bi_map.get_by_left(&1), None);
-
-        assert_eq!(bi_map.insert(3, "strobe"), Overwritten::Left(3, "dance"));
-        assert_eq!(bi_map.ring_buffer.cursor, 2);
-        assert_eq!(bi_map.ring_buffer.buffer, [Some(4), Some(3), Some(3)]);
-        assert_bi_map_contents! {
-            bi_map;
-            4 => "floor,",
-            3 => "strobe",
-        }
-
-        assert_eq!(bi_map.insert(5, "lights"), Overwritten::Neither);
-        assert_eq!(bi_map.ring_buffer.cursor, 0);
-        assert_eq!(bi_map.ring_buffer.buffer, [Some(4), Some(3), Some(5)]);
-        assert_bi_map_contents! {
-            bi_map;
-            4 => "floor,",
-            3 => "strobe",
-            5 => "lights",
-        }
-
-        assert_eq!(bi_map.insert(6, "in"), Overwritten::Neither);
-        assert_eq!(bi_map.ring_buffer.cursor, 1);
-        assert_eq!(bi_map.ring_buffer.buffer, [Some(6), Some(3), Some(5)]);
-        assert_bi_map_contents! {
-            bi_map;
-            3 => "strobe",
-            5 => "lights",
-            6 => "in",
-        }
-        assert_eq!(bi_map.get_by_left(&4), None);
-
-        assert_eq!(bi_map.insert(7, "the"), Overwritten::Neither);
-        assert_eq!(bi_map.ring_buffer.cursor, 2);
-        assert_eq!(bi_map.ring_buffer.buffer, [Some(6), Some(7), Some(5)]);
-        assert_bi_map_contents! {
-            bi_map;
-            5 => "lights",
-            6 => "in",
-            7 => "the",
-        }
-        assert_eq!(bi_map.get_by_left(&3), None);
     }
 }

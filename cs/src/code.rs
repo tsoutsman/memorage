@@ -1,5 +1,5 @@
-use serde::{Deserialize, Serialize};
 use memorage_core::rand::{distributions::Alphanumeric, thread_rng, Rng};
+use serde::{Deserialize, Serialize};
 
 /// Struct representing the code used during pairing.
 ///

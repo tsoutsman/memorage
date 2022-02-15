@@ -1,41 +1,48 @@
-use crate::manager::{code_map, connection_map};
+use crate::manager::{establish, pair, request};
 
 use tokio::{sync::mpsc, task};
 
 #[derive(Clone, Debug)]
 pub struct Channels {
-    pub code: mpsc::Sender<code_map::Command>,
-    pub conn: mpsc::Sender<connection_map::Command>,
+    pub pair: mpsc::Sender<pair::Command>,
+    pub request: mpsc::Sender<request::Command>,
+    pub establish: mpsc::Sender<establish::Command>,
 }
 
 #[derive(Debug)]
 pub struct Handles {
-    code: task::JoinHandle<()>,
-    conn: task::JoinHandle<()>,
+    pair: task::JoinHandle<()>,
+    request: task::JoinHandle<()>,
+    establish: task::JoinHandle<()>,
 }
 
 impl Handles {
     pub async fn join(self) -> Result<(), task::JoinError> {
-        self.code.await?;
-        self.conn.await
+        self.pair.await?;
+        self.request.await?;
+        self.establish.await
     }
 }
 
 pub fn setup() -> (Channels, Handles) {
-    let (code_tx, code_rx) = mpsc::channel(32);
-    let (conn_tx, conn_rx) = mpsc::channel(32);
+    let (pair_tx, pair_rx) = mpsc::channel(16);
+    let (request_tx, request_rx) = mpsc::channel(32);
+    let (establish_tx, establish_rx) = mpsc::channel(32);
 
-    let code_map_manager = tokio::spawn(code_map::manager(code_rx));
-    let connection_map_manager = tokio::spawn(connection_map::manager(conn_rx));
+    let pair_manager = tokio::spawn(pair::manager(pair_rx));
+    let request_manager = tokio::spawn(request::manager(request_rx));
+    let establish_manager = tokio::spawn(establish::manager(establish_rx));
 
     (
         Channels {
-            code: code_tx,
-            conn: conn_tx,
+            pair: pair_tx,
+            request: request_tx,
+            establish: establish_tx,
         },
         Handles {
-            code: code_map_manager,
-            conn: connection_map_manager,
+            pair: pair_manager,
+            request: request_manager,
+            establish: establish_manager,
         },
     )
 }

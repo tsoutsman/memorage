@@ -2,12 +2,12 @@ use std::net::{IpAddr, SocketAddr};
 
 use crate::{Config, Error, Result};
 
-use quinn::{Endpoint, EndpointConfig, Incoming};
 use memorage_core::{time::OffsetDateTime, PublicKey};
 use memorage_cs::{
     request::{self, Request},
     PairingCode,
 };
+use quinn::{Endpoint, EndpointConfig, Incoming};
 use tokio::net::UdpSocket;
 use tracing::info;
 
@@ -59,9 +59,9 @@ impl<'a> Client<'a> {
         loop {
             tokio::time::sleep(self.config.register_response.ping_delay).await;
 
-            match self.request(request::RegisterResponse).await {
+            match self.request(request::GetRegisterResponse).await {
                 Ok(pk) => return Ok(pk.0),
-                Err(Error::Server(soter_cs::Error::NoData)) => {
+                Err(Error::Server(memorage_cs::Error::NoData)) => {
                     counter += 1;
                 }
                 Err(e) => return Err(e),
@@ -94,7 +94,8 @@ impl<'a> Client<'a> {
         send.finish().await?;
 
         let buffer = recv.read_to_end(1024).await?;
-        memorage_cs::deserialize::<_, memorage_cs::Result<T::Response>>(&buffer)?.map_err(|e| e.into())
+        memorage_cs::deserialize::<_, memorage_cs::Result<T::Response>>(&buffer)?
+            .map_err(|e| e.into())
     }
 
     /// Establish a connection to a peer.

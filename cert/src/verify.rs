@@ -1,11 +1,11 @@
 use crate::Error;
 
+use memorage_core::PublicKey;
 use rustls::{
     client::{ServerCertVerified, ServerCertVerifier, ServerName},
     server::{ClientCertVerified, ClientCertVerifier},
     Certificate,
 };
-use memorage_core::PublicKey;
 use x509_parser::{certificate::X509Certificate, traits::FromDer, validate::Validate};
 
 pub(crate) struct CertVerifier(Option<PublicKey>);

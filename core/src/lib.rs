@@ -96,6 +96,8 @@ impl AsRef<[u8]> for PublicKey {
 
 impl From<&PrivateKey> for PublicKey {
     fn from(pk: &PrivateKey) -> Self {
+        // NOTE: https://github.com/rust-lang/rust-clippy/pull/8355
+        #[allow(clippy::needless_borrow)]
         Self((&pk.0).into())
     }
 }

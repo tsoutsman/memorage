@@ -2,8 +2,8 @@ use std::net::SocketAddr;
 
 use crate::PairingCode;
 
-use serde::{Deserialize, Serialize};
 use memorage_core::{time::OffsetDateTime, PublicKey};
+use serde::{Deserialize, Serialize};
 
 pub trait Response:
     crate::private::Sealed + serde::Serialize + serde::de::DeserializeOwned
@@ -17,7 +17,7 @@ pub struct Register(pub PairingCode);
 pub struct GetKey(pub PublicKey);
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
-pub struct RegisterResponse(pub PublicKey);
+pub struct GetRegisterResponse(pub PublicKey);
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct RequestConnection;
@@ -25,6 +25,8 @@ pub struct RequestConnection;
 #[derive(Copy, Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct CheckConnection {
     pub initiator: PublicKey,
+    #[serde(serialize_with = "crate::time::serialize_offset_date_time")]
+    #[serde(deserialize_with = "crate::time::deserialize_offset_date_time")]
     pub time: OffsetDateTime,
 }
 
@@ -44,7 +46,7 @@ macro_rules! impl_response {
 impl_response![
     Register,
     GetKey,
-    RegisterResponse,
+    GetRegisterResponse,
     RequestConnection,
     CheckConnection,
     Ping,
