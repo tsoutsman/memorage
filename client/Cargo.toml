@@ -1,10 +1,11 @@
 [package]
 name = "memorage-client"
-authors = ["Klim Tsoutsman <klimusha@gmail.com>"]
 version = "0.1.0"
+authors = ["Klim Tsoutsman <klim@memorage.org>"]
 edition = "2021"
-homepage = "https://github.com/tsoutsman/memorage"
-repository = "https://github.com/tsoutsman/memorage"
+homepage = "https://memorage.org"
+repository = "https://github.com/memorage/memorage"
+license = "GPL-3.0-only"
 
 [dependencies]
 memorage-core = { path = "../core" }

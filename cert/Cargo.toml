@@ -1,7 +1,11 @@
 [package]
 name = "memorage-cert"
 version = "0.1.0"
+authors = ["Klim Tsoutsman <klim@memorage.org>"]
 edition = "2021"
+homepage = "https://memorage.org"
+repository = "https://github.com/memorage/memorage"
+license = "GPL-3.0-only"
 
 [dependencies]
 memorage-core = { path = "../core" }
