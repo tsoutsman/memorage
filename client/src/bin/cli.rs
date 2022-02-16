@@ -1,7 +1,7 @@
 use std::{net::IpAddr, path::PathBuf};
 
 use clap::{Parser, Subcommand};
-use memorage_client::{config, net, Config};
+use memorage_client::{config, io, net, Config};
 use memorage_core::time::OffsetDateTime;
 use tracing::info;
 
@@ -9,7 +9,7 @@ use tracing::info;
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     human_panic::setup_panic!();
     if std::env::var("RUST_LOG").is_err() {
-        std::env::set_var("RUST_LOG", "info")
+        std::env::set_var("RUST_LOG", "warn")
     }
     tracing_subscriber::fmt::fmt()
         .with_env_filter(tracing_subscriber::EnvFilter::from_default_env())
@@ -27,22 +27,34 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let mut config = Config::from_disk(&config::CONFIG_PATH)?;
 
     match args.command {
-        Command::Register => {
-            let client = net::Client::new(&config).await?;
-            let pairing_code = client.register().await?;
-            info!("Pairing Code: {}", pairing_code);
-            let peer = client.register_response().await?;
-            info!("Peer Public Key: {}", peer);
-            config.peer = Some(peer);
-        }
         Command::Pair { server, code } => {
             if let Some(server) = server {
                 config.server_address = server;
             }
-            let client = net::Client::new(&config).await?;
-            let peer = client.get_key(code).await?;
-            config.peer = Some(peer);
-            info!("Peer Public Key: {}", peer);
+
+            if let Some(code) = code {
+                let client = net::Client::new(&config).await?;
+                let peer = client.get_key(code).await?;
+
+                if io::verify_peer(&peer, &mut config)? {
+                    return Ok(());
+                } else {
+                    std::process::exit(1);
+                }
+            } else {
+                let client = net::Client::new(&config).await?;
+                let pairing_code = client.register().await?;
+
+                println!("Pairing Code: {}", pairing_code);
+
+                let peer = client.register_response().await?;
+
+                if io::verify_peer(&peer, &mut config)? {
+                    return Ok(());
+                } else {
+                    std::process::exit(1);
+                }
+            }
         }
         Command::Connect { server } => {
             if let Some(server) = server {
@@ -102,12 +114,11 @@ struct Args {
 #[derive(Subcommand, Debug)]
 enum Command {
     NewKey,
-    Register,
     Pair {
         /// Address of the coordination server
         #[clap(short, long)]
         server: Option<IpAddr>,
-        code: memorage_cs::PairingCode,
+        code: Option<memorage_cs::PairingCode>,
     },
     /// Attempt to connect to a peer
     Connect {
