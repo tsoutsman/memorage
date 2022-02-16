@@ -14,12 +14,12 @@
 )]
 #![feature(int_roundings, concat_idents)]
 
-mod config;
 mod error;
 
 pub use config::Config;
 pub use error::{Error, Result};
 
+pub mod config;
 pub mod crypto;
 pub mod fs;
 pub mod mnemonic;

@@ -25,7 +25,7 @@ const BEFORE_PRIVATE_KEY: [u8; 16] = [
 ];
 const AFTER_PRIVATE_KEY: [u8; 5] = [0xa1, 0x23, 0x03, 0x21, 0x00];
 
-#[derive(Debug)]
+#[derive(Debug, Eq, PartialEq)]
 pub struct KeyPair {
     pub public: PublicKey,
     pub private: PrivateKey,
@@ -118,7 +118,7 @@ impl std::hash::Hash for PublicKey {
     }
 }
 
-impl std::cmp::PartialEq for PublicKey {
+impl PartialEq for PublicKey {
     fn eq(&self, other: &Self) -> bool {
         self.as_ref() == other.as_ref()
     }
@@ -148,6 +148,14 @@ impl TryFrom<&[u8]> for PrivateKey {
         ))
     }
 }
+
+impl PartialEq for PrivateKey {
+    fn eq(&self, other: &Self) -> bool {
+        self.as_ref() == other.as_ref()
+    }
+}
+
+impl Eq for PrivateKey {}
 
 #[derive(Copy, Clone, Debug)]
 pub struct KeyGenerationError;

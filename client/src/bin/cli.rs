@@ -1,7 +1,7 @@
 use std::{net::IpAddr, path::PathBuf};
 
 use clap::{Parser, Subcommand};
-use memorage_client::{net, Config};
+use memorage_client::{config, net, Config};
 use tracing::info;
 
 #[tokio::main]
@@ -19,11 +19,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     if let Command::NewKey = args.command {
         let config = Config::with_key_pair(memorage_core::KeyPair::from_entropy());
         info!("Public Key: {}", config.key_pair.public);
-        config.save_to_disk()?;
+        config.save_to_disk(&config::CONFIG_PATH)?;
         return Ok(());
     }
 
-    let mut config = Config::from_disk()?;
+    let mut config = Config::from_disk(&config::CONFIG_PATH)?;
 
     match args.command {
         Command::Register => {
@@ -76,7 +76,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         Command::NewKey => unreachable!(),
     }
 
-    config.save_to_disk()?;
+    config.save_to_disk(&config::CONFIG_PATH)?;
     Ok(())
 }
 

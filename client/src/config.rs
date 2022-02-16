@@ -1,14 +1,15 @@
 use std::{
     net::{IpAddr, SocketAddr},
+    path::Path,
     time::Duration,
 };
 
 use memorage_core::{KeyPair, PublicKey};
-use serde::{Deserialize, Deserializer, Serialize, Serializer};
+use serde::{de, Deserialize, Deserializer, Serialize, Serializer};
 
 // TODO: Other oses
 lazy_static::lazy_static! {
-    static ref CONFIG_PATH: std::path::PathBuf = {
+    pub static ref CONFIG_PATH: std::path::PathBuf = {
         let mut home_dir = dirs::home_dir().unwrap();
         home_dir.push(".config");
         home_dir.push("memorage.config");
@@ -16,24 +17,32 @@ lazy_static::lazy_static! {
     };
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Eq, PartialEq, Serialize, Deserialize)]
 pub struct Config {
     #[serde(
         serialize_with = "serialize_key_pair",
         deserialize_with = "deserialize_key_pair"
     )]
     pub key_pair: KeyPair,
-    pub peer: Option<PublicKey>,
     pub server_address: IpAddr,
+    pub peer: Option<PublicKey>,
+    #[serde(
+        serialize_with = "serialize_duration",
+        deserialize_with = "deserialize_duration"
+    )]
+    pub peer_connection_schedule_delay: Duration,
     pub register_response: RetryConfig,
     pub request_connection: RetryConfig,
-    pub peer_connection_schedule_delay: Duration,
 }
 
-#[derive(Copy, Clone, Debug, Serialize, Deserialize)]
+#[derive(Copy, Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
 pub struct RetryConfig {
-    pub ping_delay: Duration,
     pub tries: usize,
+    #[serde(
+        serialize_with = "serialize_duration",
+        deserialize_with = "deserialize_duration"
+    )]
+    pub ping_delay: Duration,
 }
 
 impl RetryConfig {
@@ -53,8 +62,8 @@ impl RetryConfig {
 }
 
 impl Config {
-    pub fn from_disk() -> crate::Result<Self> {
-        let content = std::fs::read_to_string(&*CONFIG_PATH)?;
+    pub fn from_disk(path: &Path) -> crate::Result<Self> {
+        let content = std::fs::read_to_string(path)?;
         Ok(toml::from_str(&content)?)
     }
 
@@ -66,9 +75,9 @@ impl Config {
         SocketAddr::new(self.server_address, memorage_core::PORT)
     }
 
-    pub fn save_to_disk(&self) -> crate::Result<()> {
+    pub fn save_to_disk(&self, path: &Path) -> crate::Result<()> {
         let toml = toml::to_string(&self)?;
-        std::fs::write(&*CONFIG_PATH, toml).map_err(|e| e.into())
+        std::fs::write(path, toml).map_err(|e| e.into())
     }
 }
 
@@ -79,9 +88,9 @@ impl From<KeyPair> for Config {
             peer: None,
             // TODO
             server_address: IpAddr::V4(std::net::Ipv4Addr::new(0, 0, 0, 0)),
+            peer_connection_schedule_delay: Duration::from_secs(10 * 60),
             register_response: RetryConfig::register_response(),
             request_connection: RetryConfig::request_connection(),
-            peer_connection_schedule_delay: Duration::from_secs(10 * 60),
         }
     }
 }
@@ -102,4 +111,49 @@ where
 {
     let bytes = <serde_bytes::ByteBuf>::deserialize(deserializer)?;
     KeyPair::try_from_pkcs8(bytes.as_ref()).map_err(serde::de::Error::custom)
+}
+
+fn serialize_duration<S>(duration: &Duration, serializer: S) -> Result<S::Ok, S::Error>
+where
+    S: Serializer,
+{
+    serializer.serialize_f64(duration.as_secs_f64())
+}
+
+fn deserialize_duration<'de, D>(deserializer: D) -> Result<Duration, D::Error>
+where
+    D: Deserializer<'de>,
+{
+    struct DurationVisitor;
+
+    impl de::Visitor<'_> for DurationVisitor {
+        type Value = Duration;
+
+        fn expecting(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+            formatter.write_str("a float")
+        }
+
+        fn visit_f64<E>(self, v: f64) -> Result<Self::Value, E>
+        where
+            E: de::Error,
+        {
+            Ok(Duration::from_secs_f64(v))
+        }
+    }
+
+    deserializer.deserialize_f64(DurationVisitor)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn serialize_config() {
+        let config = Config::from(KeyPair::from_entropy());
+        let mut path = std::env::temp_dir();
+        path.push("memorage.config");
+        assert!(config.save_to_disk(&path).is_ok());
+        assert_eq!(Config::from_disk(&path).unwrap(), config);
+    }
 }
