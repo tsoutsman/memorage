@@ -4,7 +4,7 @@ use memorage_core::{time::OffsetDateTime, PublicKey};
 use serde::{Deserialize, Serialize};
 
 pub trait Request: crate::private::Sealed {
-    type Response: crate::response::Response;
+    type Response: crate::response::Response + std::fmt::Debug;
 
     fn to_enum(self) -> RequestType;
 }

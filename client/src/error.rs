@@ -39,4 +39,6 @@ pub enum Error {
     PeerNotSet,
     #[error("peer didn't respond to connection request")]
     PeerNoResponse,
+    #[error("unauthorised connection request")]
+    UnauthorisedConnectionRequest,
 }

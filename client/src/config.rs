@@ -87,7 +87,7 @@ impl From<KeyPair> for Config {
             key_pair,
             peer: None,
             // TODO
-            server_address: IpAddr::V4(std::net::Ipv4Addr::new(0, 0, 0, 0)),
+            server_address: IpAddr::V4(std::net::Ipv4Addr::new(172, 105, 182, 36)),
             peer_connection_schedule_delay: Duration::from_secs(10 * 60),
             register_response: RetryConfig::register_response(),
             request_connection: RetryConfig::request_connection(),

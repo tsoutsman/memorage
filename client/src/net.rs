@@ -9,7 +9,7 @@ use memorage_cs::{
 };
 use quinn::{Endpoint, EndpointConfig, Incoming};
 use tokio::net::UdpSocket;
-use tracing::info;
+use tracing::{debug, info, warn};
 
 #[derive(Debug)]
 pub struct Client<'a> {
@@ -74,10 +74,108 @@ impl<'a> Client<'a> {
         }
     }
 
-    pub async fn request<T>(&self, request: T) -> Result<T::Response>
+    /// Establish a connection to a peer.
+    #[allow(clippy::missing_panics_doc)]
+    pub async fn establish_peer_connection(self) -> Result<PeerConnection> {
+        let target = match self.config.peer {
+            Some(k) => k,
+            None => return Err(Error::PeerNotSet),
+        };
+        let time = OffsetDateTime::now_utc() + self.config.peer_connection_schedule_delay;
+
+        self.request(request::RequestConnection { target, time })
+            .await?;
+
+        let delay = time - OffsetDateTime::now_utc();
+        // TODO: Unwrap fails if delay is negative i.e. time < now
+        tokio::time::sleep(delay.try_into().unwrap()).await;
+
+        return self.connect_to_peer().await;
+    }
+
+    pub async fn check_connection(&self) -> Result<OffsetDateTime> {
+        let peer = match self.config.peer {
+            Some(k) => k,
+            None => return Err(Error::PeerNotSet),
+        };
+
+        let response = self.request(request::CheckConnection).await?;
+
+        if response.initiator == peer {
+            Ok(response.time)
+        } else {
+            Err(Error::UnauthorisedConnectionRequest)
+        }
+    }
+
+    pub async fn connect_to_peer(self) -> Result<PeerConnection> {
+        let peer_key = match self.config.peer {
+            Some(k) => k,
+            None => return Err(Error::PeerNotSet),
+        };
+
+        let mut counter: usize = 0;
+
+        debug!("sending first packet");
+
+        let _temp = self.request(request::Ping(peer_key)).await;
+        tokio::time::sleep(std::time::Duration::from_secs(5)).await;
+
+        debug!(?_temp, "looping");
+
+        loop {
+            match self.request(request::Ping(peer_key)).await {
+                Ok(memorage_cs::response::Ping(peer_address)) => {
+                    info!(%peer_address, "received peer address");
+                    let (send_config, recv_config) = memorage_cert::gen_configs(
+                        self.public_address,
+                        &self.config.key_pair,
+                        Some(peer_key),
+                    )?;
+                    self.endpoint.set_server_config(Some(recv_config));
+
+                    self.socket.connect(peer_address).await?;
+                    debug!("connected to peer");
+
+                    for _ in 0..10 {
+                        let result = self.socket.send(&[15, 96, 13]).await;
+                        debug!(?result, "punching");
+                        tokio::time::sleep(std::time::Duration::from_secs(1)).await;
+                    }
+
+                    return Ok(PeerConnection {
+                        send_config,
+                        peer_address,
+                        endpoint: self.endpoint,
+                        incoming: self.incoming,
+                        socket: self.socket,
+                    });
+                }
+                Err(Error::Server(memorage_cs::Error::NoData)) => {
+                    counter += 1;
+                    info!(%counter, "no data on server");
+                }
+                Err(e) => {
+                    warn!(?e, "server error");
+                    return Err(e);
+                }
+            }
+
+            if counter == self.config.request_connection.tries {
+                warn!("no peer response");
+                return Err(Error::PeerNoResponse);
+            }
+
+            tokio::time::sleep(self.config.request_connection.ping_delay).await;
+        }
+    }
+
+    async fn request<T>(&self, request: T) -> Result<T::Response>
     where
-        T: memorage_cs::Serialize + Request,
+        T: memorage_cs::Serialize + Request + std::fmt::Debug,
     {
+        debug!(?request, "sending request");
+
         let (mut send, recv) = self
             .endpoint
             .connect_with(
@@ -95,64 +193,10 @@ impl<'a> Client<'a> {
         send.finish().await?;
 
         let buffer = recv.read_to_end(1024).await?;
-        memorage_cs::deserialize::<_, memorage_cs::Result<T::Response>>(&buffer)?
-            .map_err(|e| e.into())
-    }
-
-    /// Establish a connection to a peer.
-    #[allow(clippy::missing_panics_doc)]
-    pub async fn establish_peer_connection(self) -> Result<PeerConnection> {
-        let target = match self.config.peer {
-            Some(k) => k,
-            None => return Err(Error::PeerNotSet),
-        };
-        let time = OffsetDateTime::now_utc() + self.config.peer_connection_schedule_delay;
-
-        self.request(request::RequestConnection { target, time })
-            .await?;
-
-        let delay = time - OffsetDateTime::now_utc();
-        // TODO: Unwrap fails if delay is negative i.e. time < now
-        tokio::time::sleep(delay.try_into().unwrap()).await;
-
-        let mut counter: usize = 0;
-
-        loop {
-            match self.request(request::Ping(target)).await {
-                Ok(memorage_cs::response::Ping(peer_address)) => {
-                    // We have to use the same endpoint for
-                    let (send_config, recv_config) = memorage_cert::gen_configs(
-                        self.public_address,
-                        &self.config.key_pair,
-                        Some(target),
-                    )?;
-                    self.endpoint.set_server_config(Some(recv_config));
-
-                    self.socket.connect(peer_address).await?;
-                    for _ in 0..5 {
-                        let _ = self.socket.send(&[1, 0, 1]).await;
-                        tokio::time::sleep(std::time::Duration::from_secs(1)).await;
-                    }
-
-                    return Ok(PeerConnection {
-                        send_config,
-                        peer_address,
-                        endpoint: self.endpoint,
-                        incoming: self.incoming,
-                    });
-                }
-                Err(Error::Server(memorage_cs::Error::NoData)) => {
-                    counter += 1;
-                }
-                Err(e) => return Err(e),
-            }
-
-            if counter == self.config.request_connection.tries {
-                return Err(Error::PeerNoResponse);
-            }
-
-            tokio::time::sleep(self.config.request_connection.ping_delay).await;
-        }
+        let response = memorage_cs::deserialize::<_, memorage_cs::Result<T::Response>>(&buffer)?
+            .map_err(|e| e.into());
+        debug!(?response, "received response");
+        response
     }
 }
 
@@ -163,10 +207,37 @@ pub struct PeerConnection {
     peer_address: SocketAddr,
     endpoint: Endpoint,
     incoming: Incoming,
+    socket: UdpSocket,
 }
 
 impl PeerConnection {
+    pub async fn raw_recv(&mut self) -> Result<Vec<u8>> {
+        let public_address =
+            memorage_stun::public_address(&mut self.socket, memorage_stun::DEFAULT_STUN_SERVER)
+                .await?;
+        info!(%public_address, "receiving raw :)");
+
+        let mut buf = vec![0; 256];
+        self.socket.recv(&mut buf).await?;
+        Ok(buf)
+    }
+
     pub async fn next(&mut self) -> Option<quinn::Connecting> {
         self.incoming.next().await
+    }
+
+    pub async fn send(&self, bytes: &[u8]) -> Result<()> {
+        let (mut send, _) = self
+            .endpoint
+            .connect_with(self.send_config.clone(), self.peer_address, "ooga.com")?
+            .await?
+            .connection
+            .open_bi()
+            .await?;
+
+        send.write_all(bytes).await?;
+        send.finish().await?;
+
+        Ok(())
     }
 }
