@@ -48,7 +48,20 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
             let target_key = memorage_core::KeyPair::from_entropy().public;
             info!(public_key=?config.key_pair.public, ?target_key, "trying to establish connection");
-            let _peer_connection = client.establish_peer_connection().await?;
+            let mut peer_connection = client.establish_peer_connection().await?;
+
+            if let Some(conn) = peer_connection.next().await {
+                let quinn::NewConnection {
+                    connection: _connection,
+                    mut bi_streams,
+                    ..
+                } = conn.await?;
+                while let Some(stream) = bi_streams.next().await {
+                    let (_send, recv) = stream?;
+                    let buf = recv.read_to_end(1024).await;
+                    eprintln!("buf: {:#?}", buf);
+                }
+            }
         }
         Command::Check => {
             // TODO: Implement

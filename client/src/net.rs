@@ -18,6 +18,7 @@ pub struct Client<'a> {
     public_address: IpAddr,
     endpoint: Endpoint,
     incoming: Incoming,
+    socket: UdpSocket,
 }
 
 impl<'a> Client<'a> {
@@ -31,11 +32,10 @@ impl<'a> Client<'a> {
         let (send_config, recv_config) =
             memorage_cert::gen_configs(public_address, &config.key_pair, None)?;
 
-        let (endpoint, incoming) = quinn::Endpoint::new(
-            EndpointConfig::default(),
-            Some(recv_config),
-            socket.into_std()?,
-        )?;
+        let socket = socket.into_std()?;
+        let cloned_socket = socket.try_clone()?;
+        let (endpoint, incoming) =
+            quinn::Endpoint::new(EndpointConfig::default(), Some(recv_config), socket)?;
 
         Ok(Self {
             config,
@@ -43,6 +43,7 @@ impl<'a> Client<'a> {
             public_address,
             endpoint,
             incoming,
+            socket: UdpSocket::from_std(cloned_socket)?,
         })
     }
 
@@ -126,6 +127,13 @@ impl<'a> Client<'a> {
                         Some(target),
                     )?;
                     self.endpoint.set_server_config(Some(recv_config));
+
+                    self.socket.connect(peer_address).await?;
+                    for _ in 0..5 {
+                        let _ = self.socket.send(&[1, 0, 1]).await;
+                        tokio::time::sleep(std::time::Duration::from_secs(1)).await;
+                    }
+
                     return Ok(PeerConnection {
                         send_config,
                         peer_address,
@@ -155,4 +163,10 @@ pub struct PeerConnection {
     peer_address: SocketAddr,
     endpoint: Endpoint,
     incoming: Incoming,
+}
+
+impl PeerConnection {
+    pub async fn next(&mut self) -> Option<quinn::Connecting> {
+        self.incoming.next().await
+    }
 }
