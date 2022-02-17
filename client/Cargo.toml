@@ -30,6 +30,7 @@ clap = { version = "3.0.5", features = ["derive"] }
 serde_bytes = "*"
 toml = "*"
 dirs = "*"
+walkdir = "*"
 
 [dev-dependencies]
 efes = "*"

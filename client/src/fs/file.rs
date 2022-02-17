@@ -1,4 +1,4 @@
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 use crate::{
     crypto::{decrypt, encrypt},
@@ -29,38 +29,42 @@ pub struct File {
 }
 
 impl File {
-    pub fn encrypt(&self, key: &PrivateKey) -> Result<(FileName, EncryptedFile)> {
-        let path_hash: [u8; 32] = blake3::hash(self.path.to_string_lossy().as_bytes()).into();
+    #[allow(clippy::missing_panics_doc)]
+    pub fn from_disk(_path: &Path) -> Result<Self> {
+        todo!();
+    }
+
+    pub fn encrypt(&self, key: &PrivateKey) -> Result<(EncryptedFileName, EncryptedFile)> {
         let serialised = bincode::serialize(&self)?;
         let (nonce, encrypted_self) = encrypt(key, &serialised)?;
         let encrypted = EncryptedFile {
             nonce,
             file: encrypted_self,
         };
-        Ok((path_hash.as_ref().into(), encrypted))
+        // NOTE: https://github.com/rust-lang/rust-clippy/pull/8355
+        #[allow(clippy::needless_borrow)]
+        Ok(((&self.path).into(), encrypted))
     }
 }
 
 #[derive(Clone, Debug, Eq, PartialEq, Hash, Serialize, Deserialize)]
-pub struct FileName(String);
+pub struct EncryptedFileName(String);
 
-impl From<&[u8]> for FileName {
-    fn from(a: &[u8]) -> Self {
-        let mut result = String::with_capacity(a.len() * 2);
-        for x in a {
+impl<P> From<P> for EncryptedFileName
+where
+    P: AsRef<Path>,
+{
+    fn from(p: P) -> Self {
+        let mut result = String::new();
+        let hash: [u8; 32] = blake3::hash(p.as_ref().to_string_lossy().as_bytes()).into();
+        for x in hash {
             result.push_str(&format!("{:02x?}", x));
         }
         Self(result)
     }
 }
 
-impl From<FileName> for String {
-    fn from(f: FileName) -> Self {
-        f.0
-    }
-}
-
-impl AsRef<str> for FileName {
+impl AsRef<str> for EncryptedFileName {
     fn as_ref(&self) -> &str {
         &self.0
     }

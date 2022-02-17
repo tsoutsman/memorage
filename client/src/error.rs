@@ -41,4 +41,6 @@ pub enum Error {
     PeerNoResponse,
     #[error("unauthorised connection request")]
     UnauthorisedConnectionRequest,
+    #[error("error occured while traversing directory")]
+    WalkDir(#[from] walkdir::Error),
 }
