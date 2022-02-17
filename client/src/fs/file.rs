@@ -41,7 +41,7 @@ impl File {
     }
 }
 
-#[derive(Debug)]
+#[derive(Clone, Debug, Eq, PartialEq, Hash, Serialize, Deserialize)]
 pub struct FileName(String);
 
 impl From<&[u8]> for FileName {

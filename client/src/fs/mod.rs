@@ -5,3 +5,4 @@ pub use notify::Event;
 
 pub mod backup;
 pub mod file;
+pub mod index;
