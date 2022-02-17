@@ -16,12 +16,11 @@
 
 mod error;
 
-pub use config::Config;
 pub use error::{Error, Result};
 
-pub mod config;
 pub mod crypto;
 pub mod fs;
 pub mod io;
 pub mod mnemonic;
 pub mod net;
+pub mod persistent;

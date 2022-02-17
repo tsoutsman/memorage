@@ -1,7 +1,12 @@
 use std::{net::IpAddr, path::PathBuf};
 
 use clap::{Parser, Subcommand};
-use memorage_client::{config, io, mnemonic::MnemonicPhrase, net, Config};
+use memorage_client::{
+    io,
+    mnemonic::MnemonicPhrase,
+    net,
+    persistent::{Config, Data, Persistent},
+};
 use memorage_core::time::OffsetDateTime;
 use tracing::info;
 
@@ -18,7 +23,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let args = Args::parse();
 
     if let Command::Setup = args.command {
-        let config = Config::with_key_pair(memorage_core::KeyPair::from_entropy());
+        let data = Data::from_key_pair(memorage_core::KeyPair::from_entropy());
 
         let num_words = loop {
             match io::prompt("Mnemonic phrase length (18): ")?.parse::<usize>() {
@@ -38,44 +43,45 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         let phrase = MnemonicPhrase::generate(num_words, password);
         println!("Mnemonic phrase: {}", phrase);
 
-        info!("Generated public key: {}", config.key_pair.public);
+        info!("Generated public key: {}", data.key_pair.public);
 
-        config.save_to_disk(&config::CONFIG_PATH)?;
+        data.save_to_disk(None)?;
         println!("Setup successful");
         return Ok(());
     }
 
-    let mut config = Config::from_disk(&config::CONFIG_PATH)?;
+    let mut data = Data::from_disk(None)?;
+    let mut config = Config::from_disk(None)?;
 
     match args.command {
         Command::Pair { server, code } => {
             if let Some(server) = server {
-                config.server_address = server;
+                config.server_address = vec![server];
             }
 
-            let client = net::Client::new(&config).await?;
+            let client = net::Client::new(&data, &config).await?;
 
             if let Some(code) = code {
                 let peer = client.get_key(code).await?;
 
                 println!("Key 1: {}", peer);
-                println!("Key 2: {}", config.key_pair.public);
+                println!("Key 2: {}", data.key_pair.public);
 
-                if io::verify_peer(&peer, &mut config)? {
+                if io::verify_peer(&peer, &mut data)? {
                     return Ok(());
                 } else {
                     std::process::exit(1);
                 }
             } else {
                 let pairing_code = client.register().await?;
-                println!("Pairing Code: {}", pairing_code);
+                println!("Pairing code: {}", pairing_code);
 
                 let peer = client.register_response().await?;
 
-                println!("Key 1: {}", config.key_pair.public);
+                println!("Key 1: {}", data.key_pair.public);
                 println!("Key 2: {}", peer);
 
-                if io::verify_peer(&peer, &mut config)? {
+                if io::verify_peer(&peer, &mut data)? {
                     println!("Pairing successful");
                     return Ok(());
                 } else {
@@ -85,12 +91,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
         Command::Connect { server } => {
             if let Some(server) = server {
-                config.server_address = server;
+                config.server_address = vec![server];
             }
-            let client = net::Client::new(&config).await?;
+            let client = net::Client::new(&data, &config).await?;
 
             let target_key = memorage_core::KeyPair::from_entropy().public;
-            info!(public_key=?config.key_pair.public, ?target_key, "trying to establish connection");
+            info!(public_key=?data.key_pair.public, ?target_key, "trying to establish connection");
             let mut peer_connection = client.establish_peer_connection().await?;
             peer_connection.raw_recv().await?;
 
@@ -109,9 +115,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
         Command::Check { server } => {
             if let Some(server) = server {
-                config.server_address = server;
+                config.server_address = vec![server];
             }
-            let client = net::Client::new(&config).await?;
+            let client = net::Client::new(&data, &config).await?;
             let time = client.check_connection().await?;
 
             let delay = time - OffsetDateTime::now_utc();
@@ -120,11 +126,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             let conn = client.connect_to_peer().await?;
             conn.send(&[1, 19, 1, 30, 0, 0, 1, 3]).await?;
         }
-        Command::Watch { directory } => {
-            let mut rx = memorage_client::fs::changed_files(directory)?;
-            while let Some(event) = rx.recv().await {
-                println!("Event: {:#?}", event);
-            }
+        Command::Watch { .. } => {
+            todo!();
         }
         Command::Setup => unreachable!(),
     }

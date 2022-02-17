@@ -1,6 +1,9 @@
 use std::net::{IpAddr, SocketAddr};
 
-use crate::{Config, Error, Result};
+use crate::{
+    persistent::{Config, Data},
+    Error, Result,
+};
 
 use memorage_core::{time::OffsetDateTime, PublicKey};
 use memorage_cs::{
@@ -12,8 +15,9 @@ use tokio::net::UdpSocket;
 use tracing::{debug, info, warn};
 
 #[derive(Debug)]
-pub struct Client<'a> {
-    config: &'a Config,
+pub struct Client<'a, 'b> {
+    data: &'a Data,
+    config: &'b Config,
     send_config: quinn::ClientConfig,
     public_address: IpAddr,
     endpoint: Endpoint,
@@ -21,8 +25,8 @@ pub struct Client<'a> {
     socket: UdpSocket,
 }
 
-impl<'a> Client<'a> {
-    pub async fn new(config: &'a Config) -> Result<Client<'a>> {
+impl<'a, 'b> Client<'a, 'b> {
+    pub async fn new(data: &'a Data, config: &'b Config) -> Result<Client<'a, 'b>> {
         let mut socket = UdpSocket::bind("0.0.0.0:0").await?;
         let public_address =
             memorage_stun::public_address(&mut socket, memorage_stun::DEFAULT_STUN_SERVER).await?;
@@ -30,7 +34,7 @@ impl<'a> Client<'a> {
         let public_address = public_address.ip();
 
         let (send_config, recv_config) =
-            memorage_cert::gen_configs(public_address, &config.key_pair, None)?;
+            memorage_cert::gen_configs(public_address, &data.key_pair, None)?;
 
         let socket = socket.into_std()?;
         let cloned_socket = socket.try_clone()?;
@@ -38,6 +42,7 @@ impl<'a> Client<'a> {
             quinn::Endpoint::new(EndpointConfig::default(), Some(recv_config), socket)?;
 
         Ok(Self {
+            data,
             config,
             send_config,
             public_address,
@@ -77,7 +82,7 @@ impl<'a> Client<'a> {
     /// Establish a connection to a peer.
     #[allow(clippy::missing_panics_doc)]
     pub async fn establish_peer_connection(self) -> Result<PeerConnection> {
-        let target = match self.config.peer {
+        let target = match self.data.peer {
             Some(k) => k,
             None => return Err(Error::PeerNotSet),
         };
@@ -94,7 +99,7 @@ impl<'a> Client<'a> {
     }
 
     pub async fn check_connection(&self) -> Result<OffsetDateTime> {
-        let peer = match self.config.peer {
+        let peer = match self.data.peer {
             Some(k) => k,
             None => return Err(Error::PeerNotSet),
         };
@@ -109,7 +114,7 @@ impl<'a> Client<'a> {
     }
 
     pub async fn connect_to_peer(self) -> Result<PeerConnection> {
-        let peer_key = match self.config.peer {
+        let peer_key = match self.data.peer {
             Some(k) => k,
             None => return Err(Error::PeerNotSet),
         };
@@ -129,7 +134,7 @@ impl<'a> Client<'a> {
                     info!(%peer_address, "received peer address");
                     let (send_config, recv_config) = memorage_cert::gen_configs(
                         self.public_address,
-                        &self.config.key_pair,
+                        &self.data.key_pair,
                         Some(peer_key),
                     )?;
                     self.endpoint.set_server_config(Some(recv_config));
@@ -180,7 +185,8 @@ impl<'a> Client<'a> {
             .endpoint
             .connect_with(
                 self.send_config.clone(),
-                self.config.server_socket_address(),
+                // TODO: Iterate over all supplied addresses until one connects.
+                self.config.server_socket_addresses()[0],
                 "ooga.com",
             )?
             .await?

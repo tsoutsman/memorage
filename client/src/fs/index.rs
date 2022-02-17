@@ -115,3 +115,8 @@ mod tests {
         );
     }
 }
+
+// struct Index {
+//     path_hashes: HashSet<EncryptedFileName>,
+//     entries: Encrypted<HashSet<IndexEntry>>
+// }

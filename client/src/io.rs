@@ -1,4 +1,7 @@
-use crate::{Config, Result};
+use crate::{
+    persistent::{Data, Persistent},
+    Result,
+};
 
 use std::io::Write;
 
@@ -41,15 +44,15 @@ where
 }
 
 #[inline]
-pub fn verify_peer(peer: &PublicKey, config: &mut Config) -> Result<bool> {
+pub fn verify_peer(peer: &PublicKey, data: &mut Data) -> Result<bool> {
     let input = prompt("Does your peer see the exact same keys? [y/n] ")?
         .trim()
         .to_lowercase();
 
     if input == "y" || input == "yes" {
-        config.peer = Some(*peer);
+        data.peer = Some(*peer);
         println!("Saving peer");
-        config.save_to_disk(&crate::config::CONFIG_PATH)?;
+        data.save_to_disk(None)?;
         Ok(true)
     } else {
         eprintln!("Aborting pairing process");
