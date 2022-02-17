@@ -1,7 +1,7 @@
 use std::{net::IpAddr, path::PathBuf};
 
 use clap::{Parser, Subcommand};
-use memorage_client::{config, io, net, Config};
+use memorage_client::{config, io, mnemonic::MnemonicPhrase, net, Config};
 use memorage_core::time::OffsetDateTime;
 use tracing::info;
 
@@ -17,10 +17,31 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let args = Args::parse();
 
-    if let Command::NewKey = args.command {
+    if let Command::Setup = args.command {
         let config = Config::with_key_pair(memorage_core::KeyPair::from_entropy());
-        info!("Public Key: {}", config.key_pair.public);
+
+        let num_words = loop {
+            match io::prompt("Mnemonic phrase length (18): ")?.parse::<usize>() {
+                Ok(n) => break n,
+                Err(_) => {
+                    eprintln!("Mnemonic phrase length must be a number");
+                }
+            }
+        };
+
+        let password = io::prompt_secure("Enter password (empty for no password): ")?;
+        let password = match &password[..] {
+            "" => None,
+            _ => Some(password),
+        };
+
+        let phrase = MnemonicPhrase::generate(num_words, password);
+        println!("Mnemonic phrase: {}", phrase);
+
+        info!("Generated public key: {}", config.key_pair.public);
+
         config.save_to_disk(&config::CONFIG_PATH)?;
+        println!("Setup successful");
         return Ok(());
     }
 
@@ -32,9 +53,13 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 config.server_address = server;
             }
 
+            let client = net::Client::new(&config).await?;
+
             if let Some(code) = code {
-                let client = net::Client::new(&config).await?;
                 let peer = client.get_key(code).await?;
+
+                println!("Key 1: {}", peer);
+                println!("Key 2: {}", config.key_pair.public);
 
                 if io::verify_peer(&peer, &mut config)? {
                     return Ok(());
@@ -42,14 +67,16 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                     std::process::exit(1);
                 }
             } else {
-                let client = net::Client::new(&config).await?;
                 let pairing_code = client.register().await?;
-
                 println!("Pairing Code: {}", pairing_code);
 
                 let peer = client.register_response().await?;
 
+                println!("Key 1: {}", config.key_pair.public);
+                println!("Key 2: {}", peer);
+
                 if io::verify_peer(&peer, &mut config)? {
+                    println!("Pairing successful");
                     return Ok(());
                 } else {
                     std::process::exit(1);
@@ -99,7 +126,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 println!("Event: {:#?}", event);
             }
         }
-        Command::NewKey => unreachable!(),
+        Command::Setup => unreachable!(),
     }
 
     Ok(())
@@ -113,7 +140,7 @@ struct Args {
 
 #[derive(Subcommand, Debug)]
 enum Command {
-    NewKey,
+    Setup,
     Pair {
         /// Address of the coordination server
         #[clap(short, long)]

@@ -81,10 +81,15 @@ pub struct PublicKey(ed25519_dalek::PublicKey);
 
 impl std::fmt::Display for PublicKey {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        for byte in self.as_ref() {
-            write!(f, "{:02x}", byte)?;
-        }
-        Ok(())
+        f.write_str(
+            &self
+                .as_ref()
+                .iter()
+                .map(|b| format!("{:02x}", b))
+                // TODO: Join without collecting
+                .collect::<Vec<_>>()
+                .join(" "),
+        )
     }
 }
 

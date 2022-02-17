@@ -55,6 +55,12 @@ impl Default for MnemonicPhrase<'static> {
     }
 }
 
+impl<'a> std::fmt::Display for MnemonicPhrase<'a> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(&self.words.join(" "))
+    }
+}
+
 impl From<MnemonicPhrase<'_>> for KeyPair {
     /// Convert a `MnemonicPhrase` into a [`KeyPair`].
     ///
