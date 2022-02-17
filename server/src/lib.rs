@@ -96,13 +96,27 @@ pub async fn __test_handle_request(
     handle_request(maybe_buf, client_key, address, channels).await
 }
 
-#[doc(hidden)]
-pub fn __setup_logger() {
-    tracing_subscriber::fmt::fmt().init();
+pub fn setup_logger() {
+    if std::env::var("RUST_LOG").is_err() {
+        std::env::set_var("RUST_LOG", "info")
+    }
+    tracing_subscriber::fmt::fmt()
+        .with_env_filter(tracing_subscriber::EnvFilter::from_default_env())
+        .with_target(false)
+        .init();
 }
 
 #[inline]
-#[tracing::instrument(skip(maybe_buf, channels))]
+fn format_key(key: &PublicKey) -> String {
+    let mut string = String::new();
+    for x in &key.as_ref()[0..6] {
+        string.push_str(&format!("{:02x?}", x));
+    }
+    string
+}
+
+#[inline]
+#[tracing::instrument(skip_all, fields(addr = ?client_address, key = %format_key(&client_key)))]
 async fn handle_request(
     maybe_buf: memorage_cs::Result<Vec<u8>>,
     client_key: PublicKey,
@@ -111,15 +125,17 @@ async fn handle_request(
 ) -> Result<Vec<u8>> {
     info!("accepted connection");
 
-    let request: memorage_cs::Result<RequestType> =
-        async { Ok(deserialize(&maybe_buf?).unwrap()) }.await;
+    let request: memorage_cs::Result<RequestType> = match maybe_buf {
+        Ok(buf) => deserialize(&buf).map_err(|_| memorage_cs::Error::Generic),
+        Err(e) => Err(e),
+    };
 
     // TODO: Verify that client_key matches address stored in hashmap.
     let resp = match request {
         Ok(ty) => {
-            info!(?ty, "decoded type");
             match ty {
                 RequestType::Register(_) => {
+                    info!("received register request");
                     let (resp_tx, resp_rx) = tokio::sync::oneshot::channel();
                     let cmd = manager::pair::Command::Register {
                         key: client_key,
@@ -138,6 +154,7 @@ async fn handle_request(
                     serialize(response)
                 }
                 RequestType::GetKey(r) => {
+                    info!("received get key request");
                     let (resp_tx, resp_rx) = tokio::sync::oneshot::channel();
                     let cmd = manager::pair::Command::GetKey {
                         code: r.0,
@@ -157,6 +174,7 @@ async fn handle_request(
                     serialize(response)
                 }
                 RequestType::GetRegisterResponse(_) => {
+                    info!("received get register response request");
                     let (resp_tx, resp_rx) = tokio::sync::oneshot::channel();
                     let cmd = manager::pair::Command::GetRegisterResponse {
                         initiator: client_key,
@@ -176,6 +194,7 @@ async fn handle_request(
                     serialize(response)
                 }
                 RequestType::RequestConnection(r) => {
+                    info!("received request connection request");
                     let (resp_tx, resp_rx) = tokio::sync::oneshot::channel();
                     let cmd = manager::request::Command::RequestConnection {
                         initiator: client_key,
@@ -197,6 +216,7 @@ async fn handle_request(
                     serialize(response)
                 }
                 RequestType::CheckConnection(_) => {
+                    info!("received check connection request");
                     let (resp_tx, resp_rx) = tokio::sync::oneshot::channel();
                     let cmd = manager::request::Command::CheckConnection {
                         target: client_key,
@@ -217,6 +237,7 @@ async fn handle_request(
                 }
                 // initiator address
                 RequestType::Ping(r) => {
+                    info!("received ping request");
                     let (resp_tx, resp_rx) = tokio::sync::oneshot::channel();
                     let cmd = manager::establish::Command::Ping {
                         initiator_key: client_key,
@@ -242,5 +263,6 @@ async fn handle_request(
         Err(e) => serialize(memorage_cs::Result::<response::Register>::Err(e)),
     }?;
 
+    info!("closing connection");
     Ok(resp)
 }

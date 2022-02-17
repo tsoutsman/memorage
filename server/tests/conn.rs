@@ -7,7 +7,7 @@ use memorage_cs::{request, response, Error};
 
 #[tokio::test]
 async fn basic() {
-    memorage_server::__setup_logger();
+    memorage_server::setup_logger();
     let (channels, _handles) = memorage_server::setup();
 
     let time = OffsetDateTime::now_utc();
