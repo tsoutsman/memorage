@@ -32,6 +32,8 @@ dirs = "*"
 walkdir = "*"
 rpassword = "*"
 directories-next = "*"
+jwalk = "*"
+rayon = "*"
 
 [dev-dependencies]
 efes = "*"

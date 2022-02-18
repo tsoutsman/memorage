@@ -34,7 +34,7 @@ impl File {
         todo!();
     }
 
-    pub fn encrypt(&self, key: &PrivateKey) -> Result<(EncryptedFileName, EncryptedFile)> {
+    pub fn encrypt(&self, key: &PrivateKey) -> Result<(EncryptedPath, EncryptedFile)> {
         let serialised = bincode::serialize(&self)?;
         let (nonce, encrypted_self) = encrypt(key, &serialised)?;
         let encrypted = EncryptedFile {
@@ -48,9 +48,9 @@ impl File {
 }
 
 #[derive(Clone, Debug, Eq, PartialEq, Hash, Serialize, Deserialize)]
-pub struct EncryptedFileName(String);
+pub struct EncryptedPath(String);
 
-impl<P> From<P> for EncryptedFileName
+impl<P> From<P> for EncryptedPath
 where
     P: AsRef<Path>,
 {
@@ -64,7 +64,7 @@ where
     }
 }
 
-impl AsRef<str> for EncryptedFileName {
+impl AsRef<str> for EncryptedPath {
     fn as_ref(&self) -> &str {
         &self.0
     }

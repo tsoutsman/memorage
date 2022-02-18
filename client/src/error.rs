@@ -40,5 +40,5 @@ pub enum Error {
     #[error("unauthorised connection request")]
     UnauthorisedConnectionRequest,
     #[error("error occured while traversing directory")]
-    WalkDir(#[from] walkdir::Error),
+    Jwalk(#[from] jwalk::Error),
 }

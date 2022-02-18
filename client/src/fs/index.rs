@@ -1,11 +1,15 @@
-use crate::{fs::file::EncryptedFileName, Result};
+use crate::{
+    fs::{file::EncryptedPath, hash},
+    Result,
+};
 
 use std::{
     collections::{HashMap, HashSet},
+    fs::File,
     path::{Path, PathBuf},
-    time::SystemTime,
 };
 
+use rayon::iter::{IntoParallelIterator, ParallelIterator};
 use serde::{Deserialize, Serialize};
 
 #[derive(Clone, Debug, Eq, PartialEq, Default, Serialize, Deserialize)]
@@ -16,33 +20,44 @@ impl Index {
         Self(HashSet::new())
     }
 
-    pub fn from_disk(path: &Path) -> Result<(Self, HashMap<EncryptedFileName, PathBuf>)> {
-        let mut paths = HashMap::new();
-        let mut index = Self::new();
+    pub fn from_disk(path: &Path) -> Result<(Self, HashMap<EncryptedPath, PathBuf>)> {
+        let mut paths = Vec::new();
 
-        for entry in walkdir::WalkDir::new(path).into_iter() {
+        for entry in jwalk::WalkDir::new(path) {
             // TODO: Document that empty folders are not backed up.
             // TODO: Symbolic links
 
             let entry = entry?;
 
             if entry.file_type().is_file() {
-                let metadata = entry.metadata()?;
-
                 let file_path = entry.path();
-                let encrypted_file_path: EncryptedFileName = file_path.into();
-
-                let index_entry = IndexEntry {
-                    path: encrypted_file_path.clone(),
-                    modified: metadata.modified()?,
-                };
-
-                paths.insert(encrypted_file_path, file_path.to_owned());
-                index.0.insert(index_entry);
+                paths.push(file_path);
             }
         }
 
-        Ok((index, paths))
+        let paths =
+            paths
+                .into_par_iter()
+                .map(|file_path| -> Result<(PathBuf, EncryptedPath, [u8; 32])> {
+                    let encrypted_file_path = EncryptedPath::from(file_path.clone());
+                    let hash = hash(File::open(&file_path)?)?;
+                    Ok((file_path, encrypted_file_path, hash))
+                });
+
+        let mut paths_map = HashMap::new();
+        let mut index = Self::new();
+
+        // TODO: Don't collect
+        for result in paths.collect::<Vec<_>>() {
+            let (path, encrypted_path, hash) = result?;
+            paths_map.insert(encrypted_path.clone(), path);
+            index.0.insert(IndexEntry {
+                path: encrypted_path,
+                hash,
+            });
+        }
+
+        Ok((index, paths_map))
     }
 
     pub fn changed_files(&self, path: &Path) -> Result<Vec<PathBuf>> {
@@ -70,8 +85,9 @@ impl Index {
 
 #[derive(Clone, Debug, Eq, PartialEq, Hash, Serialize, Deserialize)]
 pub struct IndexEntry {
-    pub path: EncryptedFileName,
-    pub modified: SystemTime,
+    pub path: EncryptedPath,
+    /// The hash of the unencrypted contents of the file.
+    pub hash: [u8; 32],
 }
 
 #[cfg(test)]
