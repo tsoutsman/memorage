@@ -6,7 +6,11 @@ use rustls::{
     server::{ClientCertVerified, ClientCertVerifier},
     Certificate,
 };
-use x509_parser::{certificate::X509Certificate, traits::FromDer, validate::Validate};
+use x509_parser::{
+    certificate::X509Certificate,
+    traits::FromDer,
+    validate::{Validator, X509StructureValidator},
+};
 
 pub(crate) struct CertVerifier(Option<PublicKey>);
 
@@ -26,7 +30,10 @@ impl CertVerifier {
 
         let (rem, cert) = X509Certificate::from_der(end_entity.as_ref())?;
 
-        if !(rem.is_empty() || cert.validate_to_vec().0 || cert.validity().is_valid()) {
+        if !(rem.is_empty()
+            || X509StructureValidator.validate(&cert, &mut DummyLogger)
+            || cert.validity().is_valid())
+        {
             return Err(Error::InvalidCertificate);
         }
 
@@ -47,6 +54,14 @@ impl CertVerifier {
 
         Ok(())
     }
+}
+
+struct DummyLogger;
+
+impl x509_parser::validate::Logger for DummyLogger {
+    fn warn(&mut self, _: &str) {}
+
+    fn err(&mut self, _: &str) {}
 }
 
 impl ServerCertVerifier for CertVerifier {
@@ -183,11 +198,12 @@ mod tests {
         ];
 
         assert!(
-            X509Certificate::from_der(&cert)
-                .expect("cert failed to parse")
-                .1
-                .validate_to_vec()
-                .0,
+            X509StructureValidator.validate(
+                &X509Certificate::from_der(&cert)
+                    .expect("cert failed to parse")
+                    .1,
+                &mut DummyLogger
+            ),
             "cert is not valid (signature not yet checked)"
         );
 
