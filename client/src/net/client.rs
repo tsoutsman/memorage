@@ -1,15 +1,17 @@
-use std::net::{IpAddr, SocketAddr};
-
 use crate::{
+    net::PeerConnection,
     persistent::{Config, Data},
     Error, Result,
 };
+
+use std::net::IpAddr;
 
 use memorage_core::{time::OffsetDateTime, PublicKey};
 use memorage_cs::{
     request::{self, Request},
     PairingCode,
 };
+
 use quinn::{Endpoint, EndpointConfig, Incoming};
 use tokio::net::UdpSocket;
 use tracing::{debug, info, warn};
@@ -203,47 +205,5 @@ impl<'a, 'b> Client<'a, 'b> {
             .map_err(|e| e.into());
         debug!(?response, "received response");
         response
-    }
-}
-
-#[allow(dead_code)]
-#[derive(Debug)]
-pub struct PeerConnection {
-    send_config: quinn::ClientConfig,
-    peer_address: SocketAddr,
-    endpoint: Endpoint,
-    incoming: Incoming,
-    socket: UdpSocket,
-}
-
-impl PeerConnection {
-    pub async fn raw_recv(&mut self) -> Result<Vec<u8>> {
-        let public_address =
-            memorage_stun::public_address(&mut self.socket, memorage_stun::DEFAULT_STUN_SERVER)
-                .await?;
-        info!(%public_address, "receiving raw :)");
-
-        let mut buf = vec![0; 256];
-        self.socket.recv(&mut buf).await?;
-        Ok(buf)
-    }
-
-    pub async fn next(&mut self) -> Option<quinn::Connecting> {
-        self.incoming.next().await
-    }
-
-    pub async fn send(&self, bytes: &[u8]) -> Result<()> {
-        let (mut send, _) = self
-            .endpoint
-            .connect_with(self.send_config.clone(), self.peer_address, "ooga.com")?
-            .await?
-            .connection
-            .open_bi()
-            .await?;
-
-        send.write_all(bytes).await?;
-        send.finish().await?;
-
-        Ok(())
     }
 }

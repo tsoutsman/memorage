@@ -1,5 +1,5 @@
 use crate::{
-    fs::{file::EncryptedPath, hash},
+    fs::{hash, EncryptedPath},
     Result,
 };
 
@@ -131,8 +131,3 @@ mod tests {
         );
     }
 }
-
-// struct Index {
-//     path_hashes: HashSet<EncryptedFileName>,
-//     entries: Encrypted<HashSet<IndexEntry>>
-// }

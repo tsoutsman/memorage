@@ -1,4 +1,4 @@
-use crate::error::{Error, Result};
+use crate::{Error, Result};
 
 use chacha20poly1305::{
     aead::{Aead, NewAead},

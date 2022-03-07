@@ -41,4 +41,6 @@ pub enum Error {
     UnauthorisedConnectionRequest,
     #[error("error occured while traversing directory")]
     Jwalk(#[from] jwalk::Error),
+    #[error("peer encountered error")]
+    Peer(#[from] crate::net::protocol::Error),
 }

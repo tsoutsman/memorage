@@ -1,6 +1,7 @@
+//! TODO: Add to mod.rs (if needed)
 use crate::{
     crypto::{decrypt, encrypt},
-    fs::file::File,
+    fs::EncryptedFile,
 };
 
 use memorage_core::PrivateKey;
@@ -22,7 +23,7 @@ pub struct Backup {
 }
 
 impl Backup {
-    pub fn new(files: Vec<File>) -> Self {
+    pub fn new(files: Vec<EncryptedFile>) -> Self {
         Self { version: 1, files }
     }
 

@@ -97,21 +97,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
             let target_key = memorage_core::KeyPair::from_entropy().public;
             info!(public_key=?data.key_pair.public, ?target_key, "trying to establish connection");
-            let mut peer_connection = client.establish_peer_connection().await?;
-            peer_connection.raw_recv().await?;
+            let mut _peer_connection = client.establish_peer_connection().await?;
 
-            // if let Some(conn) = peer_connection.next().await {
-            //     let quinn::NewConnection {
-            //         connection: _connection,
-            //         mut bi_streams,
-            //         ..
-            //     } = conn.await?;
-            //     while let Some(stream) = bi_streams.next().await {
-            //         let (_send, recv) = stream?;
-            //         let buf = recv.read_to_end(1024).await;
-            //         info!("buf: {:#?}", buf);
-            //     }
-            // }
+            todo!();
         }
         Command::Check { server } => {
             if let Some(server) = server {
@@ -123,8 +111,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             let delay = time - OffsetDateTime::now_utc();
             tokio::time::sleep(delay.try_into().unwrap()).await;
 
-            let conn = client.connect_to_peer().await?;
-            conn.send(&[1, 19, 1, 30, 0, 0, 1, 3]).await?;
+            let _conn = client.connect_to_peer().await?;
+
+            todo!();
         }
         Command::Watch { .. } => {
             todo!();
@@ -132,6 +121,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         Command::Setup => unreachable!(),
     }
 
+    #[allow(unreachable_code)]
     Ok(())
 }
 
