@@ -28,8 +28,8 @@ pub fn word_list(item: proc_macro::TokenStream) -> proc_macro::TokenStream {
     rust_file_path.pop();
     let file_path = rust_file_path.join(Path::new(&word_list_path.value()));
 
-    let file_contents = std::fs::read_to_string(file_path).expect("error reading word list: ");
-    let word_list = file_contents.lines().map(|l| quote! { #l });
+    let file_contents = std::fs::read_to_string(file_path).expect("error reading word list");
+    let word_list = file_contents.lines();
 
     quote! {
         [#(#word_list),*]
