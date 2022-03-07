@@ -39,6 +39,13 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             "" => None,
             _ => Some(password),
         };
+        if let Some(ref password) = password {
+            let confirmed_password = io::prompt_secure("Confirm password: ")?;
+            if &confirmed_password != password {
+                eprintln!("Passwords didn't match");
+                std::process::exit(1);
+            }
+        }
 
         let phrase = MnemonicPhrase::generate(num_words, password);
         println!("Mnemonic phrase: {}", phrase);
