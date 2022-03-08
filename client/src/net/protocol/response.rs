@@ -26,6 +26,15 @@ pub struct Delete;
 #[derive(Copy, Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct SetIndex;
 
+#[derive(Copy, Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct Complete(
+    /// Whether the backup is complete.
+    ///
+    /// Returning true ends communication. Returning false switches the roles
+    /// with the responder now sending requests.
+    pub bool,
+);
+
 macro_rules! impl_response {
     ($($t:ident),*$(,)?) => {
         $(
@@ -36,4 +45,4 @@ macro_rules! impl_response {
     };
 }
 
-impl_response![Ping, GetIndex, Add, Edit, Rename, Delete, SetIndex];
+impl_response![Ping, GetIndex, Add, Edit, Rename, Delete, SetIndex, Complete];

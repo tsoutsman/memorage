@@ -1,6 +1,9 @@
 use crate::{
     net::PeerConnection,
-    persistent::{Config, Data},
+    persistent::{
+        config::Config,
+        data::{Data, KeyPairData},
+    },
     Error, Result,
 };
 
@@ -17,8 +20,11 @@ use tokio::net::UdpSocket;
 use tracing::{debug, info, warn};
 
 #[derive(Debug)]
-pub struct Client<'a, 'b> {
-    data: &'a Data,
+pub struct Client<'a, 'b, T>
+where
+    T: KeyPairData,
+{
+    data: &'a T,
     config: &'b Config,
     send_config: quinn::ClientConfig,
     public_address: IpAddr,
@@ -27,8 +33,11 @@ pub struct Client<'a, 'b> {
     socket: UdpSocket,
 }
 
-impl<'a, 'b> Client<'a, 'b> {
-    pub async fn new(data: &'a Data, config: &'b Config) -> Result<Client<'a, 'b>> {
+impl<'a, 'b, T> Client<'a, 'b, T>
+where
+    T: KeyPairData,
+{
+    pub async fn new(data: &'a T, config: &'b Config) -> Result<Client<'a, 'b, T>> {
         let mut socket = UdpSocket::bind("0.0.0.0:0").await?;
         let public_address =
             memorage_stun::public_address(&mut socket, memorage_stun::DEFAULT_STUN_SERVER).await?;
@@ -36,7 +45,7 @@ impl<'a, 'b> Client<'a, 'b> {
         let public_address = public_address.ip();
 
         let (send_config, recv_config) =
-            memorage_cert::gen_configs(public_address, &data.key_pair, None)?;
+            memorage_cert::gen_configs(public_address, data.key_pair(), None)?;
 
         let socket = socket.into_std()?;
         let cloned_socket = socket.try_clone()?;
@@ -81,19 +90,49 @@ impl<'a, 'b> Client<'a, 'b> {
         }
     }
 
+    async fn request<R>(&self, request: R) -> Result<R::Response>
+    where
+        R: memorage_cs::Serialize + Request + std::fmt::Debug,
+    {
+        debug!(?request, "sending request");
+
+        let (mut send, recv) = self
+            .endpoint
+            .connect_with(
+                self.send_config.clone(),
+                // TODO: Iterate over all supplied addresses until one connects.
+                self.config.server_socket_addresses()[0],
+                "ooga.com",
+            )?
+            .await?
+            .connection
+            .open_bi()
+            .await?;
+
+        let encoded = memorage_cs::serialize(request)?;
+        send.write_all(&encoded).await?;
+        send.finish().await?;
+
+        let buffer = recv.read_to_end(1024).await?;
+        let response = memorage_cs::deserialize::<_, memorage_cs::Result<R::Response>>(&buffer)?
+            .map_err(|e| e.into());
+        debug!(?response, "received response");
+        response
+    }
+}
+
+impl<'a, 'b> Client<'a, 'b, Data> {
     /// Establish a connection to a peer.
     #[allow(clippy::missing_panics_doc)]
     pub async fn establish_peer_connection(self) -> Result<PeerConnection> {
-        let target = match self.data.peer {
-            Some(k) => k,
-            None => return Err(Error::PeerNotSet),
-        };
+        let target = self.data.peer;
         let time = OffsetDateTime::now_utc() + self.config.peer_connection_schedule_delay;
 
         self.request(request::RequestConnection { target, time })
             .await?;
 
         let delay = time - OffsetDateTime::now_utc();
+        info!(?delay, "sleeping");
         // TODO: Unwrap fails if delay is negative i.e. time < now
         tokio::time::sleep(delay.try_into().unwrap()).await;
 
@@ -101,10 +140,7 @@ impl<'a, 'b> Client<'a, 'b> {
     }
 
     pub async fn check_connection(&self) -> Result<OffsetDateTime> {
-        let peer = match self.data.peer {
-            Some(k) => k,
-            None => return Err(Error::PeerNotSet),
-        };
+        let peer = self.data.peer;
 
         let response = self.request(request::CheckConnection).await?;
 
@@ -116,10 +152,7 @@ impl<'a, 'b> Client<'a, 'b> {
     }
 
     pub async fn connect_to_peer(self) -> Result<PeerConnection> {
-        let peer_key = match self.data.peer {
-            Some(k) => k,
-            None => return Err(Error::PeerNotSet),
-        };
+        let peer_key = self.data.peer;
 
         let mut counter: usize = 0;
 
@@ -175,35 +208,5 @@ impl<'a, 'b> Client<'a, 'b> {
 
             tokio::time::sleep(self.config.request_connection.ping_delay).await;
         }
-    }
-
-    async fn request<T>(&self, request: T) -> Result<T::Response>
-    where
-        T: memorage_cs::Serialize + Request + std::fmt::Debug,
-    {
-        debug!(?request, "sending request");
-
-        let (mut send, recv) = self
-            .endpoint
-            .connect_with(
-                self.send_config.clone(),
-                // TODO: Iterate over all supplied addresses until one connects.
-                self.config.server_socket_addresses()[0],
-                "ooga.com",
-            )?
-            .await?
-            .connection
-            .open_bi()
-            .await?;
-
-        let encoded = memorage_cs::serialize(request)?;
-        send.write_all(&encoded).await?;
-        send.finish().await?;
-
-        let buffer = recv.read_to_end(1024).await?;
-        let response = memorage_cs::deserialize::<_, memorage_cs::Result<T::Response>>(&buffer)?
-            .map_err(|e| e.into());
-        debug!(?response, "received response");
-        response
     }
 }

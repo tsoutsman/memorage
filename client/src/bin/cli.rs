@@ -2,10 +2,18 @@ use std::{net::IpAddr, path::PathBuf};
 
 use clap::{Parser, Subcommand};
 use memorage_client::{
+    fs::{
+        index::{Index, IndexDifference},
+        EncryptedFile,
+    },
     io,
     mnemonic::MnemonicPhrase,
-    net,
-    persistent::{Config, Data, Persistent},
+    net::{self, protocol::request},
+    persistent::{
+        config::Config,
+        data::{Data, DataWithoutPeer},
+        Persistent,
+    },
 };
 use memorage_core::time::OffsetDateTime;
 use tracing::info;
@@ -22,46 +30,45 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let args = Args::parse();
 
-    if let Command::Setup = args.command {
-        let data = Data::from_key_pair(memorage_core::KeyPair::from_entropy());
+    match args.command {
+        Command::Setup => {
+            let data = DataWithoutPeer::from_key_pair(memorage_core::KeyPair::from_entropy());
 
-        let num_words = loop {
-            match io::prompt("Mnemonic phrase length (18): ")?.parse::<usize>() {
-                Ok(n) => break n,
-                Err(_) => {
-                    eprintln!("Mnemonic phrase length must be a number");
+            let num_words = loop {
+                match io::prompt("Mnemonic phrase length (18): ")?.parse::<usize>() {
+                    Ok(n) => break n,
+                    Err(_) => {
+                        eprintln!("Mnemonic phrase length must be a number");
+                    }
+                }
+            };
+
+            let password = io::prompt_secure("Enter password (empty for no password): ")?;
+            let password = match &password[..] {
+                "" => None,
+                _ => Some(password),
+            };
+            if let Some(ref password) = password {
+                let confirmed_password = io::prompt_secure("Confirm password: ")?;
+                if &confirmed_password != password {
+                    eprintln!("Passwords didn't match");
+                    std::process::exit(1);
                 }
             }
-        };
 
-        let password = io::prompt_secure("Enter password (empty for no password): ")?;
-        let password = match &password[..] {
-            "" => None,
-            _ => Some(password),
-        };
-        if let Some(ref password) = password {
-            let confirmed_password = io::prompt_secure("Confirm password: ")?;
-            if &confirmed_password != password {
-                eprintln!("Passwords didn't match");
-                std::process::exit(1);
-            }
+            let phrase = MnemonicPhrase::generate(num_words, password);
+            println!("Mnemonic phrase: {}", phrase);
+
+            info!("Generated public key: {}", data.key_pair.public);
+
+            data.save_to_disk(None)?;
+            println!("Setup successful");
+            return Ok(());
         }
-
-        let phrase = MnemonicPhrase::generate(num_words, password);
-        println!("Mnemonic phrase: {}", phrase);
-
-        info!("Generated public key: {}", data.key_pair.public);
-
-        data.save_to_disk(None)?;
-        println!("Setup successful");
-        return Ok(());
-    }
-
-    let mut data = Data::from_disk(None)?;
-    let mut config = Config::from_disk(None)?;
-
-    match args.command {
         Command::Pair { server, code } => {
+            let data = DataWithoutPeer::from_disk(None)?;
+            let mut config = Config::from_disk(None)?;
+
             if let Some(server) = server {
                 config.server_address = vec![server];
             }
@@ -74,7 +81,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 println!("Key 1: {}", peer);
                 println!("Key 2: {}", data.key_pair.public);
 
-                if io::verify_peer(&peer, &mut data)? {
+                if io::verify_peer(&peer, data)? {
                     return Ok(());
                 } else {
                     std::process::exit(1);
@@ -88,7 +95,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 println!("Key 1: {}", data.key_pair.public);
                 println!("Key 2: {}", peer);
 
-                if io::verify_peer(&peer, &mut data)? {
+                if io::verify_peer(&peer, data)? {
                     println!("Pairing successful");
                     return Ok(());
                 } else {
@@ -97,18 +104,57 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             }
         }
         Command::Connect { server } => {
+            let data = Data::from_disk(None)?;
+            let mut config = Config::from_disk(None)?;
+
             if let Some(server) = server {
                 config.server_address = vec![server];
             }
             let client = net::Client::new(&data, &config).await?;
 
-            let target_key = memorage_core::KeyPair::from_entropy().public;
-            info!(public_key=?data.key_pair.public, ?target_key, "trying to establish connection");
-            let mut _peer_connection = client.establish_peer_connection().await?;
+            let (new_index, unencrypted_paths) = Index::from_disk(&config.backup_path)?;
 
-            todo!();
+            info!(public_key=?data.key_pair.public, target_key=?data.peer, "trying to establish connection");
+            let peer_connection = client.establish_peer_connection().await?;
+
+            let old_index = peer_connection.send(request::GetIndex).await?.0;
+
+            for cmd in new_index.difference(&old_index) {
+                // TODO: Enforce unencrypted_paths containing path in type system.
+                match cmd {
+                    IndexDifference::Add(name) => {
+                        let _ = peer_connection.send(request::Add {
+                            contents: EncryptedFile::from_disk(
+                                unencrypted_paths.get(&name).unwrap(),
+                                &data.key_pair.private,
+                            )?,
+                            name,
+                        });
+                    }
+                    IndexDifference::Edit(name) => {
+                        let _ = peer_connection.send(request::Edit {
+                            contents: EncryptedFile::from_disk(
+                                unencrypted_paths.get(&name).unwrap(),
+                                &data.key_pair.private,
+                            )?,
+                            name,
+                        });
+                    }
+                    IndexDifference::Rename { from, to } => {
+                        let _ = peer_connection.send(request::Rename { from, to });
+                    }
+                    IndexDifference::Delete(path) => {
+                        let _ = peer_connection.send(request::Delete(path));
+                    }
+                }
+            }
+
+            // TODO: Send request::Complete and then listen
         }
         Command::Check { server } => {
+            let data = Data::from_disk(None)?;
+            let mut config = Config::from_disk(None)?;
+
             if let Some(server) = server {
                 config.server_address = vec![server];
             }
@@ -125,7 +171,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         Command::Watch { .. } => {
             todo!();
         }
-        Command::Setup => unreachable!(),
     }
 
     #[allow(unreachable_code)]

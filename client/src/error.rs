@@ -33,8 +33,6 @@ pub enum Error {
     ConfigRead(#[from] toml::de::Error),
     #[error("error writing config")]
     ConfigWrite(#[from] toml::ser::Error),
-    #[error("peer not set")]
-    PeerNotSet,
     #[error("peer didn't respond to connection request")]
     PeerNoResponse,
     #[error("unauthorised connection request")]

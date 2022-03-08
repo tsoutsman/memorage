@@ -1,5 +1,8 @@
 use crate::{
-    persistent::{Data, Persistent},
+    persistent::{
+        data::{Data, DataWithoutPeer},
+        Persistent,
+    },
     Result,
 };
 
@@ -44,13 +47,16 @@ where
 }
 
 #[inline]
-pub fn verify_peer(peer: &PublicKey, data: &mut Data) -> Result<bool> {
+pub fn verify_peer(peer: &PublicKey, data: DataWithoutPeer) -> Result<bool> {
     let input = prompt("Does your peer see the exact same keys? [y/n] ")?
         .trim()
         .to_lowercase();
 
     if input == "y" || input == "yes" {
-        data.peer = Some(*peer);
+        let data = Data {
+            key_pair: data.key_pair,
+            peer: *peer,
+        };
         println!("Saving peer");
         data.save_to_disk(None)?;
         Ok(true)

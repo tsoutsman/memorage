@@ -2,6 +2,7 @@ use crate::persistent::{Persistent, CONFIG_PATH};
 
 use std::{
     net::{IpAddr, SocketAddr},
+    path::PathBuf,
     time::Duration,
 };
 
@@ -10,6 +11,7 @@ use serde::{de, Deserialize, Deserializer, Serialize, Serializer};
 #[derive(Debug, Eq, PartialEq, Serialize, Deserialize)]
 pub struct Config {
     pub server_address: Vec<IpAddr>,
+    pub backup_path: PathBuf,
     #[serde(
         serialize_with = "serialize_duration",
         deserialize_with = "deserialize_duration"
@@ -52,6 +54,7 @@ impl Default for Config {
             peer_connection_schedule_delay: Duration::from_secs(600),
             register_response: RetryConfig::register_response(),
             request_connection: RetryConfig::request_connection(),
+            backup_path: PathBuf::new(),
         }
     }
 }

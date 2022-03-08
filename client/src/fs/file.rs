@@ -1,5 +1,7 @@
 use crate::Result;
 
+use std::path::Path;
+
 use memorage_core::PrivateKey;
 
 use serde::{Deserialize, Serialize};
@@ -11,22 +13,17 @@ pub struct EncryptedFile {
 }
 
 impl EncryptedFile {
-    pub fn encrypt<T>(file: &T, key: &PrivateKey) -> Result<EncryptedFile>
-    where
-        T: serde::Serialize,
-    {
-        let serialised = bincode::serialize(file)?;
-        let (nonce, encrypted_file) = crate::crypto::encrypt(key, &serialised)?;
-        let encrypted = EncryptedFile {
-            nonce,
-            file: encrypted_file,
-        };
-        Ok(encrypted)
+    pub fn from_disk(path: &Path, key: &PrivateKey) -> Result<EncryptedFile> {
+        let bytes = std::fs::read(path)?;
+        Self::encrypt(&bytes, key)
+    }
+
+    pub fn encrypt(bytes: &[u8], key: &PrivateKey) -> Result<EncryptedFile> {
+        let (nonce, file) = crate::crypto::encrypt(key, bytes)?;
+        Ok(Self { nonce, file })
     }
 
     pub fn decrypt(&self, key: &PrivateKey) -> Result<Vec<u8>> {
-        let decrypted = crate::crypto::decrypt(key, &self.nonce, &self.file)?;
-        let deserialized = bincode::deserialize(&decrypted)?;
-        Ok(deserialized)
+        crate::crypto::decrypt(key, &self.nonce, &self.file)
     }
 }

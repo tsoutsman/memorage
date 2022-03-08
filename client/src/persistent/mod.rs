@@ -35,8 +35,5 @@ pub trait Persistent: serde::Serialize + serde::de::DeserializeOwned {
     }
 }
 
-mod config;
-mod data;
-
-pub use config::{Config, RetryConfig};
-pub use data::Data;
+pub mod config;
+pub mod data;

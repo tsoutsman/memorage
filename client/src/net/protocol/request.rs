@@ -1,4 +1,4 @@
-use crate::fs::{EncryptedFile, EncryptedPath};
+use crate::fs::{index::Index, EncryptedFile, EncryptedPath};
 
 use serde::{Deserialize, Serialize};
 
@@ -17,6 +17,7 @@ pub enum RequestType {
     Rename(Rename),
     Delete(Delete),
     SetIndex(SetIndex),
+    Complete(Complete),
 }
 
 impl crate::net::protocol::private::Sealed for RequestType {}
@@ -29,27 +30,36 @@ pub struct GetIndex;
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Add {
-    name: EncryptedPath,
-    file: EncryptedFile,
+    pub name: EncryptedPath,
+    pub contents: EncryptedFile,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Edit {
-    name: EncryptedPath,
-    contents: EncryptedFile,
+    pub name: EncryptedPath,
+    pub contents: EncryptedFile,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Rename {
-    from: EncryptedPath,
-    to: EncryptedPath,
+    pub from: EncryptedPath,
+    pub to: EncryptedPath,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Delete(pub EncryptedPath);
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
-pub struct SetIndex(pub crate::fs::index::Index);
+pub struct SetIndex(pub Index);
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct Complete(
+    /// The index of the peer's files on this computer.
+    ///
+    /// The peer uses this to decide whether or not they need to update their
+    /// backup.
+    pub Index,
+);
 
 macro_rules! impl_request {
     // IDK why this works with ident but not ty
@@ -68,4 +78,4 @@ macro_rules! impl_request {
     };
 }
 
-impl_request![Ping, GetIndex, Add, Edit, Rename, Delete, SetIndex];
+impl_request![Ping, GetIndex, Add, Edit, Rename, Delete, SetIndex, Complete];

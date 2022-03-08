@@ -11,7 +11,7 @@ pub struct Data {
         deserialize_with = "deserialize_key_pair"
     )]
     pub key_pair: KeyPair,
-    pub peer: Option<PublicKey>,
+    pub peer: PublicKey,
 }
 
 impl Persistent for Data {
@@ -20,13 +20,51 @@ impl Persistent for Data {
     }
 }
 
-impl Data {
+#[derive(Debug, Eq, PartialEq, Serialize, Deserialize)]
+pub struct DataWithoutPeer {
+    #[serde(
+        serialize_with = "serialize_key_pair",
+        deserialize_with = "deserialize_key_pair"
+    )]
+    pub key_pair: KeyPair,
+    pub peer: Option<PublicKey>,
+}
+
+impl Persistent for DataWithoutPeer {
+    fn default_path() -> &'static std::path::Path {
+        &DATA_PATH
+    }
+}
+
+impl DataWithoutPeer {
     pub fn from_key_pair(key_pair: KeyPair) -> Self {
         Self {
             key_pair,
             peer: None,
         }
     }
+}
+
+pub trait KeyPairData: private::Sealed {
+    fn key_pair(&self) -> &KeyPair;
+}
+
+impl private::Sealed for Data {}
+impl KeyPairData for Data {
+    fn key_pair(&self) -> &KeyPair {
+        &self.key_pair
+    }
+}
+impl private::Sealed for DataWithoutPeer {}
+impl KeyPairData for DataWithoutPeer {
+    fn key_pair(&self) -> &KeyPair {
+        &self.key_pair
+    }
+}
+
+mod private {
+    #[allow(unreachable_pub)]
+    pub trait Sealed {}
 }
 
 // I really don't want to derive Serialize and Deserialize for PrivateKey (and by extension

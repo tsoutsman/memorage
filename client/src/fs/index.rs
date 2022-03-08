@@ -4,20 +4,27 @@ use crate::{
 };
 
 use std::{
-    collections::{HashMap, HashSet},
+    collections::HashMap,
     fs::File,
     path::{Path, PathBuf},
 };
 
+use bimap::{BiMap, Overwritten};
 use rayon::iter::{IntoParallelIterator, ParallelIterator};
 use serde::{Deserialize, Serialize};
 
-#[derive(Clone, Debug, Eq, PartialEq, Default, Serialize, Deserialize)]
-pub struct Index(HashSet<IndexEntry>);
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+pub struct Index(BiMap<EncryptedPath, [u8; 32]>);
+
+impl std::default::Default for Index {
+    fn default() -> Self {
+        Self(BiMap::new())
+    }
+}
 
 impl Index {
     pub fn new() -> Self {
-        Self(HashSet::new())
+        Self::default()
     }
 
     pub fn from_disk(path: &Path) -> Result<(Self, HashMap<EncryptedPath, PathBuf>)> {
@@ -51,83 +58,54 @@ impl Index {
         for result in paths.collect::<Vec<_>>() {
             let (path, encrypted_path, hash) = result?;
             paths_map.insert(encrypted_path.clone(), path);
-            index.0.insert(IndexEntry {
-                path: encrypted_path,
-                hash,
-            });
+            index.insert(encrypted_path, hash);
         }
 
         Ok((index, paths_map))
     }
 
-    pub fn changed_files(&self, path: &Path) -> Result<Vec<PathBuf>> {
-        let (index, mut paths) = Self::from_disk(path)?;
+    /// Returns the changes necessary to convert `other` into `self`.
+    // TODO: Clones or consume self (or serialize refs?)?
+    pub fn difference(&self, other: &Self) -> Vec<IndexDifference> {
+        let mut diff = Vec::new();
 
-        let mut result = Vec::new();
-
-        for entry in index.0.symmetric_difference(&self.0) {
-            // If a file was modified, it would be in the symmetric difference
-            // twice, once with each modification time. After we add it to
-            // result once, it is no longer in paths, and we don't need to add
-            // it again.
-            if let Some(path) = paths.remove(&entry.path) {
-                result.push(path);
+        for (path, hash) in &self.0 {
+            match (other.0.get_by_left(path), other.0.get_by_right(hash)) {
+                (Some(_), Some(_)) => {}
+                (Some(_), None) => diff.push(IndexDifference::Edit(path.clone())),
+                (None, Some(old_path)) => diff.push(IndexDifference::Rename {
+                    from: old_path.clone(),
+                    to: path.clone(),
+                }),
+                (None, None) => diff.push(IndexDifference::Add(path.clone())),
             }
         }
 
-        Ok(result)
+        for (path, hash) in &other.0 {
+            if !self.0.contains_left(path) && !self.0.contains_right(hash) {
+                diff.push(IndexDifference::Delete(path.clone()))
+            }
+        }
+
+        diff
     }
 
-    pub fn insert(&mut self, value: IndexEntry) -> bool {
-        self.0.insert(value)
+    fn insert(
+        &mut self,
+        path: EncryptedPath,
+        hash: [u8; 32],
+    ) -> Overwritten<EncryptedPath, [u8; 32]> {
+        self.0.insert(path, hash)
     }
 }
 
 #[derive(Clone, Debug, Eq, PartialEq, Hash, Serialize, Deserialize)]
-pub struct IndexEntry {
-    pub path: EncryptedPath,
-    /// The hash of the unencrypted contents of the file.
-    pub hash: [u8; 32],
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use std::{fs::File, io::Write};
-
-    #[test]
-    fn index_changed_files() {
-        let index_1 = Index::new();
-
-        let dir = tempfile::tempdir().unwrap().into_path();
-        efes::gen_fs!(dir => (dir_1: file_1 file_2) file_3);
-
-        let files = index_1.changed_files(&dir).unwrap();
-        assert_eq!(
-            HashSet::<PathBuf>::from_iter(files),
-            HashSet::from_iter(vec![
-                dir.join("dir_1").join("file_1"),
-                dir.join("dir_1").join("file_2"),
-                dir.join("file_3"),
-            ])
-        );
-
-        let (index_2, _) = Index::from_disk(&dir).unwrap();
-        assert_eq!(index_2.changed_files(&dir).unwrap(), Vec::<PathBuf>::new());
-
-        std::thread::sleep(std::time::Duration::from_millis(10));
-
-        let mut file = File::options()
-            .write(true)
-            .open(dir.join("dir_1").join("file_2"))
-            .unwrap();
-        file.write_all(b"BEAR > USEC").unwrap();
-        File::create(dir.join("file_4")).unwrap();
-
-        let files = index_2.changed_files(&dir).unwrap();
-        assert_eq!(
-            HashSet::<PathBuf>::from_iter(files),
-            HashSet::from_iter(vec![dir.join("dir_1").join("file_2"), dir.join("file_4"),])
-        );
-    }
+pub enum IndexDifference {
+    Add(EncryptedPath),
+    Edit(EncryptedPath),
+    Rename {
+        from: EncryptedPath,
+        to: EncryptedPath,
+    },
+    Delete(EncryptedPath),
 }
