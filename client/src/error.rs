@@ -41,4 +41,8 @@ pub enum Error {
     Jwalk(#[from] jwalk::Error),
     #[error("peer encountered error")]
     Peer(#[from] crate::net::protocol::Error),
+    #[error("peer closed connection")]
+    PeerClosedConnection,
+    #[error("failed to establish connection to peer")]
+    FailedConnection,
 }

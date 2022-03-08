@@ -2,10 +2,7 @@ use std::{net::IpAddr, path::PathBuf};
 
 use clap::{Parser, Subcommand};
 use memorage_client::{
-    fs::{
-        index::{Index, IndexDifference},
-        EncryptedFile,
-    },
+    fs::index::Index,
     io,
     mnemonic::MnemonicPhrase,
     net::{self, protocol::request},
@@ -61,7 +58,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
             info!("Generated public key: {}", data.key_pair.public);
 
-            data.save_to_disk(None)?;
+            data.to_disk(None)?;
             println!("Setup successful");
             return Ok(());
         }
@@ -112,44 +109,31 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             }
             let client = net::Client::new(&data, &config).await?;
 
-            let (new_index, unencrypted_paths) = Index::from_disk(&config.backup_path)?;
+            let (new_index, unencrypted_paths) = Index::from_directory(&config.backup_path)?;
 
             info!(public_key=?data.key_pair.public, target_key=?data.peer, "trying to establish connection");
-            let peer_connection = client.establish_peer_connection().await?;
+            let mut peer_connection = client.establish_peer_connection(true).await?;
 
             let old_index = peer_connection.send(request::GetIndex).await?.0;
 
-            for cmd in new_index.difference(&old_index) {
-                // TODO: Enforce unencrypted_paths containing path in type system.
-                match cmd {
-                    IndexDifference::Add(name) => {
-                        let _ = peer_connection.send(request::Add {
-                            contents: EncryptedFile::from_disk(
-                                unencrypted_paths.get(&name).unwrap(),
-                                &data.key_pair.private,
-                            )?,
-                            name,
-                        });
-                    }
-                    IndexDifference::Edit(name) => {
-                        let _ = peer_connection.send(request::Edit {
-                            contents: EncryptedFile::from_disk(
-                                unencrypted_paths.get(&name).unwrap(),
-                                &data.key_pair.private,
-                            )?,
-                            name,
-                        });
-                    }
-                    IndexDifference::Rename { from, to } => {
-                        let _ = peer_connection.send(request::Rename { from, to });
-                    }
-                    IndexDifference::Delete(path) => {
-                        let _ = peer_connection.send(request::Delete(path));
-                    }
-                }
-            }
+            peer_connection
+                .send_difference(new_index.difference(&old_index), unencrypted_paths)
+                .await?;
 
-            // TODO: Send request::Complete and then listen
+            let complete = peer_connection
+                .send(request::Complete(Index::from_disk(
+                    &config.backup_storage_path,
+                )?))
+                .await?
+                .0;
+
+            if complete {
+                info!("peer completed connection");
+                println!("Backup succesful");
+                return Ok(());
+            } else {
+                peer_connection.receive_and_handle().await?;
+            }
         }
         Command::Check { server } => {
             let data = Data::from_disk(None)?;
@@ -162,18 +146,29 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             let time = client.check_connection().await?;
 
             let delay = time - OffsetDateTime::now_utc();
+            // TODO: Create index while sleeping?
             tokio::time::sleep(delay.try_into().unwrap()).await;
 
-            let _conn = client.connect_to_peer().await?;
+            let mut peer_connection = client.connect_to_peer(false).await?;
 
-            todo!();
+            let (new_index, unencrypted_paths) = Index::from_directory(&config.backup_path)?;
+            let old_index = peer_connection.receive_and_handle().await?;
+
+            peer_connection
+                .send_difference(new_index.difference(&old_index), unencrypted_paths)
+                .await?;
+
+            peer_connection
+                // The index from request::Complete isn't used by the initiator
+                // of the sync.
+                .send(request::Complete(Index::new()))
+                .await?;
         }
         Command::Watch { .. } => {
             todo!();
         }
     }
 
-    #[allow(unreachable_code)]
     Ok(())
 }
 

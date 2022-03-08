@@ -11,7 +11,10 @@ use serde::{de, Deserialize, Deserializer, Serialize, Serializer};
 #[derive(Debug, Eq, PartialEq, Serialize, Deserialize)]
 pub struct Config {
     pub server_address: Vec<IpAddr>,
+    /// Path to backup.
     pub backup_path: PathBuf,
+    /// Path at which the peer's encrypted data is stored.
+    pub backup_storage_path: PathBuf,
     #[serde(
         serialize_with = "serialize_duration",
         deserialize_with = "deserialize_duration"
@@ -51,10 +54,11 @@ impl Default for Config {
     fn default() -> Self {
         Self {
             server_address: vec![],
+            backup_path: PathBuf::new(),
+            backup_storage_path: PathBuf::new(),
             peer_connection_schedule_delay: Duration::from_secs(600),
             register_response: RetryConfig::register_response(),
             request_connection: RetryConfig::request_connection(),
-            backup_path: PathBuf::new(),
         }
     }
 }
@@ -116,7 +120,7 @@ mod tests {
         let mut path = std::env::temp_dir();
         path.push("config.toml");
 
-        assert!(config.save_to_disk(Some(&path)).is_ok());
+        assert!(config.to_disk(Some(&path)).is_ok());
         assert_eq!(Config::from_disk(Some(&path)).unwrap(), config);
     }
 }

@@ -25,7 +25,7 @@ pub trait Persistent: serde::Serialize + serde::de::DeserializeOwned {
         Ok(toml::from_str(&content)?)
     }
 
-    fn save_to_disk(&self, path: Option<&std::path::Path>) -> crate::Result<()> {
+    fn to_disk(&self, path: Option<&std::path::Path>) -> crate::Result<()> {
         let path = match path {
             Some(p) => p,
             None => Self::default_path(),

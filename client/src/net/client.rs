@@ -124,7 +124,7 @@ where
 impl<'a, 'b> Client<'a, 'b, Data> {
     /// Establish a connection to a peer.
     #[allow(clippy::missing_panics_doc)]
-    pub async fn establish_peer_connection(self) -> Result<PeerConnection> {
+    pub async fn establish_peer_connection(self, initiator: bool) -> Result<PeerConnection<'a>> {
         let target = self.data.peer;
         let time = OffsetDateTime::now_utc() + self.config.peer_connection_schedule_delay;
 
@@ -136,7 +136,7 @@ impl<'a, 'b> Client<'a, 'b, Data> {
         // TODO: Unwrap fails if delay is negative i.e. time < now
         tokio::time::sleep(delay.try_into().unwrap()).await;
 
-        return self.connect_to_peer().await;
+        self.connect_to_peer(initiator).await
     }
 
     pub async fn check_connection(&self) -> Result<OffsetDateTime> {
@@ -151,7 +151,7 @@ impl<'a, 'b> Client<'a, 'b, Data> {
         }
     }
 
-    pub async fn connect_to_peer(self) -> Result<PeerConnection> {
+    pub async fn connect_to_peer(mut self, initiator: bool) -> Result<PeerConnection<'a>> {
         let peer_key = self.data.peer;
 
         let mut counter: usize = 0;
@@ -183,11 +183,26 @@ impl<'a, 'b> Client<'a, 'b, Data> {
                         tokio::time::sleep(std::time::Duration::from_secs(1)).await;
                     }
 
+                    let connection;
+                    if initiator {
+                        // TODO: Is this needed?
+                        tokio::time::sleep(std::time::Duration::from_secs(1)).await;
+                        connection = self
+                            .endpoint
+                            .connect_with(send_config, peer_address, "ooga.com")?
+                            .await?;
+                    } else {
+                        connection = self
+                            .incoming
+                            .next()
+                            .await
+                            .ok_or(Error::FailedConnection)?
+                            .await?;
+                    }
+
                     return Ok(PeerConnection {
-                        send_config,
-                        peer_address,
-                        endpoint: self.endpoint,
-                        incoming: self.incoming,
+                        data: self.data,
+                        connection,
                         socket: self.socket,
                     });
                 }

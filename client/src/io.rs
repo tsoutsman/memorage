@@ -58,7 +58,7 @@ pub fn verify_peer(peer: &PublicKey, data: DataWithoutPeer) -> Result<bool> {
             peer: *peer,
         };
         println!("Saving peer");
-        data.save_to_disk(None)?;
+        data.to_disk(None)?;
         Ok(true)
     } else {
         eprintln!("Aborting pairing process");

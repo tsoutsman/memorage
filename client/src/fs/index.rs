@@ -27,19 +27,19 @@ impl Index {
         Self::default()
     }
 
-    pub fn from_disk(path: &Path) -> Result<(Self, HashMap<EncryptedPath, PathBuf>)> {
+    pub fn from_directory(path: &Path) -> Result<(Self, HashMap<EncryptedPath, PathBuf>)> {
         let mut paths = Vec::new();
 
         for entry in jwalk::WalkDir::new(path) {
             // TODO: Document that empty folders are not backed up.
             // TODO: Symbolic links
-
             let entry = entry?;
 
             if entry.file_type().is_file() {
                 let file_path = entry.path();
                 paths.push(file_path);
             }
+            // TODO: Do we return error if it isn't.
         }
 
         let paths =
@@ -62,6 +62,16 @@ impl Index {
         }
 
         Ok((index, paths_map))
+    }
+
+    pub fn from_disk(path: &Path) -> Result<Self> {
+        // TODO: Buffered?
+        bincode::deserialize_from(File::open(path)?).map_err(|e| e.into())
+    }
+
+    pub fn to_disk(&self, path: &Path) -> Result<()> {
+        // TODO: Buffered?
+        bincode::serialize_into(File::create(path)?, &self).map_err(|e| e.into())
     }
 
     /// Returns the changes necessary to convert `other` into `self`.
