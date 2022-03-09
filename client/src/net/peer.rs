@@ -6,8 +6,9 @@ use crate::{
     net::protocol::{
         self,
         request::{self, RequestType},
+        response,
     },
-    persistent::data::Data,
+    persistent::{config::Config, data::Data},
     Error, Result,
 };
 
@@ -18,14 +19,15 @@ use tokio::net::UdpSocket;
 use tracing::debug;
 
 #[derive(Debug)]
-pub struct PeerConnection<'a> {
+pub struct PeerConnection<'a, 'b> {
     pub(super) data: &'a Data,
+    pub(super) config: &'b Config,
     pub(super) connection: NewConnection,
     #[allow(dead_code)]
     pub(super) socket: UdpSocket,
 }
 
-impl<'a> PeerConnection<'a> {
+impl<'a, 'b> PeerConnection<'a, 'b> {
     #[allow(clippy::missing_panics_doc)]
     pub async fn send_difference(
         &self,
@@ -73,13 +75,8 @@ impl<'a> PeerConnection<'a> {
     where
         T: protocol::Serialize + request::Request + std::fmt::Debug,
     {
-        debug!(?request, "sending request");
-
-        let (mut send, recv) = self.connection.connection.open_bi().await?;
-
-        let encoded = protocol::serialize(request)?;
-        send.write_all(&encoded).await?;
-        send.finish().await?;
+        let (send, recv) = self.connection.connection.open_bi().await?;
+        send_with_stream(send, request).await?;
 
         // TODO: Not large enough.
         let buffer = recv.read_to_end(1024).await?;
@@ -89,18 +86,58 @@ impl<'a> PeerConnection<'a> {
         response
     }
 
-    #[allow(clippy::missing_panics_doc)]
     pub async fn receive_and_handle(&mut self) -> Result<Index> {
         loop {
-            let (_send, request) = self.receive().await?;
+            let (send, request) = self.receive().await?;
             match request {
-                RequestType::Ping(_) => todo!(),
-                RequestType::GetIndex(_) => todo!(),
-                RequestType::Add(_) => todo!(),
-                RequestType::Edit(_) => todo!(),
-                RequestType::Rename(_) => todo!(),
-                RequestType::Delete(_) => todo!(),
-                RequestType::SetIndex(_) => todo!(),
+                RequestType::Ping(_) => {
+                    send_with_stream(send, Ok(response::Ping)).await?;
+                }
+                RequestType::GetIndex(_) => {
+                    let response: crate::Result<_> = try {
+                        let index = Index::from_disk(&self.config.index_path())?;
+                        response::GetIndex(index)
+                    };
+                    send_with_stream(send, response.map_err(|e| e.into())).await?;
+                }
+                RequestType::Add(request::Add { name, contents }) => {
+                    let response: crate::Result<_> = try {
+                        std::fs::write(self.config.peer_file_path(&name), contents.serialize()?)?;
+                        response::Add
+                    };
+                    send_with_stream(send, response.map_err(|e| e.into())).await?;
+                }
+                RequestType::Edit(request::Edit { name, contents }) => {
+                    let response: crate::Result<_> = try {
+                        std::fs::write(self.config.peer_file_path(&name), contents.serialize()?)?;
+                        response::Edit
+                    };
+                    send_with_stream(send, response.map_err(|e| e.into())).await?;
+                }
+                RequestType::Rename(request::Rename { from, to }) => {
+                    let response: crate::Result<_> = try {
+                        std::fs::rename(
+                            self.config.peer_file_path(&from),
+                            self.config.peer_file_path(&to),
+                        )?;
+                        response::Rename
+                    };
+                    send_with_stream(send, response.map_err(|e| e.into())).await?;
+                }
+                RequestType::Delete(request::Delete(path)) => {
+                    let response: crate::Result<_> = try {
+                        std::fs::remove_file(self.config.peer_file_path(&path))?;
+                        response::Delete
+                    };
+                    send_with_stream(send, response.map_err(|e| e.into())).await?;
+                }
+                RequestType::SetIndex(request::SetIndex(index)) => {
+                    let response: crate::Result<_> = try {
+                        index.to_disk(&self.config.index_path())?;
+                        response::SetIndex
+                    };
+                    send_with_stream(send, response.map_err(|e| e.into())).await?;
+                }
                 RequestType::Complete(request::Complete(index)) => return Ok(index),
             }
         }
@@ -127,4 +164,17 @@ impl<'a> PeerConnection<'a> {
             Err(Error::PeerClosedConnection)
         }
     }
+}
+
+async fn send_with_stream<T>(mut send: SendStream, request: T) -> Result<()>
+where
+    T: protocol::Serialize + std::fmt::Debug,
+{
+    debug!(?request, "sending request");
+
+    let encoded = protocol::serialize(request)?;
+    send.write_all(&encoded).await?;
+    send.finish().await?;
+
+    Ok(())
 }

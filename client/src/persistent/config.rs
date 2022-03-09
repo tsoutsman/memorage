@@ -2,7 +2,7 @@ use crate::persistent::{Persistent, CONFIG_PATH, PROJECT_DIRS};
 
 use std::{
     net::{IpAddr, SocketAddr},
-    path::PathBuf,
+    path::{Path, PathBuf},
     time::Duration,
 };
 
@@ -22,6 +22,21 @@ pub struct Config {
     pub peer_connection_schedule_delay: Duration,
     pub register_response: RetryConfig,
     pub request_connection: RetryConfig,
+}
+
+impl Config {
+    pub fn peer_file_path<T>(&self, encrypted_path: T) -> PathBuf
+    where
+        T: AsRef<Path>,
+    {
+        let mut path = self.peer_storage_path.clone();
+        path.push(encrypted_path.as_ref());
+        path
+    }
+
+    pub fn index_path(&self) -> PathBuf {
+        self.peer_file_path("index")
+    }
 }
 
 #[derive(Copy, Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]

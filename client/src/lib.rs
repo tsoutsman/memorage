@@ -12,7 +12,7 @@
     clippy::missing_safety_doc,
     rustdoc::broken_intra_doc_links
 )]
-#![feature(int_roundings, concat_idents)]
+#![feature(int_roundings, concat_idents, try_blocks)]
 
 mod error;
 

@@ -46,7 +46,7 @@ impl Index {
             paths
                 .into_par_iter()
                 .map(|file_path| -> Result<(PathBuf, EncryptedPath, [u8; 32])> {
-                    let encrypted_file_path = EncryptedPath::from(file_path.clone());
+                    let encrypted_file_path = EncryptedPath::from(file_path.as_ref());
                     let hash = hash(File::open(&file_path)?)?;
                     Ok((file_path, encrypted_file_path, hash))
                 });

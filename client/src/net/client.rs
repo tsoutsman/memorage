@@ -124,7 +124,10 @@ where
 impl<'a, 'b> Client<'a, 'b, Data> {
     /// Establish a connection to a peer.
     #[allow(clippy::missing_panics_doc)]
-    pub async fn establish_peer_connection(self, initiator: bool) -> Result<PeerConnection<'a>> {
+    pub async fn establish_peer_connection(
+        self,
+        initiator: bool,
+    ) -> Result<PeerConnection<'a, 'b>> {
         let target = self.data.peer;
         let time = OffsetDateTime::now_utc() + self.config.peer_connection_schedule_delay;
 
@@ -151,7 +154,7 @@ impl<'a, 'b> Client<'a, 'b, Data> {
         }
     }
 
-    pub async fn connect_to_peer(mut self, initiator: bool) -> Result<PeerConnection<'a>> {
+    pub async fn connect_to_peer(mut self, initiator: bool) -> Result<PeerConnection<'a, 'b>> {
         let peer_key = self.data.peer;
 
         let mut counter: usize = 0;
@@ -202,6 +205,7 @@ impl<'a, 'b> Client<'a, 'b, Data> {
 
                     return Ok(PeerConnection {
                         data: self.data,
+                        config: self.config,
                         connection,
                         socket: self.socket,
                     });

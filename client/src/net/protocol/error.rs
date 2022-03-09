@@ -11,3 +11,14 @@ impl From<crate::Error> for Error {
         Error::Generic
     }
 }
+
+// TODO: Specialisation
+// impl<T> From<T> for Error
+// where
+//     T: From<crate::Error>,
+// {
+//     fn from(_: T) -> Self {
+//         // TODO
+//         Error::Generic
+//     }
+// }
