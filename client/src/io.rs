@@ -13,18 +13,6 @@ use memorage_core::PublicKey;
 use rpassword::read_password;
 
 #[inline]
-pub fn prompt_secure<S>(s: S) -> Result<String>
-where
-    S: AsRef<str>,
-{
-    let mut stdout = std::io::stdout();
-    stdout.write_all(s.as_ref().as_bytes())?;
-    stdout.flush()?;
-
-    Ok(read_password()?)
-}
-
-#[inline]
 pub fn prompt<S>(s: S) -> Result<String>
 where
     S: AsRef<str>,
@@ -44,6 +32,18 @@ where
     }
 
     Ok(input)
+}
+
+#[inline]
+pub fn securely_prompt<S>(s: S) -> Result<String>
+where
+    S: AsRef<str>,
+{
+    let mut stdout = std::io::stdout();
+    stdout.write_all(s.as_ref().as_bytes())?;
+    stdout.flush()?;
+
+    Ok(read_password()?)
 }
 
 #[inline]

@@ -1,4 +1,4 @@
-use crate::persistent::{Persistent, CONFIG_PATH};
+use crate::persistent::{Persistent, CONFIG_PATH, PROJECT_DIRS};
 
 use std::{
     net::{IpAddr, SocketAddr},
@@ -14,7 +14,7 @@ pub struct Config {
     /// Path to backup.
     pub backup_path: PathBuf,
     /// Path at which the peer's encrypted data is stored.
-    pub backup_storage_path: PathBuf,
+    pub peer_storage_path: PathBuf,
     #[serde(
         serialize_with = "serialize_duration",
         deserialize_with = "deserialize_duration"
@@ -55,7 +55,7 @@ impl Default for Config {
         Self {
             server_address: vec![],
             backup_path: PathBuf::new(),
-            backup_storage_path: PathBuf::new(),
+            peer_storage_path: PROJECT_DIRS.data_dir().to_owned().join("peer_data"),
             peer_connection_schedule_delay: Duration::from_secs(600),
             register_response: RetryConfig::register_response(),
             request_connection: RetryConfig::request_connection(),

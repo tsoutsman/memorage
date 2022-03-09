@@ -9,7 +9,7 @@ use memorage_client::{
     persistent::{
         config::Config,
         data::{Data, DataWithoutPeer},
-        Persistent,
+        Persistent, CONFIG_PATH,
     },
 };
 use memorage_core::time::OffsetDateTime;
@@ -30,23 +30,27 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     match args.command {
         Command::Setup => {
             let data = DataWithoutPeer::from_key_pair(memorage_core::KeyPair::from_entropy());
+            let mut config = Config::default();
 
             let num_words = loop {
-                match io::prompt("Mnemonic phrase length (18): ")?.parse::<usize>() {
-                    Ok(n) => break n,
-                    Err(_) => {
-                        eprintln!("Mnemonic phrase length must be a number");
-                    }
+                match io::prompt("Mnemonic phrase length (18): ")?.as_ref() {
+                    "" => break 18,
+                    s => match s.parse::<usize>() {
+                        Ok(n) => break n,
+                        Err(_) => {
+                            eprintln!("Mnemonic phrase length must be a number");
+                        }
+                    },
                 }
             };
 
-            let password = io::prompt_secure("Enter password (empty for no password): ")?;
+            let password = io::securely_prompt("Enter password (empty for no password): ")?;
             let password = match &password[..] {
                 "" => None,
                 _ => Some(password),
             };
             if let Some(ref password) = password {
-                let confirmed_password = io::prompt_secure("Confirm password: ")?;
+                let confirmed_password = io::securely_prompt("Confirm password: ")?;
                 if &confirmed_password != password {
                     eprintln!("Passwords didn't match");
                     std::process::exit(1);
@@ -58,8 +62,88 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
             info!("Generated public key: {}", data.key_pair.public);
 
+            println!();
+
+            let backup_path = loop {
+                let input = io::prompt("Backup path: ")?;
+                match input.as_str() {
+                    "" => {
+                        eprintln!("Backup path must be specified");
+                    }
+                    _ => break input.parse::<PathBuf>()?,
+                }
+            };
+            config.backup_path = backup_path;
+
+            loop {
+                // Format taken from the rustup installer.
+
+                println!("\nCurrent configuration options:\n");
+                println!("        backup path: {}", config.backup_path.display());
+                println!(
+                    "  peer storage path: {}\n",
+                    config.peer_storage_path.display()
+                );
+
+                println!("1) Proceed with installation (default)");
+                println!("2) Customise installation");
+                println!("3) Cancel installation");
+
+                let mut proceed = false;
+
+                loop {
+                    let input = io::prompt("> ")?;
+                    match input.as_str() {
+                        "" => {
+                            proceed = true;
+                            break;
+                        }
+                        _ => match input.parse::<u8>() {
+                            Ok(n) => match n {
+                                1 => {
+                                    proceed = true;
+                                    break;
+                                }
+                                2 => break,
+                                3 => std::process::exit(1),
+                                _ => eprintln!("Invalid choice"),
+                            },
+                            Err(_) => eprintln!("Invalid choice"),
+                        },
+                    }
+                }
+
+                if proceed {
+                    break;
+                }
+
+                println!("\nI'm going to ask you the value of each of these installation options.");
+                println!("You may simply press the Enter key to leave unchanged.\n");
+
+                let backup_path =
+                    io::prompt(&format!("Backup path [{}]: ", config.backup_path.display()))?;
+                if backup_path.as_str() != "" {
+                    config.backup_path = backup_path.parse()?;
+                }
+
+                println!();
+
+                let peer_storage_path = io::prompt(&format!(
+                    "Peer storage path [{}]: ",
+                    config.peer_storage_path.display()
+                ))?;
+                if peer_storage_path.as_str() != "" {
+                    config.peer_storage_path = peer_storage_path.parse()?;
+                }
+            }
+
             data.to_disk(None)?;
-            println!("Setup successful");
+            config.to_disk(None)?;
+
+            println!("\nSetup successful!\n");
+            println!("You can modify these configuration values at any time in the ");
+            println!("config file located at {}", CONFIG_PATH.display());
+
             return Ok(());
         }
         Command::Pair { server, code } => {
@@ -122,7 +206,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
             let complete = peer_connection
                 .send(request::Complete(Index::from_disk(
-                    &config.backup_storage_path,
+                    &config.peer_storage_path,
                 )?))
                 .await?
                 .0;

@@ -1,15 +1,15 @@
 lazy_static::lazy_static! {
-    static ref CONFIG_PATH: std::path::PathBuf = {
+    static ref PROJECT_DIRS: directories_next::ProjectDirs = {
         match directories_next::ProjectDirs::from("org", "", "Memorage") {
-            Some(p) => p.config_dir().to_owned().join("config.toml"),
-            None => panic!("Can't find suitable folder for app config")
+            Some(p) => p,
+            None => panic!("Can't find suitable folder for app data/config")
         }
     };
-    static ref DATA_PATH: std::path::PathBuf = {
-        match directories_next::ProjectDirs::from("org", "", "Memorage") {
-            Some(p) => p.data_dir().to_owned().join("data.toml"),
-            None => panic!("Can't find suitable folder for app data")
-        }
+    pub static ref CONFIG_PATH: std::path::PathBuf = {
+        PROJECT_DIRS.config_dir().to_owned().join("config.toml")
+    };
+    pub static ref DATA_PATH: std::path::PathBuf = {
+        PROJECT_DIRS.data_dir().to_owned().join("data.toml")
     };
 }
 
@@ -31,6 +31,7 @@ pub trait Persistent: serde::Serialize + serde::de::DeserializeOwned {
             None => Self::default_path(),
         };
         let toml = toml::to_string(&self)?;
+        // TODO: Create directories
         std::fs::write(path, toml).map_err(|e| e.into())
     }
 }
