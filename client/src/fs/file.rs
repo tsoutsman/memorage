@@ -13,13 +13,10 @@ pub struct EncryptedFile {
 }
 
 impl EncryptedFile {
-    pub fn serialize(&self) -> Result<Vec<u8>> {
-        bincode::serialize(&self).map_err(|e| e.into())
-    }
-}
-
-impl EncryptedFile {
-    pub fn from_disk(path: &Path, key: &PrivateKey) -> Result<EncryptedFile> {
+    pub fn from_unencrypted<P>(key: &PrivateKey, path: P) -> Result<EncryptedFile>
+    where
+        P: AsRef<Path>,
+    {
         let bytes = std::fs::read(path)?;
         Self::encrypt(&bytes, key)
     }

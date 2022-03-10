@@ -16,23 +16,21 @@ lazy_static::lazy_static! {
 pub trait Persistent: serde::Serialize + serde::de::DeserializeOwned {
     fn default_path() -> &'static std::path::Path;
 
-    fn from_disk(path: Option<&std::path::Path>) -> crate::Result<Self> {
-        let path = match path {
-            Some(p) => p,
-            None => Self::default_path(),
-        };
-        let content = std::fs::read_to_string(path)?;
+    fn from_disk<P>(path: Option<P>) -> crate::Result<Self>
+    where
+        P: AsRef<std::path::Path>,
+    {
+        let content = match path {
+            Some(p) => std::fs::read_to_string(p),
+            None => std::fs::read_to_string(Self::default_path()),
+        }?;
         Ok(toml::from_str(&content)?)
     }
 
-    fn to_disk(&self, path: Option<&std::path::Path>) -> crate::Result<()> {
-        let path = match path {
-            Some(p) => p,
-            None => Self::default_path(),
-        };
+    fn to_disk(&self) -> crate::Result<()> {
         let toml = toml::to_string(&self)?;
         // TODO: Create directories
-        std::fs::write(path, toml).map_err(|e| e.into())
+        std::fs::write(Self::default_path(), toml).map_err(|e| e.into())
     }
 }
 

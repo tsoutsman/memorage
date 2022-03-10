@@ -45,4 +45,6 @@ pub enum Error {
     PeerClosedConnection,
     #[error("failed to establish connection to peer")]
     FailedConnection,
+    #[error("incorrect peer")]
+    IncorrectPeer,
 }

@@ -2,7 +2,7 @@ use std::{net::IpAddr, path::PathBuf};
 
 use clap::{Parser, Subcommand};
 use memorage_client::{
-    fs::index::Index,
+    fs::{index::Index, read_bin},
     io,
     mnemonic::MnemonicPhrase,
     net::{self, protocol::request},
@@ -137,8 +137,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 }
             }
 
-            data.to_disk(None)?;
-            config.to_disk(None)?;
+            data.to_disk()?;
+            config.to_disk()?;
 
             println!("\nSetup successful!\n");
             println!("You can modify these configuration values at any time in the ");
@@ -146,9 +146,14 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
             return Ok(());
         }
-        Command::Pair { server, code } => {
-            let data = DataWithoutPeer::from_disk(None)?;
-            let mut config = Config::from_disk(None)?;
+        Command::Pair {
+            code,
+            config,
+            data,
+            server,
+        } => {
+            let mut config = Config::from_disk(config)?;
+            let data = DataWithoutPeer::from_disk(data)?;
 
             if let Some(server) = server {
                 config.server_address = vec![server];
@@ -158,35 +163,22 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
             if let Some(code) = code {
                 let peer = client.get_key(code).await?;
-
-                println!("Key 1: {}", peer);
-                println!("Key 2: {}", data.key_pair.public);
-
-                if io::verify_peer(&peer, data)? {
-                    return Ok(());
-                } else {
-                    std::process::exit(1);
-                }
+                io::verify_peer(data.key_pair, peer, false)?;
             } else {
                 let pairing_code = client.register().await?;
                 println!("Pairing code: {}", pairing_code);
 
                 let peer = client.register_response().await?;
-
-                println!("Key 1: {}", data.key_pair.public);
-                println!("Key 2: {}", peer);
-
-                if io::verify_peer(&peer, data)? {
-                    println!("Pairing successful");
-                    return Ok(());
-                } else {
-                    std::process::exit(1);
-                }
+                io::verify_peer(data.key_pair, peer, true)?;
             }
         }
-        Command::Connect { server } => {
-            let data = Data::from_disk(None)?;
-            let mut config = Config::from_disk(None)?;
+        Command::Connect {
+            config,
+            data,
+            server,
+        } => {
+            let mut config = Config::from_disk(config)?;
+            let data = Data::from_disk(data)?;
 
             if let Some(server) = server {
                 config.server_address = vec![server];
@@ -205,9 +197,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 .await?;
 
             let complete = peer_connection
-                .send(request::Complete(Index::from_disk(
-                    &config.peer_storage_path,
-                )?))
+                .send(request::Complete(read_bin(&config.peer_storage_path)?))
                 .await?
                 .0;
 
@@ -219,9 +209,13 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 peer_connection.receive_and_handle().await?;
             }
         }
-        Command::Check { server } => {
-            let data = Data::from_disk(None)?;
-            let mut config = Config::from_disk(None)?;
+        Command::Check {
+            config,
+            data,
+            server,
+        } => {
+            let mut config = Config::from_disk(config)?;
+            let data = Data::from_disk(data)?;
 
             if let Some(server) = server {
                 config.server_address = vec![server];
@@ -248,9 +242,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 .send(request::Complete(Index::new()))
                 .await?;
         }
-        Command::Watch { .. } => {
-            todo!();
-        }
     }
 
     Ok(())
@@ -266,25 +257,44 @@ struct Args {
 enum Command {
     Setup,
     Pair {
-        /// Address of the coordination server
+        code: Option<memorage_cs::PairingCode>,
+        /// Use the specified configuration file
+        #[clap(short, long)]
+        config: Option<PathBuf>,
+        /// Use the specified data file
+        #[clap(short, long)]
+        data: Option<PathBuf>,
+        /// Use the specified coordination server
+        ///
+        /// The address can be IPv4 or IPv6.
         #[clap(short, long)]
         server: Option<IpAddr>,
-        code: Option<memorage_cs::PairingCode>,
     },
     /// Attempt to connect to a peer
     Connect {
-        /// Address of the coordination server
+        /// Use the specified configuration file
+        #[clap(short, long)]
+        config: Option<PathBuf>,
+        /// Use the specified data file
+        #[clap(short, long)]
+        data: Option<PathBuf>,
+        /// Use the specified coordination server
+        ///
+        /// The address can be IPv4 or IPv6.
         #[clap(short, long)]
         server: Option<IpAddr>,
     },
     Check {
-        /// Address of the coordination server
+        /// Use the specified configuration file
+        #[clap(short, long)]
+        config: Option<PathBuf>,
+        /// Use the specified data file
+        #[clap(short, long)]
+        data: Option<PathBuf>,
+        /// Use the specified coordination server
+        ///
+        /// The address can be IPv4 or IPv6.
         #[clap(short, long)]
         server: Option<IpAddr>,
-    },
-    /// Watch over a directory
-    Watch {
-        /// Directory to watch over
-        directory: PathBuf,
     },
 }

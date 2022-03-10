@@ -1,7 +1,7 @@
 use crate::{
     fs::{
         index::{Index, IndexDifference},
-        EncryptedFile, EncryptedPath,
+        read_bin, write_bin, EncryptedFile, EncryptedPath,
     },
     net::protocol::{
         self,
@@ -42,9 +42,9 @@ impl<'a, 'b> PeerConnection<'a, 'b> {
             match d {
                 IndexDifference::Add(name) => {
                     self.send(request::Add {
-                        contents: EncryptedFile::from_disk(
-                            unencrypted_paths.get(&name).unwrap(),
+                        contents: EncryptedFile::from_unencrypted(
                             &self.data.key_pair.private,
+                            unencrypted_paths.get(&name).unwrap(),
                         )?,
                         name,
                     })
@@ -52,9 +52,9 @@ impl<'a, 'b> PeerConnection<'a, 'b> {
                 }
                 IndexDifference::Edit(name) => {
                     self.send(request::Edit {
-                        contents: EncryptedFile::from_disk(
-                            unencrypted_paths.get(&name).unwrap(),
+                        contents: EncryptedFile::from_unencrypted(
                             &self.data.key_pair.private,
+                            unencrypted_paths.get(&name).unwrap(),
                         )?,
                         name,
                     })
@@ -95,21 +95,21 @@ impl<'a, 'b> PeerConnection<'a, 'b> {
                 }
                 RequestType::GetIndex(_) => {
                     let response: crate::Result<_> = try {
-                        let index = Index::from_disk(&self.config.index_path())?;
+                        let index = read_bin(self.config.index_path())?;
                         response::GetIndex(index)
                     };
                     send_with_stream(send, response.map_err(|e| e.into())).await?;
                 }
                 RequestType::Add(request::Add { name, contents }) => {
                     let response: crate::Result<_> = try {
-                        std::fs::write(self.config.peer_file_path(&name), contents.serialize()?)?;
+                        write_bin(self.config.peer_file_path(&name), &contents)?;
                         response::Add
                     };
                     send_with_stream(send, response.map_err(|e| e.into())).await?;
                 }
                 RequestType::Edit(request::Edit { name, contents }) => {
                     let response: crate::Result<_> = try {
-                        std::fs::write(self.config.peer_file_path(&name), contents.serialize()?)?;
+                        write_bin(self.config.peer_file_path(&name), &contents)?;
                         response::Edit
                     };
                     send_with_stream(send, response.map_err(|e| e.into())).await?;
@@ -133,7 +133,7 @@ impl<'a, 'b> PeerConnection<'a, 'b> {
                 }
                 RequestType::SetIndex(request::SetIndex(index)) => {
                     let response: crate::Result<_> = try {
-                        index.to_disk(&self.config.index_path())?;
+                        write_bin(self.config.index_path(), &index)?;
                         response::SetIndex
                     };
                     send_with_stream(send, response.map_err(|e| e.into())).await?;

@@ -1,16 +1,11 @@
 use crate::{
-    persistent::{
-        data::{Data, DataWithoutPeer},
-        Persistent,
-    },
-    Result,
+    persistent::{data::Data, Persistent},
+    Error, Result,
 };
 
 use std::io::Write;
 
-use memorage_core::PublicKey;
-
-use rpassword::read_password;
+use memorage_core::{KeyPair, PublicKey};
 
 #[inline]
 pub fn prompt<S>(s: S) -> Result<String>
@@ -43,25 +38,32 @@ where
     stdout.write_all(s.as_ref().as_bytes())?;
     stdout.flush()?;
 
-    Ok(read_password()?)
+    Ok(rpassword::read_password()?)
 }
 
 #[inline]
-pub fn verify_peer(peer: &PublicKey, data: DataWithoutPeer) -> Result<bool> {
+pub fn verify_peer(key_pair: KeyPair, peer: PublicKey, initiator: bool) -> Result<()> {
+    let (key_1, key_2);
+    if initiator {
+        (key_1, key_2) = (key_pair.public, peer);
+    } else {
+        (key_1, key_2) = (peer, key_pair.public);
+    }
+    println!("Key 1: {}", key_1);
+    println!("Key 2: {}", key_2);
+
     let input = prompt("Does your peer see the exact same keys? [y/n] ")?
         .trim()
         .to_lowercase();
 
     if input == "y" || input == "yes" {
-        let data = Data {
-            key_pair: data.key_pair,
-            peer: *peer,
-        };
+        let data = Data { key_pair, peer };
         println!("Saving peer");
-        data.to_disk(None)?;
-        Ok(true)
+        data.to_disk()?;
+        println!("Pairing successful");
+        Ok(())
     } else {
         eprintln!("Aborting pairing process");
-        Ok(false)
+        Err(Error::IncorrectPeer)
     }
 }
