@@ -2,11 +2,11 @@ use std::path::{Path, PathBuf};
 
 use serde::{Deserialize, Serialize};
 
+/// A path to an encrypted file.
 #[derive(Clone, Debug, Eq, PartialEq, Hash, Serialize, Deserialize)]
-pub struct EncryptedPath(PathBuf);
+pub struct HashedPath(PathBuf);
 
-// TODO: Specialisation
-impl From<&Path> for EncryptedPath {
+impl From<&Path> for HashedPath {
     fn from(path: &Path) -> Self {
         let mut result = String::new();
         // TODO: to_string_lossy?
@@ -18,7 +18,15 @@ impl From<&Path> for EncryptedPath {
     }
 }
 
-impl AsRef<Path> for EncryptedPath {
+// TODO: Specialisation
+
+impl From<PathBuf> for HashedPath {
+    fn from(path: PathBuf) -> Self {
+        Self::from(path.as_path())
+    }
+}
+
+impl AsRef<Path> for HashedPath {
     fn as_ref(&self) -> &Path {
         &self.0
     }

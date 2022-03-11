@@ -1,8 +1,12 @@
-use std::{net::IpAddr, path::PathBuf};
+use std::{
+    net::IpAddr,
+    path::{Path, PathBuf},
+};
 
 use clap::{Parser, Subcommand};
 use memorage_client::{
-    fs::{index::Index, read_bin},
+    crypto::Encrypted,
+    fs::{read_bin, Index},
     io,
     mnemonic::MnemonicPhrase,
     net::{self, protocol::request},
@@ -13,7 +17,7 @@ use memorage_client::{
     },
 };
 use memorage_core::time::OffsetDateTime;
-use tracing::info;
+use tracing::{debug, info};
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -137,8 +141,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 }
             }
 
-            data.to_disk()?;
-            config.to_disk()?;
+            data.to_disk(Option::<&Path>::None)?;
+            config.to_disk(Option::<&Path>::None)?;
 
             println!("\nSetup successful!\n");
             println!("You can modify these configuration values at any time in the ");
@@ -154,6 +158,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         } => {
             let mut config = Config::from_disk(config)?;
             let data = DataWithoutPeer::from_disk(data)?;
+
+            debug!("loaded config and data files");
 
             if let Some(server) = server {
                 config.server_address = vec![server];
@@ -180,24 +186,30 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             let mut config = Config::from_disk(config)?;
             let data = Data::from_disk(data)?;
 
+            debug!("loaded config and data files");
+
             if let Some(server) = server {
                 config.server_address = vec![server];
             }
             let client = net::Client::new(&data, &config).await?;
 
-            let (new_index, unencrypted_paths) = Index::from_directory(&config.backup_path)?;
+            let new_index = Index::from_directory(&config.backup_path)?;
 
             info!(public_key=?data.key_pair.public, target_key=?data.peer, "trying to establish connection");
             let mut peer_connection = client.establish_peer_connection(true).await?;
 
-            let old_index = peer_connection.send(request::GetIndex).await?.0;
+            let old_index = peer_connection
+                .send(request::GetIndex)
+                .await?
+                .0
+                .decrypt(&data.key_pair.private)?;
 
             peer_connection
-                .send_difference(new_index.difference(&old_index), unencrypted_paths)
+                .send_difference(new_index.difference(&old_index))
                 .await?;
 
             let complete = peer_connection
-                .send(request::Complete(read_bin(&config.peer_storage_path)?))
+                .send(request::Complete(read_bin(&config.index_path())?))
                 .await?
                 .0;
 
@@ -217,29 +229,35 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             let mut config = Config::from_disk(config)?;
             let data = Data::from_disk(data)?;
 
+            debug!("loaded config and data files");
+
             if let Some(server) = server {
                 config.server_address = vec![server];
             }
             let client = net::Client::new(&data, &config).await?;
-            let time = client.check_connection().await?;
 
+            let time = client.check_connection().await?;
             let delay = time - OffsetDateTime::now_utc();
+            info!(?time, ?delay, "waiting for synchronisation");
             // TODO: Create index while sleeping?
             tokio::time::sleep(delay.try_into().unwrap()).await;
 
             let mut peer_connection = client.connect_to_peer(false).await?;
 
-            let (new_index, unencrypted_paths) = Index::from_directory(&config.backup_path)?;
+            let new_index = Index::from_directory(&config.backup_path)?;
             let old_index = peer_connection.receive_and_handle().await?;
 
             peer_connection
-                .send_difference(new_index.difference(&old_index), unencrypted_paths)
+                .send_difference(new_index.difference(&old_index))
                 .await?;
 
             peer_connection
                 // The index from request::Complete isn't used by the initiator
                 // of the sync.
-                .send(request::Complete(Index::new()))
+                .send(request::Complete(Encrypted::encrypt(
+                    &data.key_pair.private,
+                    &Index::new(),
+                )?))
                 .await?;
         }
     }
@@ -255,7 +273,13 @@ struct Args {
 
 #[derive(Subcommand, Debug)]
 enum Command {
+    /// Generate the data and configuration files
     Setup,
+    /// Pair to a peer
+    ///
+    /// One peer runs the command without a code, generating a new code. The
+    /// other peer runs the command with this newly generated code. Peers must
+    /// use the same coordination server.
     Pair {
         code: Option<memorage_cs::PairingCode>,
         /// Use the specified configuration file
@@ -284,6 +308,7 @@ enum Command {
         #[clap(short, long)]
         server: Option<IpAddr>,
     },
+    /// Check for synchronisation requests
     Check {
         /// Use the specified configuration file
         #[clap(short, long)]

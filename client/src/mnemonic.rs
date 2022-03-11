@@ -51,7 +51,7 @@ impl MnemonicPhrase<'static> {
 
 impl Default for MnemonicPhrase<'static> {
     fn default() -> Self {
-        Self::generate(14, None)
+        Self::generate(18, None)
     }
 }
 

@@ -1,33 +1,23 @@
-use crate::{
-    fs::{hash, EncryptedPath},
-    Result,
-};
+use crate::{fs::hash, Result};
 
 use std::{
-    collections::HashMap,
     fs::File,
     path::{Path, PathBuf},
 };
 
-use bimap::{BiMap, Overwritten};
+use bimap::BiMap;
 use rayon::iter::{IntoParallelIterator, ParallelIterator};
 use serde::{Deserialize, Serialize};
 
-#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
-pub struct Index(BiMap<EncryptedPath, [u8; 32]>);
-
-impl std::default::Default for Index {
-    fn default() -> Self {
-        Self(BiMap::new())
-    }
-}
+#[derive(Clone, Default, Debug, Eq, PartialEq, Serialize, Deserialize)]
+pub struct Index(BiMap<PathBuf, [u8; 32]>);
 
 impl Index {
     pub fn new() -> Self {
         Self::default()
     }
 
-    pub fn from_directory<P>(path: P) -> Result<(Self, HashMap<EncryptedPath, PathBuf>)>
+    pub fn from_directory<P>(path: P) -> Result<Self>
     where
         P: AsRef<Path>,
     {
@@ -45,31 +35,26 @@ impl Index {
             // TODO: Do we return error if it isn't.
         }
 
-        let paths =
-            paths
-                .into_par_iter()
-                .map(|file_path| -> Result<(PathBuf, EncryptedPath, [u8; 32])> {
-                    let encrypted_file_path = EncryptedPath::from(file_path.as_ref());
-                    let hash = hash(File::open(&file_path)?)?;
-                    Ok((file_path, encrypted_file_path, hash))
-                });
+        let paths = paths
+            .into_par_iter()
+            .map(|file_path| -> Result<(PathBuf, [u8; 32])> {
+                let hash = hash(File::open(&file_path)?)?;
+                Ok((file_path, hash))
+            });
 
-        let mut paths_map = HashMap::new();
         let mut index = Self::new();
 
         // TODO: Don't collect
         for result in paths.collect::<Vec<_>>() {
-            let (path, encrypted_path, hash) = result?;
-            paths_map.insert(encrypted_path.clone(), path);
-            index.insert(encrypted_path, hash);
+            let (path, hash) = result?;
+            index.0.insert(path, hash);
         }
 
-        Ok((index, paths_map))
+        Ok(index)
     }
 
-    /// Returns the changes necessary to convert `other` into `self`.
     // TODO: Clones or consume self (or serialize refs?)?
-    pub fn difference(&self, other: &Self) -> Vec<IndexDifference> {
+    pub fn difference(&self, other: &Index) -> Vec<IndexDifference> {
         let mut diff = Vec::new();
 
         for (path, hash) in &self.0 {
@@ -92,23 +77,12 @@ impl Index {
 
         diff
     }
-
-    fn insert(
-        &mut self,
-        path: EncryptedPath,
-        hash: [u8; 32],
-    ) -> Overwritten<EncryptedPath, [u8; 32]> {
-        self.0.insert(path, hash)
-    }
 }
 
 #[derive(Clone, Debug, Eq, PartialEq, Hash, Serialize, Deserialize)]
 pub enum IndexDifference {
-    Add(EncryptedPath),
-    Edit(EncryptedPath),
-    Rename {
-        from: EncryptedPath,
-        to: EncryptedPath,
-    },
-    Delete(EncryptedPath),
+    Add(PathBuf),
+    Edit(PathBuf),
+    Rename { from: PathBuf, to: PathBuf },
+    Delete(PathBuf),
 }

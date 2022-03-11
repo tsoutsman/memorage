@@ -1,4 +1,7 @@
-use crate::fs::{index::Index, EncryptedFile, EncryptedPath};
+use crate::{
+    crypto::Encrypted,
+    fs::{HashedPath, Index},
+};
 
 use serde::{Deserialize, Serialize};
 
@@ -30,35 +33,42 @@ pub struct GetIndex;
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Add {
-    pub name: EncryptedPath,
-    pub contents: EncryptedFile,
+    pub name: HashedPath,
+    pub contents: Encrypted<Vec<u8>>,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Edit {
-    pub name: EncryptedPath,
-    pub contents: EncryptedFile,
+    pub name: HashedPath,
+    pub contents: Encrypted<Vec<u8>>,
 }
 
+/// Rename a file.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Rename {
-    pub from: EncryptedPath,
-    pub to: EncryptedPath,
+    pub from: HashedPath,
+    pub to: HashedPath,
 }
 
+/// Delete the file at the given path.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
-pub struct Delete(pub EncryptedPath);
+pub struct Delete(pub HashedPath);
 
+/// Set the index on the peer to the given index.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
-pub struct SetIndex(pub Index);
+pub struct SetIndex(pub Encrypted<Index>);
 
+/// Signify that syncing is complete.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Complete(
     /// The index of the peer's files on this computer.
     ///
     /// The peer uses this to decide whether or not they need to update their
     /// backup.
-    pub Index,
+    ///
+    /// When the receiver has completed syncing, the index they send back is
+    /// empty.
+    pub Encrypted<Index>,
 );
 
 macro_rules! impl_request {

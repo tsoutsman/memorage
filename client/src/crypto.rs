@@ -1,3 +1,5 @@
+use std::marker::PhantomData;
+
 use crate::{Error, Result};
 
 use chacha20poly1305::{
@@ -7,33 +9,54 @@ use chacha20poly1305::{
 use memorage_core::rand::{thread_rng, RngCore};
 use memorage_core::PrivateKey;
 
-pub fn encrypt(key: &PrivateKey, bytes: &[u8]) -> Result<([u8; 24], Vec<u8>)> {
-    let aed = XChaCha20Poly1305::new(chacha20poly1305::Key::from_slice(key.as_ref()));
+use serde::{de::DeserializeOwned, Deserialize, Serialize};
 
-    let mut rng = thread_rng();
-    let nonce_value = &mut [0u8; 24];
-    rng.fill_bytes(&mut nonce_value[..]);
-
-    let nonce = XNonce::from_slice(nonce_value);
-
-    let encrypted = match aed.encrypt(nonce, bytes) {
-        Ok(c) => c,
-        Err(_) => return Err(Error::Encryption),
-    };
-
-    Ok((nonce_value.to_owned(), encrypted))
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct Encrypted<T>
+where
+    T: Serialize + DeserializeOwned,
+{
+    nonce: [u8; 24],
+    value: Vec<u8>,
+    _marker: PhantomData<T>,
 }
 
-pub fn decrypt(key: &PrivateKey, nonce: &[u8], bytes: &[u8]) -> Result<Vec<u8>> {
-    let aed = XChaCha20Poly1305::new(chacha20poly1305::Key::from_slice(key.as_ref()));
-    let nonce = XNonce::from_slice(nonce);
+impl<T> Encrypted<T>
+where
+    T: Serialize + DeserializeOwned,
+{
+    pub fn encrypt(key: &PrivateKey, value: &T) -> Result<Self> {
+        let data = bincode::serialize(value)?;
+        let aed = XChaCha20Poly1305::new(chacha20poly1305::Key::from_slice(key.as_ref()));
 
-    let decrypted = match aed.decrypt(nonce, bytes) {
-        Ok(c) => c,
-        Err(_) => return Err(Error::Decryption),
-    };
+        let mut rng = thread_rng();
+        let mut nonce = [0; 24];
+        rng.fill_bytes(&mut nonce[..]);
 
-    Ok(decrypted)
+        let xnonce = XNonce::from_slice(&nonce);
+
+        let encrypted = match aed.encrypt(xnonce, data.as_ref()) {
+            Ok(c) => c,
+            Err(_) => return Err(Error::Encryption),
+        };
+
+        Ok(Self {
+            nonce,
+            value: encrypted,
+            _marker: PhantomData,
+        })
+    }
+
+    pub fn decrypt(&self, key: &PrivateKey) -> Result<T> {
+        let aed = XChaCha20Poly1305::new(chacha20poly1305::Key::from_slice(key.as_ref()));
+        let nonce = XNonce::from_slice(&self.nonce);
+
+        let decrypted = match aed.decrypt(nonce, self.value.as_ref()) {
+            Ok(c) => c,
+            Err(_) => return Err(Error::Decryption),
+        };
+        bincode::deserialize(&decrypted).map_err(|e| e.into())
+    }
 }
 
 #[cfg(test)]
@@ -44,23 +67,23 @@ mod tests {
     #[test]
     fn encrypt_correctly() {
         let key = KeyPair::from_entropy().private;
-        let message = b"super secret message pls don't steal";
+        let message = b"super secret message pls don't steal".to_vec();
 
-        let (nonce, encrypted) = encrypt(&key, message).unwrap();
-        let decrypted = decrypt(&key, &nonce, &encrypted).unwrap();
+        let encrypted = Encrypted::encrypt(&key, &message).unwrap();
+        let decrypted = encrypted.decrypt(&key).unwrap();
 
-        assert_eq!(&decrypted, message);
+        assert_eq!(decrypted, message);
     }
 
     #[test]
     fn decrypt_incorrect_key() {
         let key = KeyPair::from_entropy().private;
-        let message = b"super secret message pls don't steal";
+        let message = b"super secret message pls don't steal".to_vec();
 
-        let (nonce, encrypted) = encrypt(&key, message).unwrap();
+        let encrypted = Encrypted::encrypt(&key, &message).unwrap();
 
         let incorrect_key = KeyPair::from_entropy().private;
-        let decrypted = decrypt(&incorrect_key, &nonce, &encrypted);
+        let decrypted = encrypted.decrypt(&incorrect_key);
         assert!(matches!(decrypted, Err(Error::Decryption)));
     }
 }

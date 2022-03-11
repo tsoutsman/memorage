@@ -63,33 +63,6 @@ where
         })
     }
 
-    pub async fn register(&self) -> Result<PairingCode> {
-        Ok(self.request(request::Register).await?.0)
-    }
-
-    pub async fn get_key(&self, code: PairingCode) -> Result<PublicKey> {
-        Ok(self.request(request::GetKey(code)).await?.0)
-    }
-
-    pub async fn register_response(&self) -> Result<PublicKey> {
-        let mut counter: usize = 0;
-        loop {
-            tokio::time::sleep(self.config.register_response.ping_delay).await;
-
-            match self.request(request::GetRegisterResponse).await {
-                Ok(pk) => return Ok(pk.0),
-                Err(Error::Server(memorage_cs::Error::NoData)) => {
-                    counter += 1;
-                }
-                Err(e) => return Err(e),
-            }
-
-            if counter == self.config.register_response.tries {
-                return Err(Error::PeerNoResponse);
-            }
-        }
-    }
-
     async fn request<R>(&self, request: R) -> Result<R::Response>
     where
         R: memorage_cs::Serialize + Request + std::fmt::Debug,
@@ -118,6 +91,33 @@ where
             .map_err(|e| e.into());
         debug!(?response, "received response");
         response
+    }
+
+    pub async fn register(&self) -> Result<PairingCode> {
+        Ok(self.request(request::Register).await?.0)
+    }
+
+    pub async fn register_response(&self) -> Result<PublicKey> {
+        let mut counter = 0;
+        loop {
+            tokio::time::sleep(self.config.register_response.ping_delay).await;
+
+            match self.request(request::GetRegisterResponse).await {
+                Ok(pk) => return Ok(pk.0),
+                Err(Error::Server(memorage_cs::Error::NoData)) => {
+                    counter += 1;
+                }
+                Err(e) => return Err(e),
+            }
+
+            if counter == self.config.register_response.tries {
+                return Err(Error::PeerNoResponse);
+            }
+        }
+    }
+
+    pub async fn get_key(&self, code: PairingCode) -> Result<PublicKey> {
+        Ok(self.request(request::GetKey(code)).await?.0)
     }
 }
 
@@ -157,7 +157,7 @@ impl<'a, 'b> Client<'a, 'b, Data> {
     pub async fn connect_to_peer(mut self, initiator: bool) -> Result<PeerConnection<'a, 'b>> {
         let peer_key = self.data.peer;
 
-        let mut counter: usize = 0;
+        let mut counter = 0;
 
         debug!("sending first packet");
 

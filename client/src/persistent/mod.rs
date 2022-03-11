@@ -27,10 +27,17 @@ pub trait Persistent: serde::Serialize + serde::de::DeserializeOwned {
         Ok(toml::from_str(&content)?)
     }
 
-    fn to_disk(&self) -> crate::Result<()> {
+    fn to_disk<P>(&self, path: Option<P>) -> crate::Result<()>
+    where
+        P: AsRef<std::path::Path>,
+    {
         let toml = toml::to_string(&self)?;
         // TODO: Create directories
-        std::fs::write(Self::default_path(), toml).map_err(|e| e.into())
+        match path {
+            Some(p) => std::fs::write(p, toml),
+            None => std::fs::write(Self::default_path(), toml),
+        }
+        .map_err(|e| e.into())
     }
 }
 

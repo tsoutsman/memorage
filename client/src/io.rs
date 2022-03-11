@@ -3,7 +3,7 @@ use crate::{
     Error, Result,
 };
 
-use std::io::Write;
+use std::{io::Write, path::Path};
 
 use memorage_core::{KeyPair, PublicKey};
 
@@ -59,7 +59,7 @@ pub fn verify_peer(key_pair: KeyPair, peer: PublicKey, initiator: bool) -> Resul
     if input == "y" || input == "yes" {
         let data = Data { key_pair, peer };
         println!("Saving peer");
-        data.to_disk()?;
+        data.to_disk(Option::<&Path>::None)?;
         println!("Pairing successful");
         Ok(())
     } else {
