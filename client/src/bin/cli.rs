@@ -1,7 +1,4 @@
-use std::{
-    net::IpAddr,
-    path::{Path, PathBuf},
-};
+use std::{net::IpAddr, path::PathBuf};
 
 use clap::{Parser, Subcommand};
 use memorage_client::{
@@ -32,7 +29,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let args = Args::parse();
 
     match args.command {
-        Command::Setup => {
+        Command::Setup {
+            config_output,
+            data_output,
+        } => {
             let data = DataWithoutPeer::from_key_pair(memorage_core::KeyPair::from_entropy());
             let mut config = Config::default();
 
@@ -141,8 +141,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 }
             }
 
-            data.to_disk(Option::<&Path>::None)?;
-            config.to_disk(Option::<&Path>::None)?;
+            data.to_disk(data_output)?;
+            config.to_disk(config_output)?;
 
             println!("\nSetup successful!\n");
             println!("You can modify these configuration values at any time in the ");
@@ -274,7 +274,14 @@ struct Args {
 #[derive(Subcommand, Debug)]
 enum Command {
     /// Generate the data and configuration files
-    Setup,
+    Setup {
+        /// Save the generated config file to the specified path.
+        #[clap(long)]
+        config_output: Option<PathBuf>,
+        /// Save the generated data file to the specified path.
+        #[clap(long)]
+        data_output: Option<PathBuf>,
+    },
     /// Pair to a peer
     ///
     /// One peer runs the command without a code, generating a new code. The
