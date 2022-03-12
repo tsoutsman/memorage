@@ -16,25 +16,20 @@ impl RootDirectory {
     where
         P: AsRef<Path>,
     {
-        // TODO: Should we check that length is one?
+        let mut components = path.as_ref().components();
 
-        let is_valid = path.as_ref().components().all(|c| match c {
-            // Returns true if not valid
-            Component::Prefix(_) => false,
-            Component::RootDir => false,
-            Component::CurDir => true,
-            Component::ParentDir => false,
-            Component::Normal(_) => true,
-        });
-
-        if is_valid {
-            let mut new_path = self.0.clone();
-            new_path.push(path);
-            Ok(new_path)
-        } else {
-            tracing::error!("peer sent malicious file name");
-            Err(Error::MaliciousFileName)
+        if let Some(component) = components.next() {
+            if let Component::Normal(_) = component {
+                if components.next().is_none() {
+                    let mut file_name = self.0.clone();
+                    file_name.push(component);
+                    return Ok(file_name);
+                }
+            }
         }
+
+        tracing::error!("peer sent malicious file name");
+        Err(Error::MaliciousFileName)
     }
 }
 
