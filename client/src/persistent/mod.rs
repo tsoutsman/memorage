@@ -32,14 +32,47 @@ pub trait Persistent: serde::Serialize + serde::de::DeserializeOwned {
         P: AsRef<std::path::Path>,
     {
         let toml = toml::to_string(&self)?;
-        // TODO: Create directories
-        match path {
-            Some(p) => std::fs::write(p, toml),
-            None => std::fs::write(Self::default_path(), toml),
+
+        let path = match path {
+            Some(ref p) => p.as_ref(),
+            None => Self::default_path(),
+        };
+
+        if let Some(parent) = path.parent() {
+            std::fs::create_dir_all(parent)?;
         }
-        .map_err(|e| e.into())
+
+        std::fs::write(path, toml).map_err(|e| e.into())
     }
 }
 
 pub mod config;
 pub mod data;
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    use std::path::Path;
+
+    use serde::{Deserialize, Serialize};
+
+    #[derive(Serialize, Deserialize)]
+    struct Temp();
+
+    impl Persistent for Temp {
+        fn default_path() -> &'static std::path::Path {
+            Path::new("/")
+        }
+    }
+
+    #[test]
+    fn persistent_create_dirs() {
+        let mut root = tempfile::tempdir().unwrap().into_path();
+        root.push("foo");
+        root.push("bar");
+        root.push("baz");
+
+        assert!(matches!(Temp().to_disk(Some(root)), Ok(())));
+    }
+}
