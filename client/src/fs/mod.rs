@@ -1,10 +1,12 @@
 mod hash;
 mod index;
 mod path;
+mod root;
 
 pub use hash::hash;
 pub use index::{Index, IndexDifference};
 pub use path::HashedPath;
+pub use root::RootDirectory;
 
 pub fn read_bin<P, T>(path: P) -> crate::Result<T>
 where

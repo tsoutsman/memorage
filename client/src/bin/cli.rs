@@ -74,7 +74,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                     "" => {
                         eprintln!("Backup path must be specified");
                     }
-                    _ => break input.parse::<PathBuf>()?,
+                    _ => break input.parse()?,
                 }
             };
             config.backup_path = backup_path;
@@ -83,11 +83,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 // Format taken from the rustup installer.
 
                 println!("\nCurrent configuration options:\n");
-                println!("        backup path: {}", config.backup_path.display());
-                println!(
-                    "  peer storage path: {}\n",
-                    config.peer_storage_path.display()
-                );
+                println!("        backup path: {}", config.backup_path);
+                println!("  peer storage path: {}\n", config.peer_storage_path);
 
                 println!("1) Proceed with installation (default)");
                 println!("2) Customise installation");
@@ -124,8 +121,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 println!("\nI'm going to ask you the value of each of these installation options.");
                 println!("You may simply press the Enter key to leave unchanged.\n");
 
-                let backup_path =
-                    io::prompt(&format!("Backup path [{}]: ", config.backup_path.display()))?;
+                let backup_path = io::prompt(&format!("Backup path [{}]: ", config.backup_path))?;
                 if backup_path.as_str() != "" {
                     config.backup_path = backup_path.parse()?;
                 }
@@ -134,7 +130,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
                 let peer_storage_path = io::prompt(&format!(
                     "Peer storage path [{}]: ",
-                    config.peer_storage_path.display()
+                    config.peer_storage_path
                 ))?;
                 if peer_storage_path.as_str() != "" {
                     config.peer_storage_path = peer_storage_path.parse()?;

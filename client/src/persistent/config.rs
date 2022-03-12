@@ -1,8 +1,11 @@
-use crate::persistent::{Persistent, CONFIG_PATH, PROJECT_DIRS};
+use crate::{
+    fs::RootDirectory,
+    persistent::{Persistent, CONFIG_PATH, PROJECT_DIRS},
+};
 
 use std::{
     net::{IpAddr, SocketAddr},
-    path::{Path, PathBuf},
+    path::PathBuf,
     time::Duration,
 };
 
@@ -12,9 +15,9 @@ use serde::{de, Deserialize, Deserializer, Serialize, Serializer};
 pub struct Config {
     pub server_address: Vec<IpAddr>,
     /// Path to backup.
-    pub backup_path: PathBuf,
+    pub backup_path: RootDirectory,
     /// Path at which the peer's encrypted data is stored.
-    pub peer_storage_path: PathBuf,
+    pub peer_storage_path: RootDirectory,
     #[serde(
         serialize_with = "serialize_duration",
         deserialize_with = "deserialize_duration"
@@ -25,17 +28,9 @@ pub struct Config {
 }
 
 impl Config {
-    pub fn peer_file_path<T>(&self, encrypted_path: T) -> PathBuf
-    where
-        T: AsRef<Path>,
-    {
-        let mut path = self.peer_storage_path.clone();
-        path.push(encrypted_path.as_ref());
-        path
-    }
-
+    #[allow(clippy::missing_panics_doc)]
     pub fn index_path(&self) -> PathBuf {
-        self.peer_file_path("index")
+        self.peer_storage_path.file_name("index").unwrap()
     }
 }
 
@@ -69,8 +64,8 @@ impl Default for Config {
     fn default() -> Self {
         Self {
             server_address: vec![],
-            backup_path: PathBuf::new(),
-            peer_storage_path: PROJECT_DIRS.data_dir().to_owned().join("peer_data"),
+            backup_path: RootDirectory::new(),
+            peer_storage_path: PROJECT_DIRS.data_dir().to_owned().join("peer_data").into(),
             peer_connection_schedule_delay: Duration::from_secs(600),
             register_response: RetryConfig::register_response(),
             request_connection: RetryConfig::request_connection(),

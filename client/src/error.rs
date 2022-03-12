@@ -47,4 +47,6 @@ pub enum Error {
     FailedConnection,
     #[error("incorrect peer")]
     IncorrectPeer,
+    #[error("peer sent malicious file name")]
+    MaliciousFileName,
 }
