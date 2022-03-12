@@ -126,7 +126,7 @@ impl<'a, 'b> PeerConnection<'a, 'b> {
                 RequestType::Add(request::Add { name, contents }) => {
                     let response: crate::Result<_> = try {
                         write_bin(
-                            self.config.peer_storage_path.file_name(&name)?,
+                            self.config.peer_storage_path.file_path(&name)?,
                             &contents,
                             false,
                         )?;
@@ -137,7 +137,7 @@ impl<'a, 'b> PeerConnection<'a, 'b> {
                 RequestType::Edit(request::Edit { name, contents }) => {
                     let response: crate::Result<_> = try {
                         write_bin(
-                            self.config.peer_storage_path.file_name(&name)?,
+                            self.config.peer_storage_path.file_path(&name)?,
                             &contents,
                             true,
                         )?;
@@ -148,8 +148,8 @@ impl<'a, 'b> PeerConnection<'a, 'b> {
                 RequestType::Rename(request::Rename { from, to }) => {
                     let response: crate::Result<_> = try {
                         std::fs::rename(
-                            self.config.peer_storage_path.file_name(&from)?,
-                            self.config.peer_storage_path.file_name(&to)?,
+                            self.config.peer_storage_path.file_path(&from)?,
+                            self.config.peer_storage_path.file_path(&to)?,
                         )?;
                         response::Rename
                     };
@@ -157,7 +157,7 @@ impl<'a, 'b> PeerConnection<'a, 'b> {
                 }
                 RequestType::Delete(request::Delete(path)) => {
                     let response: crate::Result<_> = try {
-                        std::fs::remove_file(self.config.peer_storage_path.file_name(&path)?)?;
+                        std::fs::remove_file(self.config.peer_storage_path.file_path(&path)?)?;
                         response::Delete
                     };
                     send_with_stream(send, response.map_err(|e| e.into())).await?;

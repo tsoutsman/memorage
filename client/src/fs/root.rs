@@ -12,18 +12,33 @@ impl RootDirectory {
         Self::default()
     }
 
-    pub fn file_name<P>(&self, path: P) -> Result<PathBuf>
+    /// Returns the path to the file with the given file name.
+    ///
+    /// `name` must consist of a single normal component; otherwise, the
+    /// function will return an [`Error::MaliciousFileName`].
+    ///
+    /// # Examples
+    /// ```
+    /// # use memorage_client::{Error, fs::RootDirectory};
+    /// # use std::path::PathBuf;
+    /// let root: RootDirectory = "/foo".into();
+    /// assert_eq!(root.file_path("bar").unwrap(), PathBuf::from("/foo/bar"));
+    /// assert!(matches!(root.file_path("bar/baz"), Err(Error::MaliciousFileName)));
+    /// assert!(matches!(root.file_path("/baz"), Err(Error::MaliciousFileName)));
+    /// assert!(matches!(root.file_path(".."), Err(Error::MaliciousFileName)));
+    /// ```
+    pub fn file_path<P>(&self, name: P) -> Result<PathBuf>
     where
         P: AsRef<Path>,
     {
-        let mut components = path.as_ref().components();
+        let mut components = name.as_ref().components();
 
         if let Some(component) = components.next() {
             if let Component::Normal(_) = component {
                 if components.next().is_none() {
-                    let mut file_name = self.0.clone();
-                    file_name.push(component);
-                    return Ok(file_name);
+                    let mut file_path = self.0.clone();
+                    file_path.push(component);
+                    return Ok(file_path);
                 }
             }
         }
@@ -60,11 +75,9 @@ impl std::fmt::Display for RootDirectory {
     }
 }
 
-impl std::str::FromStr for RootDirectory {
-    type Err = std::convert::Infallible;
-
-    fn from_str(s: &str) -> std::result::Result<Self, Self::Err> {
-        Ok(Self(s.parse()?))
+impl From<String> for RootDirectory {
+    fn from(s: String) -> Self {
+        Self(s.into())
     }
 }
 
@@ -77,7 +90,7 @@ mod tests {
         let root: RootDirectory = "/".into();
         let path: PathBuf = "foo".into();
 
-        let file_name = root.file_name(path).unwrap();
+        let file_name = root.file_path(path).unwrap();
         assert_eq!(PathBuf::from("/foo"), file_name);
     }
 
@@ -87,25 +100,25 @@ mod tests {
 
         let path: PathBuf = "/foo".into();
         assert!(matches!(
-            root.file_name(path),
+            root.file_path(path),
             Err(Error::MaliciousFileName)
         ));
 
         let path: PathBuf = "/bar".into();
         assert!(matches!(
-            root.file_name(path),
+            root.file_path(path),
             Err(Error::MaliciousFileName)
         ));
 
         let path: PathBuf = "..".into();
         assert!(matches!(
-            root.file_name(path),
+            root.file_path(path),
             Err(Error::MaliciousFileName)
         ));
 
         let path: PathBuf = "../foo".into();
         assert!(matches!(
-            root.file_name(path),
+            root.file_path(path),
             Err(Error::MaliciousFileName)
         ));
     }

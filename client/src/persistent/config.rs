@@ -30,7 +30,7 @@ pub struct Config {
 impl Config {
     #[allow(clippy::missing_panics_doc)]
     pub fn index_path(&self) -> PathBuf {
-        self.peer_storage_path.file_name("index").unwrap()
+        self.peer_storage_path.file_path("index").unwrap()
     }
 }
 

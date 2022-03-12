@@ -72,9 +72,16 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 let input = io::prompt("Backup path: ")?;
                 match input.as_str() {
                     "" => {
-                        eprintln!("Backup path must be specified");
+                        eprintln!("Backup path must be specified\n");
                     }
-                    _ => break input.parse()?,
+                    _ => {
+                        let path: PathBuf = input.into();
+                        if path.exists() {
+                            break path.into();
+                        } else {
+                            eprintln!("Backup path does not exist\n");
+                        }
+                    }
                 }
             };
             config.backup_path = backup_path;
@@ -123,7 +130,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
                 let backup_path = io::prompt(&format!("Backup path [{}]: ", config.backup_path))?;
                 if backup_path.as_str() != "" {
-                    config.backup_path = backup_path.parse()?;
+                    config.backup_path = backup_path.into();
                 }
 
                 println!();
@@ -133,7 +140,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                     config.peer_storage_path
                 ))?;
                 if peer_storage_path.as_str() != "" {
-                    config.peer_storage_path = peer_storage_path.parse()?;
+                    config.peer_storage_path = peer_storage_path.into();
                 }
             }
 
