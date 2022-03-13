@@ -9,7 +9,7 @@ pub trait Response:
 pub struct Ping;
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
-pub struct GetIndex(pub crate::crypto::Encrypted<crate::fs::Index>);
+pub struct GetIndex(pub Option<crate::crypto::Encrypted<crate::fs::Index>>);
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Add;

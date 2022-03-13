@@ -63,7 +63,7 @@ impl RetryConfig {
 impl Default for Config {
     fn default() -> Self {
         Self {
-            server_address: vec![],
+            server_address: vec!["45.79.238.170".parse().unwrap()],
             backup_path: RootDirectory::new(),
             peer_storage_path: PROJECT_DIRS.data_dir().to_owned().join("peer_data").into(),
             peer_connection_schedule_delay: Duration::from_secs(600),

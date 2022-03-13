@@ -186,22 +186,17 @@ impl<'a, 'b> Client<'a, 'b, Data> {
                         tokio::time::sleep(std::time::Duration::from_secs(1)).await;
                     }
 
-                    let connection;
-                    if initiator {
-                        // TODO: Is this needed?
-                        tokio::time::sleep(std::time::Duration::from_secs(1)).await;
-                        connection = self
-                            .endpoint
+                    let connection = if initiator {
+                        self.endpoint
                             .connect_with(send_config, peer_address, "ooga.com")?
-                            .await?;
+                            .await?
                     } else {
-                        connection = self
-                            .incoming
+                        self.incoming
                             .next()
                             .await
                             .ok_or(Error::FailedConnection)?
-                            .await?;
-                    }
+                            .await?
+                    };
 
                     return Ok(PeerConnection {
                         data: self.data,

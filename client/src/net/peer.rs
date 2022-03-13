@@ -1,5 +1,4 @@
 use crate::{
-    crypto::Encrypted,
     fs::{encrypt_file, read_bin, write_bin, Index, IndexDifference},
     net::protocol::{
         self,
@@ -12,7 +11,7 @@ use crate::{
 
 use quinn::{NewConnection, SendStream};
 use tokio::net::UdpSocket;
-use tracing::debug;
+use tracing::{debug, info};
 
 #[derive(Debug)]
 pub struct PeerConnection<'a, 'b> {
@@ -46,6 +45,7 @@ impl<'a, 'b> PeerConnection<'a, 'b> {
         // framing.
         // TODO: Enforce unencrypted_paths containing path in type system.
         for d in difference {
+            info!(diff=?d, "sending difference");
             match d {
                 IndexDifference::Add(name) => {
                     self.send(request::Add {
@@ -64,7 +64,6 @@ impl<'a, 'b> PeerConnection<'a, 'b> {
                 IndexDifference::Rename { from, to } => {
                     self.send(request::Rename {
                         from: from.into(),
-
                         to: to.into(),
                     })
                     .await?;
@@ -109,17 +108,17 @@ impl<'a, 'b> PeerConnection<'a, 'b> {
                 }
                 RequestType::GetIndex(_) => {
                     let response: crate::Result<_> = try {
-                        let index = match read_bin(self.config.index_path()) {
-                            Ok(i) => i,
+                        let maybe_index = match read_bin(self.config.index_path()) {
+                            Ok(i) => Some(i),
                             Err(e) => match e {
                                 Error::Io(ref ee) => match ee.kind() {
-                                    std::io::ErrorKind::NotFound => Index::new(),
+                                    std::io::ErrorKind::NotFound => None,
                                     _ => return Err(e),
                                 },
                                 _ => return Err(e),
                             },
                         };
-                        response::GetIndex(Encrypted::encrypt(&self.data.key_pair.private, &index)?)
+                        response::GetIndex(maybe_index)
                     };
                     send_with_stream(send, response.map_err(|e| e.into())).await?;
                 }
@@ -170,7 +169,10 @@ impl<'a, 'b> PeerConnection<'a, 'b> {
                     send_with_stream(send, response.map_err(|e| e.into())).await?;
                 }
                 RequestType::Complete(request::Complete(index)) => {
-                    return index.decrypt(&self.data.key_pair.private)
+                    return Ok(match index {
+                        Some(index) => index.decrypt(&self.data.key_pair.private)?,
+                        None => Index::new(),
+                    })
                 }
             }
         }

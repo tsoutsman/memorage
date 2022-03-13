@@ -68,7 +68,7 @@ pub struct Complete(
     ///
     /// When the receiver has completed syncing, the index they send back is
     /// empty.
-    pub Encrypted<Index>,
+    pub Option<Encrypted<Index>>,
 );
 
 macro_rules! impl_request {

@@ -2,7 +2,6 @@ use std::{net::IpAddr, path::PathBuf};
 
 use clap::{Parser, Subcommand};
 use memorage_client::{
-    crypto::Encrypted,
     fs::{read_bin, Index},
     io,
     mnemonic::MnemonicPhrase,
@@ -201,11 +200,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             info!(public_key=?data.key_pair.public, target_key=?data.peer, "trying to establish connection");
             let mut peer_connection = client.establish_peer_connection(true).await?;
 
-            let old_index = peer_connection
-                .send(request::GetIndex)
-                .await?
-                .0
-                .decrypt(&data.key_pair.private)?;
+            let old_index = match peer_connection.send(request::GetIndex).await?.0 {
+                Some(i) => i.decrypt(&data.key_pair.private)?,
+                None => Index::new(),
+            };
 
             peer_connection
                 .send_difference(new_index.difference(&old_index))
@@ -257,10 +255,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             peer_connection
                 // The index from request::Complete isn't used by the initiator
                 // of the sync.
-                .send(request::Complete(Encrypted::encrypt(
-                    &data.key_pair.private,
-                    &Index::new(),
-                )?))
+                .send(request::Complete(None))
                 .await?;
         }
     }
