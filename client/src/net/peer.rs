@@ -1,4 +1,5 @@
 use crate::{
+    crypto::Encrypted,
     fs::{encrypt_file, read_bin, write_bin, Index, IndexDifference},
     net::protocol::{
         self,
@@ -40,11 +41,13 @@ impl<'a, 'b> PeerConnection<'a, 'b> {
     }
 
     #[allow(clippy::missing_panics_doc)]
-    pub async fn send_difference(&self, difference: Vec<IndexDifference>) -> Result<()> {
-        // According to recv stream documentation, read_chunks cannot be used
-        // for framing implying that new connections must be created for
-        // framing.
-        // TODO: Enforce unencrypted_paths containing path in type system.
+    pub async fn send_backup_data(
+        &self,
+        old_index: &Index,
+        new_index: &Index,
+        initiator: bool,
+    ) -> Result<()> {
+        let difference = new_index.difference(old_index);
         for d in difference {
             info!(diff=?d, "sending difference");
             match d {
@@ -74,6 +77,22 @@ impl<'a, 'b> PeerConnection<'a, 'b> {
                 }
             }
         }
+
+        self.send(request::SetIndex(Encrypted::encrypt(
+            &self.data.key_pair.private,
+            new_index,
+        )?))
+        .await?;
+
+        self.send(request::Complete(if initiator {
+            read_bin(&self.config.index_path()).ok()
+        } else {
+            // The index from request::Complete isn't used by the initiator
+            // of the sync.
+            None
+        }))
+        .await?;
+
         Ok(())
     }
 
@@ -101,7 +120,7 @@ impl<'a, 'b> PeerConnection<'a, 'b> {
         }
     }
 
-    pub async fn receive_and_handle(&mut self) -> Result<Index> {
+    pub async fn receive_backup_data(&mut self) -> Result<Index> {
         loop {
             let (send, request) = self.receive().await?;
             debug!(?request, "received request");

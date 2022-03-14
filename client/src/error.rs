@@ -49,4 +49,6 @@ pub enum Error {
     IncorrectPeer,
     #[error("peer sent malicious file name")]
     MaliciousFileName,
+    #[error("missed peer synchronisation")]
+    MissedSynchronisation,
 }

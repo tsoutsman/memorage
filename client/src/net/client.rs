@@ -124,25 +124,17 @@ where
 impl<'a, 'b> Client<'a, 'b, Data> {
     /// Establish a connection to a peer.
     #[allow(clippy::missing_panics_doc)]
-    pub async fn establish_peer_connection(
-        self,
-        initiator: bool,
-    ) -> Result<PeerConnection<'a, 'b>> {
+    pub async fn establish_peer_connection(&self) -> Result<OffsetDateTime> {
         let target = self.data.peer;
         let time = OffsetDateTime::now_utc() + self.config.peer_connection_schedule_delay;
 
         self.request(request::RequestConnection { target, time })
             .await?;
 
-        let delay = time - OffsetDateTime::now_utc();
-        info!(?delay, "sleeping");
-        // TODO: Unwrap fails if delay is negative i.e. time < now
-        tokio::time::sleep(delay.try_into().unwrap()).await;
-
-        self.connect_to_peer(initiator).await
+        Ok(time)
     }
 
-    pub async fn check_connection(&self) -> Result<OffsetDateTime> {
+    pub async fn check_peer_connection(&self) -> Result<OffsetDateTime> {
         let peer = self.data.peer;
 
         let response = self.request(request::CheckConnection).await?;

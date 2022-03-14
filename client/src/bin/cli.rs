@@ -2,8 +2,7 @@ use std::{net::IpAddr, path::PathBuf};
 
 use clap::{Parser, Subcommand};
 use memorage_client::{
-    crypto::Encrypted,
-    fs::{read_bin, Index},
+    fs::Index,
     io,
     mnemonic::MnemonicPhrase,
     net::{self, protocol::request},
@@ -12,6 +11,7 @@ use memorage_client::{
         data::{Data, DataWithoutPeer},
         Persistent, CONFIG_PATH,
     },
+    Error,
 };
 use memorage_core::time::OffsetDateTime;
 use tracing::{debug, info};
@@ -161,9 +161,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         } => {
             let mut config = Config::from_disk(config)?;
             let data = DataWithoutPeer::from_disk(data)?;
-
             debug!("loaded config and data files");
-
             if let Some(server) = server {
                 config.server_address = vec![server];
             }
@@ -188,18 +186,19 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         } => {
             let mut config = Config::from_disk(config)?;
             let data = Data::from_disk(data)?;
-
             debug!("loaded config and data files");
-
             if let Some(server) = server {
                 config.server_address = vec![server];
             }
-            let client = net::Client::new(&data, &config).await?;
 
             let new_index = Index::from_directory(&config.backup_path)?;
 
+            let client = net::Client::new(&data, &config).await?;
             info!(public_key=?data.key_pair.public, target_key=?data.peer, "trying to establish connection");
-            let mut peer_connection = client.establish_peer_connection(true).await?;
+            let time = client.establish_peer_connection().await?;
+            sleep_till(time).await?;
+
+            let mut peer_connection = client.connect_to_peer(true).await?;
 
             let old_index = match peer_connection.send(request::GetIndex).await?.0 {
                 Some(i) => i.decrypt(&data.key_pair.private)?,
@@ -207,21 +206,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             };
 
             peer_connection
-                .send_difference(new_index.difference(&old_index))
+                .send_backup_data(&old_index, &new_index, true)
                 .await?;
+            peer_connection.receive_backup_data().await?;
 
-            peer_connection
-                .send(request::SetIndex(Encrypted::encrypt(
-                    &data.key_pair.private,
-                    &new_index,
-                )?))
-                .await?;
-
-            peer_connection
-                .send(request::Complete(read_bin(&config.index_path()).ok()))
-                .await?;
-
-            peer_connection.receive_and_handle().await?;
             println!("Backup succesful");
         }
         Command::Check {
@@ -231,44 +219,43 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         } => {
             let mut config = Config::from_disk(config)?;
             let data = Data::from_disk(data)?;
-
             debug!("loaded config and data files");
-
             if let Some(server) = server {
                 config.server_address = vec![server];
             }
-            let client = net::Client::new(&data, &config).await?;
-
-            let time = client.check_connection().await?;
-            let delay = time - OffsetDateTime::now_utc();
-            info!(?time, ?delay, "waiting for synchronisation");
-            // TODO: Create index while sleeping?
-            tokio::time::sleep(delay.try_into().unwrap()).await;
-
-            let mut peer_connection = client.connect_to_peer(false).await?;
 
             let new_index = Index::from_directory(&config.backup_path)?;
-            let old_index = peer_connection.receive_and_handle().await?;
+
+            let client = net::Client::new(&data, &config).await?;
+            let time = match client.check_peer_connection().await {
+                Ok(t) => t,
+                Err(Error::Server(memorage_cs::Error::NoData)) => {
+                    println!("No connection requested by peer");
+                    return Ok(());
+                }
+                Err(e) => return Err(e.into()),
+            };
+            sleep_till(time).await?;
+
+            let mut peer_connection = client.connect_to_peer(false).await?;
+            let old_index = peer_connection.receive_backup_data().await?;
 
             peer_connection
-                .send_difference(new_index.difference(&old_index))
+                .send_backup_data(&old_index, &new_index, false)
                 .await?;
 
-            peer_connection
-                .send(request::SetIndex(Encrypted::encrypt(
-                    &data.key_pair.private,
-                    &new_index,
-                )?))
-                .await?;
-
-            peer_connection
-                // The index from request::Complete isn't used by the initiator
-                // of the sync.
-                .send(request::Complete(None))
-                .await?;
+            println!("Backup succesful");
         }
     }
 
+    Ok(())
+}
+
+async fn sleep_till(time: OffsetDateTime) -> memorage_client::Result<()> {
+    let delay = time - OffsetDateTime::now_utc();
+    info!(?time, ?delay, "waiting for synchronisation");
+    // TODO: Create index while sleeping?
+    tokio::time::sleep(delay.try_into().map_err(|_| Error::MissedSynchronisation)?).await;
     Ok(())
 }
 
