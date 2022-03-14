@@ -27,13 +27,7 @@ pub struct Delete;
 pub struct SetIndex;
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
-pub struct Complete(
-    /// Whether the backup is complete.
-    ///
-    /// Returning true ends communication. Returning false switches the roles
-    /// with the responder now sending requests.
-    pub bool,
-);
+pub struct Complete;
 
 macro_rules! impl_response {
     ($($t:ident),*$(,)?) => {

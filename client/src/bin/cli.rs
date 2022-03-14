@@ -2,6 +2,7 @@ use std::{net::IpAddr, path::PathBuf};
 
 use clap::{Parser, Subcommand};
 use memorage_client::{
+    crypto::Encrypted,
     fs::{read_bin, Index},
     io,
     mnemonic::MnemonicPhrase,
@@ -209,18 +210,19 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 .send_difference(new_index.difference(&old_index))
                 .await?;
 
-            let complete = peer_connection
-                .send(request::Complete(read_bin(&config.index_path())?))
-                .await?
-                .0;
+            peer_connection
+                .send(request::SetIndex(Encrypted::encrypt(
+                    &data.key_pair.private,
+                    &new_index,
+                )?))
+                .await?;
 
-            if complete {
-                info!("peer completed connection");
-                println!("Backup succesful");
-                return Ok(());
-            } else {
-                peer_connection.receive_and_handle().await?;
-            }
+            peer_connection
+                .send(request::Complete(read_bin(&config.index_path()).ok()))
+                .await?;
+
+            peer_connection.receive_and_handle().await?;
+            println!("Backup succesful");
         }
         Command::Check {
             config,
@@ -250,6 +252,13 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
             peer_connection
                 .send_difference(new_index.difference(&old_index))
+                .await?;
+
+            peer_connection
+                .send(request::SetIndex(Encrypted::encrypt(
+                    &data.key_pair.private,
+                    &new_index,
+                )?))
                 .await?;
 
             peer_connection

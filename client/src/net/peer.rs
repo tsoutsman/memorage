@@ -27,11 +27,12 @@ impl<'a, 'b> PeerConnection<'a, 'b> {
     where
         T: protocol::Serialize + request::Request + std::fmt::Debug,
     {
+        debug!(?request, "sending request");
         let (send, recv) = self.connection.connection.open_bi().await?;
         send_with_stream(send, request).await?;
 
         // TODO: Not large enough.
-        let buffer = recv.read_to_end(1024).await?;
+        let buffer = recv.read_to_end(2048).await?;
         let response = protocol::deserialize::<_, protocol::Result<T::Response>>(&buffer)?
             .map_err(|e| e.into());
         debug!(?response, "received response");
@@ -77,6 +78,7 @@ impl<'a, 'b> PeerConnection<'a, 'b> {
     }
 
     async fn receive(&mut self) -> Result<(SendStream, RequestType)> {
+        debug!("receiving connection");
         let quinn::NewConnection {
             ref mut bi_streams, ..
         } = self.connection;
@@ -84,7 +86,7 @@ impl<'a, 'b> PeerConnection<'a, 'b> {
             let (send, recv) = match stream {
                 Ok(s) => s,
                 Err(quinn::ConnectionError::ApplicationClosed { .. }) => {
-                    return Err(Error::PeerClosedConnection)
+                    return Err(Error::PeerClosedConnection);
                 }
                 Err(e) => return Err(e.into()),
             };
@@ -102,6 +104,7 @@ impl<'a, 'b> PeerConnection<'a, 'b> {
     pub async fn receive_and_handle(&mut self) -> Result<Index> {
         loop {
             let (send, request) = self.receive().await?;
+            debug!(?request, "received request");
             match request {
                 RequestType::Ping(_) => {
                     send_with_stream(send, Ok(response::Ping)).await?;
@@ -169,10 +172,11 @@ impl<'a, 'b> PeerConnection<'a, 'b> {
                     send_with_stream(send, response.map_err(|e| e.into())).await?;
                 }
                 RequestType::Complete(request::Complete(index)) => {
+                    send_with_stream(send, Ok(response::Complete)).await?;
                     return Ok(match index {
                         Some(index) => index.decrypt(&self.data.key_pair.private)?,
                         None => Index::new(),
-                    })
+                    });
                 }
             }
         }
@@ -183,11 +187,8 @@ async fn send_with_stream<T>(mut send: SendStream, request: T) -> Result<()>
 where
     T: protocol::Serialize + std::fmt::Debug,
 {
-    debug!(?request, "sending request");
-
     let encoded = protocol::serialize(request)?;
     send.write_all(&encoded).await?;
     send.finish().await?;
-
     Ok(())
 }
