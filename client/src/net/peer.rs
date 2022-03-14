@@ -51,15 +51,8 @@ impl<'a, 'b> PeerConnection<'a, 'b> {
         for d in difference {
             info!(diff=?d, "sending difference");
             match d {
-                IndexDifference::Add(name) => {
-                    self.send(request::Add {
-                        contents: encrypt_file(&self.data.key_pair.private, &name)?,
-                        name: name.into(),
-                    })
-                    .await?;
-                }
-                IndexDifference::Edit(name) => {
-                    self.send(request::Edit {
+                IndexDifference::Write(name) => {
+                    self.send(request::Write {
                         contents: encrypt_file(&self.data.key_pair.private, &name)?,
                         name: name.into(),
                     })
@@ -144,25 +137,10 @@ impl<'a, 'b> PeerConnection<'a, 'b> {
                     };
                     send_with_stream(send, response.map_err(|e| e.into())).await?;
                 }
-                RequestType::Add(request::Add { name, contents }) => {
+                RequestType::Write(request::Write { name, contents }) => {
                     let response: crate::Result<_> = try {
-                        write_bin(
-                            self.config.peer_storage_path.file_path(&name)?,
-                            &contents,
-                            false,
-                        )?;
-                        response::Add
-                    };
-                    send_with_stream(send, response.map_err(|e| e.into())).await?;
-                }
-                RequestType::Edit(request::Edit { name, contents }) => {
-                    let response: crate::Result<_> = try {
-                        write_bin(
-                            self.config.peer_storage_path.file_path(&name)?,
-                            &contents,
-                            true,
-                        )?;
-                        response::Edit
+                        write_bin(self.config.peer_storage_path.file_path(&name)?, &contents)?;
+                        response::Write
                     };
                     send_with_stream(send, response.map_err(|e| e.into())).await?;
                 }
@@ -185,7 +163,7 @@ impl<'a, 'b> PeerConnection<'a, 'b> {
                 }
                 RequestType::SetIndex(request::SetIndex(index)) => {
                     let response: crate::Result<_> = try {
-                        write_bin(self.config.index_path(), &index, true)?;
+                        write_bin(self.config.index_path(), &index)?;
                         response::SetIndex
                     };
                     send_with_stream(send, response.map_err(|e| e.into())).await?;

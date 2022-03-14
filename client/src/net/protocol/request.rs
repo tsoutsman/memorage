@@ -15,8 +15,7 @@ pub trait Request: crate::net::protocol::private::Sealed {
 pub enum RequestType {
     Ping(Ping),
     GetIndex(GetIndex),
-    Add(Add),
-    Edit(Edit),
+    Write(Write),
     Rename(Rename),
     Delete(Delete),
     SetIndex(SetIndex),
@@ -32,13 +31,7 @@ pub struct Ping;
 pub struct GetIndex;
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
-pub struct Add {
-    pub name: HashedPath,
-    pub contents: Encrypted<Vec<u8>>,
-}
-
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
-pub struct Edit {
+pub struct Write {
     pub name: HashedPath,
     pub contents: Encrypted<Vec<u8>>,
 }
@@ -88,4 +81,4 @@ macro_rules! impl_request {
     };
 }
 
-impl_request![Ping, GetIndex, Add, Edit, Rename, Delete, SetIndex, Complete];
+impl_request![Ping, GetIndex, Write, Rename, Delete, SetIndex, Complete];

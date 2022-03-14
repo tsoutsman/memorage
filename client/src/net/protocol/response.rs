@@ -12,10 +12,7 @@ pub struct Ping;
 pub struct GetIndex(pub Option<crate::crypto::Encrypted<crate::fs::Index>>);
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
-pub struct Add;
-
-#[derive(Copy, Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
-pub struct Edit;
+pub struct Write;
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Rename;
@@ -39,4 +36,4 @@ macro_rules! impl_response {
     };
 }
 
-impl_response![Ping, GetIndex, Add, Edit, Rename, Delete, SetIndex, Complete];
+impl_response![Ping, GetIndex, Write, Rename, Delete, SetIndex, Complete];

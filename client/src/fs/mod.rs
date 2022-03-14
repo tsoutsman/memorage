@@ -13,19 +13,17 @@ where
     T: serde::de::DeserializeOwned,
     P: AsRef<std::path::Path>,
 {
-    bincode::deserialize_from(std::fs::File::open(path)?).map_err(|e| e.into())
+    bincode::deserialize_from(std::io::BufReader::new(std::fs::File::open(path)?))
+        .map_err(|e| e.into())
 }
 
-pub fn write_bin<P, T>(path: P, value: &T, overwrite: bool) -> crate::Result<()>
+pub fn write_bin<P, T>(path: P, value: &T) -> crate::Result<()>
 where
     T: serde::Serialize,
     P: AsRef<std::path::Path>,
 {
-    let file = std::fs::OpenOptions::new()
-        .write(true)
-        .create_new(!overwrite)
-        .open(path)?;
-    bincode::serialize_into(file, &value).map_err(|e| e.into())
+    bincode::serialize_into(std::io::BufWriter::new(std::fs::File::create(path)?), value)
+        .map_err(|e| e.into())
 }
 
 pub fn encrypt_file<P>(

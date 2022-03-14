@@ -60,12 +60,11 @@ impl Index {
         for (path, hash) in &self.0 {
             match (other.0.get_by_left(path), other.0.get_by_right(hash)) {
                 (Some(_), Some(_)) => {}
-                (Some(_), None) => diff.push(IndexDifference::Edit(path.clone())),
                 (None, Some(old_path)) => diff.push(IndexDifference::Rename {
                     from: old_path.clone(),
                     to: path.clone(),
                 }),
-                (None, None) => diff.push(IndexDifference::Add(path.clone())),
+                (Some(_), None) | (None, None) => diff.push(IndexDifference::Write(path.clone())),
             }
         }
 
@@ -81,8 +80,7 @@ impl Index {
 
 #[derive(Clone, Debug, Eq, PartialEq, Hash, Serialize, Deserialize)]
 pub enum IndexDifference {
-    Add(PathBuf),
-    Edit(PathBuf),
+    Write(PathBuf),
     Rename { from: PathBuf, to: PathBuf },
     Delete(PathBuf),
 }
