@@ -17,7 +17,7 @@ use memorage_core::time::OffsetDateTime;
 use tracing::{debug, info};
 
 #[tokio::main]
-async fn main() -> Result<(), Box<dyn std::error::Error>> {
+async fn main() -> Result<(), Error> {
     human_panic::setup_panic!();
     if std::env::var("RUST_LOG").is_err() {
         std::env::set_var("RUST_LOG", "warn")
@@ -144,6 +144,14 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 }
             }
 
+            match std::fs::create_dir_all(&config.peer_storage_path) {
+                Ok(_) => {}
+                Err(e) => match e.kind() {
+                    std::io::ErrorKind::AlreadyExists => {}
+                    _ => return Err(e.into()),
+                },
+            }
+
             data.to_disk(data_output)?;
             config.to_disk(config_output)?;
 
@@ -233,7 +241,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                     println!("No connection requested by peer");
                     return Ok(());
                 }
-                Err(e) => return Err(e.into()),
+                Err(e) => return Err(e),
             };
             sleep_till(time).await?;
 
