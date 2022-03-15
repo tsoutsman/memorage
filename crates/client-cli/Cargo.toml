@@ -1,0 +1,19 @@
+[package]
+name = "memorage-client-cli"
+version = "0.1.0"
+authors = ["Klim Tsoutsman <klim@memorage.org>"]
+edition = "2021"
+homepage = "https://memorage.org"
+repository = "https://github.com/memorage/memorage"
+license = "GPL-3.0-only"
+
+[dependencies]
+memorage-client = { path = "../client" }
+memorage-cs = { path = "../cs" }
+memorage-core = { path = "../core" }
+clap = { version = "3.0.5", features = ["derive"] }
+tracing = "*"
+tracing-subscriber = { version = "*", features = ["env-filter"] }
+human-panic = "*"
+tokio = { version = "*", features = ["macros", "rt-multi-thread"] }
+rpassword = "*"

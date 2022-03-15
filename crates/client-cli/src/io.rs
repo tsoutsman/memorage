@@ -1,4 +1,4 @@
-use crate::{
+use memorage_client::{
     persistent::{data::Data, Persistent},
     Error, Result,
 };

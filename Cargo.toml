@@ -1,5 +1,15 @@
 [workspace]
-members = ["core", "cs", "client", "server", "cert", "stun", "macros"]
+members = [
+    "crates/core",
+    "crates/cs",
+    "crates/server",
+    "crates/cert",
+    "crates/stun",
+    "crates/macros",
+    "crates/client",
+    "crates/client-cli",
+    "crates/client-gui",
+]
 
 [profile.release]
 strip = "symbols"
