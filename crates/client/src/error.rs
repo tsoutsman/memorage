@@ -5,7 +5,11 @@ pub enum Error {
     #[error("{0} is not a directory")]
     NotDirectory(std::path::PathBuf),
     #[error("unknown I/O error")]
-    Io(#[from] std::io::Error),
+    Io { source: std::io::Error },
+    #[error("entity not found")]
+    NotFound { source: std::io::Error },
+    #[error("entity already exists")]
+    AlreadyExists { source: std::io::Error },
     #[error("error encrypting file")]
     Encryption,
     #[error("error decrypting file")]
@@ -51,4 +55,16 @@ pub enum Error {
     MaliciousFileName,
     #[error("missed peer synchronisation")]
     MissedSynchronisation,
+    #[error("attempted retrieval of file that didn't exist on peer")]
+    NotFoundOnPeer,
+}
+
+impl From<std::io::Error> for Error {
+    fn from(e: std::io::Error) -> Self {
+        match e.kind() {
+            std::io::ErrorKind::NotFound => Self::NotFound { source: e },
+            std::io::ErrorKind::AlreadyExists => Self::AlreadyExists { source: e },
+            _ => Self::Io { source: e },
+        }
+    }
 }

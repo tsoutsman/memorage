@@ -9,7 +9,10 @@ pub trait Response:
 pub struct Ping;
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
-pub struct GetIndex(pub Option<crate::crypto::Encrypted<crate::fs::Index>>);
+pub struct GetIndex(pub Option<crate::crypto::Encrypted<crate::fs::index::Index>>);
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct GetFile(pub Option<crate::crypto::Encrypted<Vec<u8>>>);
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Write;
@@ -36,4 +39,4 @@ macro_rules! impl_response {
     };
 }
 
-impl_response![Ping, GetIndex, Write, Rename, Delete, SetIndex, Complete];
+impl_response![Ping, GetIndex, GetFile, Write, Rename, Delete, SetIndex, Complete];

@@ -78,6 +78,17 @@ impl Index {
     }
 }
 
+impl<'a> IntoIterator for &'a Index {
+    type Item = (&'a PathBuf, &'a [u8; 32]);
+    type IntoIter = Iter<'a>;
+
+    fn into_iter(self) -> Iter<'a> {
+        self.0.iter()
+    }
+}
+
+pub type Iter<'a> = bimap::hash::Iter<'a, PathBuf, [u8; 32]>;
+
 #[derive(Clone, Debug, Eq, PartialEq, Hash, Serialize, Deserialize)]
 pub enum IndexDifference {
     Write(PathBuf),

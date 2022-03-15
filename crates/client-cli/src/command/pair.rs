@@ -3,7 +3,7 @@ use crate::io;
 use std::{net::IpAddr, path::PathBuf};
 
 use memorage_client::{
-    net,
+    net::Client,
     persistent::{config::Config, data::DataWithoutPeer, Persistent},
     Result,
 };
@@ -24,7 +24,7 @@ pub async fn pair(
         config.server_address = vec![server];
     }
 
-    let client = net::Client::new(&data, &config).await?;
+    let client = Client::new(&data, &config).await?;
 
     if let Some(code) = code {
         let peer = client.get_key(code).await?;

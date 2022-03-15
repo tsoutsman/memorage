@@ -1,6 +1,10 @@
 use crate::{
     crypto::Encrypted,
-    fs::{encrypt_file, read_bin, write_bin, Index, IndexDifference},
+    fs::{
+        encrypt_file,
+        index::{Index, IndexDifference},
+        read_bin, write_bin,
+    },
     net::protocol::{
         self,
         request::{self, RequestType},
@@ -126,14 +130,25 @@ impl<'a, 'b> PeerConnection<'a, 'b> {
                         let maybe_index = match read_bin(self.config.index_path()) {
                             Ok(i) => Some(i),
                             Err(e) => match e {
-                                Error::Io(ref ee) => match ee.kind() {
-                                    std::io::ErrorKind::NotFound => None,
-                                    _ => return Err(e),
-                                },
+                                Error::NotFound { .. } => None,
                                 _ => return Err(e),
                             },
                         };
                         response::GetIndex(maybe_index)
+                    };
+                    send_with_stream(send, response.map_err(|e| e.into())).await?;
+                }
+                RequestType::GetFile(request::GetFile(name)) => {
+                    let response: crate::Result<_> = try {
+                        let contents =
+                            match read_bin(self.config.peer_storage_path.file_path(&name)?) {
+                                Ok(c) => Some(c),
+                                Err(e) => match e {
+                                    Error::NotFound { .. } => None,
+                                    _ => Err(e)?,
+                                },
+                            };
+                        response::GetFile(contents)
                     };
                     send_with_stream(send, response.map_err(|e| e.into())).await?;
                 }
@@ -177,6 +192,27 @@ impl<'a, 'b> PeerConnection<'a, 'b> {
                 }
             }
         }
+    }
+
+    pub async fn retrieve_backup_data<P>(&mut self, index: &Index, output: P) -> Result<()>
+    where
+        P: AsRef<std::path::Path>,
+    {
+        for (name, _) in index.into_iter() {
+            let hashed_name = name.as_path().into();
+            let contents = self
+                .send(request::GetFile(hashed_name))
+                .await?
+                .0
+                .ok_or(Error::NotFoundOnPeer)?
+                // TODO: Decrypt straight into file
+                .decrypt(&self.data.key_pair.private)?;
+            let mut path = output.as_ref().to_owned();
+            path.push(name);
+            std::fs::write(path, &contents)?;
+        }
+        self.send(request::Complete(None)).await?;
+        Ok(())
     }
 }
 

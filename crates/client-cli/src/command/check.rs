@@ -3,8 +3,8 @@ use crate::sleep_till;
 use std::{net::IpAddr, path::PathBuf};
 
 use memorage_client::{
-    fs::Index,
-    net,
+    fs::index::Index,
+    net::Client,
     persistent::{config::Config, data::Data, Persistent},
     Error, Result,
 };
@@ -25,7 +25,7 @@ pub async fn check(
 
     let new_index = Index::from_directory(&config.backup_path)?;
 
-    let client = net::Client::new(&data, &config).await?;
+    let client = Client::new(&data, &config).await?;
     let time = match client.check_peer_connection().await {
         Ok(t) => t,
         Err(Error::Server(memorage_cs::Error::NoData)) => {

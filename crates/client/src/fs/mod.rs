@@ -1,10 +1,10 @@
 mod hash;
-mod index;
 mod path;
 mod root;
 
+pub mod index;
+
 pub use hash::hash;
-pub use index::{Index, IndexDifference};
 pub use path::HashedPath;
 pub use root::RootDirectory;
 

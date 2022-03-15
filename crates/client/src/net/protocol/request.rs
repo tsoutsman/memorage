@@ -1,6 +1,6 @@
 use crate::{
     crypto::Encrypted,
-    fs::{HashedPath, Index},
+    fs::{index::Index, HashedPath},
 };
 
 use serde::{Deserialize, Serialize};
@@ -15,6 +15,7 @@ pub trait Request: crate::net::protocol::private::Sealed {
 pub enum RequestType {
     Ping(Ping),
     GetIndex(GetIndex),
+    GetFile(GetFile),
     Write(Write),
     Rename(Rename),
     Delete(Delete),
@@ -29,6 +30,9 @@ pub struct Ping;
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct GetIndex;
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct GetFile(pub HashedPath);
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Write {
@@ -81,4 +85,4 @@ macro_rules! impl_request {
     };
 }
 
-impl_request![Ping, GetIndex, Write, Rename, Delete, SetIndex, Complete];
+impl_request![Ping, GetIndex, GetFile, Write, Rename, Delete, SetIndex, Complete];

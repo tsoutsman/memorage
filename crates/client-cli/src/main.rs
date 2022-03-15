@@ -41,6 +41,12 @@ async fn main() -> memorage_client::Result<()> {
             data,
             server,
         } => command::check(config, data, server).await,
+        Command::Retrieve {
+            output,
+            config,
+            data,
+            server,
+        } => command::retrieve(output, config, data, server).await,
     }
 }
 

@@ -66,4 +66,21 @@ pub enum Command {
         #[clap(short, long)]
         server: Option<IpAddr>,
     },
+    /// Retrieve stored files
+    Retrieve {
+        /// Place retrieved files in the specified directory
+        #[clap(short, long)]
+        output: Option<PathBuf>,
+        /// Use the specified configuration file
+        #[clap(short, long)]
+        config: Option<PathBuf>,
+        /// Use the specified data file
+        #[clap(short, long)]
+        data: Option<PathBuf>,
+        /// Use the specified coordination server
+        ///
+        /// The address can be IPv4 or IPv6.
+        #[clap(short, long)]
+        server: Option<IpAddr>,
+    },
 }
