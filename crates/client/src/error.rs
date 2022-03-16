@@ -26,7 +26,7 @@ pub enum Error {
     #[error("error determining public IP address")]
     Stun(#[from] memorage_stun::Error),
     #[error("unkown network read error")]
-    Read(#[from] quinn::ReadToEndError),
+    Read(#[from] quinn::ReadError),
     #[error("unknown network write error")]
     Write(#[from] quinn::WriteError),
     #[error("invalid connection configuration")]
@@ -57,6 +57,12 @@ pub enum Error {
     MissedSynchronisation,
     #[error("attempted retrieval of file that didn't exist on peer")]
     NotFoundOnPeer,
+    #[error("end of stream reached prematurely")]
+    UnexpectedEof,
+    #[error("response too large")]
+    TooLarge,
+    #[error("frame too short")]
+    FrameTooShort,
 }
 
 impl From<std::io::Error> for Error {
@@ -64,7 +70,26 @@ impl From<std::io::Error> for Error {
         match e.kind() {
             std::io::ErrorKind::NotFound => Self::NotFound { source: e },
             std::io::ErrorKind::AlreadyExists => Self::AlreadyExists { source: e },
+            std::io::ErrorKind::UnexpectedEof => Self::UnexpectedEof,
             _ => Self::Io { source: e },
+        }
+    }
+}
+
+impl From<quinn::ReadExactError> for Error {
+    fn from(e: quinn::ReadExactError) -> Self {
+        match e {
+            quinn::ReadExactError::FinishedEarly => Self::UnexpectedEof,
+            quinn::ReadExactError::ReadError(e) => Self::Read(e),
+        }
+    }
+}
+
+impl From<quinn::ReadToEndError> for Error {
+    fn from(e: quinn::ReadToEndError) -> Self {
+        match e {
+            quinn::ReadToEndError::Read(e) => Self::Read(e),
+            quinn::ReadToEndError::TooLong => Self::TooLarge,
         }
     }
 }

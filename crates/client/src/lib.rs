@@ -15,6 +15,7 @@
 #![feature(int_roundings, concat_idents, try_blocks)]
 
 mod error;
+mod util;
 
 pub use error::{Error, Result};
 

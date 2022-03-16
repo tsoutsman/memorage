@@ -7,8 +7,7 @@ use serde::{Deserialize, Serialize};
 
 pub trait Request: crate::net::protocol::private::Sealed {
     type Response: crate::net::protocol::response::Response + std::fmt::Debug;
-
-    fn to_enum(self) -> RequestType;
+    fn to_enum(&self) -> RequestType;
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -32,12 +31,14 @@ pub struct Ping;
 pub struct GetIndex;
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
-pub struct GetFile(pub HashedPath);
+pub struct GetFile {
+    pub name: HashedPath,
+}
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Write {
     pub name: HashedPath,
-    pub contents: Encrypted<Vec<u8>>,
+    pub contents_len: u64,
 }
 
 /// Rename a file.
@@ -49,15 +50,19 @@ pub struct Rename {
 
 /// Delete the file at the given path.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
-pub struct Delete(pub HashedPath);
+pub struct Delete {
+    pub name: HashedPath,
+}
 
 /// Set the index on the peer to the given index.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
-pub struct SetIndex(pub Encrypted<Index>);
+pub struct SetIndex {
+    pub index: Encrypted<Index>,
+}
 
 /// Signify that syncing is complete.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
-pub struct Complete(
+pub struct Complete {
     /// The index of the peer's files on this computer.
     ///
     /// The peer uses this to decide whether or not they need to update their
@@ -65,8 +70,8 @@ pub struct Complete(
     ///
     /// When the receiver has completed syncing, the index they send back is
     /// empty.
-    pub Option<Encrypted<Index>>,
-);
+    pub index: Option<Encrypted<Index>>,
+}
 
 macro_rules! impl_request {
     // IDK why this works with ident but not ty
@@ -77,8 +82,9 @@ macro_rules! impl_request {
             impl Request for $t {
                 type Response = crate::net::protocol::response::$t;
 
-                fn to_enum(self) -> RequestType {
-                    crate::net::protocol::request::RequestType::$t(self)
+                fn to_enum(&self) -> RequestType {
+                    // TODO: Remove clone
+                    crate::net::protocol::request::RequestType::$t(self.clone())
                 }
             }
         )*

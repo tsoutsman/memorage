@@ -24,7 +24,7 @@ pub async fn connect(
     }
 
     // TODO: Race conditions
-    let new_index = Index::from_directory(&config.backup_path)?;
+    let new_index = Index::from_directory(&config.backup_path).await?;
 
     let client = Client::new(&data, &config).await?;
     info!(public_key=?data.key_pair.public, target_key=?data.peer, "trying to establish connection");

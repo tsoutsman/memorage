@@ -10,3 +10,5 @@ pub mod response;
 mod private {
     pub trait Sealed {}
 }
+
+pub(crate) const FILE_FRAME_SIZE: usize = 24 + 65536;

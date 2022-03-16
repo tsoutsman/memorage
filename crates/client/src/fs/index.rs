@@ -1,13 +1,11 @@
 use crate::{fs::hash, Result};
 
-use std::{
-    fs::File,
-    path::{Path, PathBuf},
-};
+use std::path::{Path, PathBuf};
 
 use bimap::BiMap;
 use rayon::iter::{IntoParallelIterator, ParallelIterator};
 use serde::{Deserialize, Serialize};
+use tokio::fs::File;
 
 #[derive(Clone, Default, Debug, Eq, PartialEq, Serialize, Deserialize)]
 pub struct Index(BiMap<PathBuf, [u8; 32]>);
@@ -17,7 +15,7 @@ impl Index {
         Self::default()
     }
 
-    pub fn from_directory<P>(path: P) -> Result<Self>
+    pub async fn from_directory<P>(path: P) -> Result<Self>
     where
         P: AsRef<Path>,
     {
@@ -35,11 +33,14 @@ impl Index {
             // TODO: Do we return error if it isn't.
         }
 
+        let handle = tokio::runtime::Handle::current();
         let paths = paths
             .into_par_iter()
             .map(|file_path| -> Result<(PathBuf, [u8; 32])> {
-                let hash = hash(File::open(&file_path)?)?;
-                Ok((file_path, hash))
+                handle.block_on(async {
+                    let hash = hash(File::open(&file_path).await?)?;
+                    Ok((file_path, hash))
+                })
             });
 
         let mut index = Self::new();
