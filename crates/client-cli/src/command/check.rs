@@ -23,7 +23,7 @@ pub async fn check(
         config.server_address = vec![server];
     }
 
-    let new_index = Index::from_directory(&config.backup_path)?;
+    let new_index = Index::from_directory(&config.backup_path).await?;
 
     let client = Client::new(&data, &config).await?;
     let time = match client.check_peer_connection().await {

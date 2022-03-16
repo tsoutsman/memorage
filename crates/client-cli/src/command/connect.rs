@@ -4,7 +4,7 @@ use std::{net::IpAddr, path::PathBuf};
 
 use memorage_client::{
     fs::index::Index,
-    net::{protocol::request, Client},
+    net::Client,
     persistent::{config::Config, data::Data, Persistent},
     Result,
 };
@@ -32,11 +32,7 @@ pub async fn connect(
     sleep_till(time).await?;
 
     let mut peer_connection = client.connect_to_peer(true).await?;
-
-    let old_index = match peer_connection.send(request::GetIndex).await?.0 {
-        Some(i) => i.decrypt(&data.key_pair.private)?,
-        None => Index::new(),
-    };
+    let old_index = peer_connection.get_index().await?;
 
     peer_connection
         .send_backup_data(&old_index, &new_index, true)

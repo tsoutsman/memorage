@@ -45,7 +45,33 @@ impl<'a, 'b> PeerConnection<'a, 'b> {
         Ok((response, recv))
     }
 
-    #[allow(clippy::missing_panics_doc)]
+    async fn accept_stream(&mut self) -> Result<(SendStream, RecvStream)> {
+        let quinn::NewConnection {
+            ref mut bi_streams, ..
+        } = self.connection;
+        if let Some(stream) = bi_streams.next().await {
+            let (send, recv) = match stream {
+                Ok(s) => s,
+                Err(quinn::ConnectionError::ApplicationClosed { .. }) => {
+                    return Err(Error::PeerClosedConnection);
+                }
+                Err(e) => return Err(e.into()),
+            };
+            Ok((send, recv))
+        } else {
+            Err(Error::PeerClosedConnection)
+        }
+    }
+}
+
+impl<'a, 'b> PeerConnection<'a, 'b> {
+    pub async fn get_index(&self) -> Result<Index> {
+        Ok(match self.send_request(&request::GetIndex).await?.0.index {
+            Some(i) => i.decrypt(&self.data.key_pair.private)?,
+            None => Index::new(),
+        })
+    }
+
     pub async fn send_backup_data(
         &self,
         old_index: &Index,
@@ -96,24 +122,6 @@ impl<'a, 'b> PeerConnection<'a, 'b> {
         .await?;
 
         Ok(())
-    }
-
-    async fn accept_stream(&mut self) -> Result<(SendStream, RecvStream)> {
-        let quinn::NewConnection {
-            ref mut bi_streams, ..
-        } = self.connection;
-        if let Some(stream) = bi_streams.next().await {
-            let (send, recv) = match stream {
-                Ok(s) => s,
-                Err(quinn::ConnectionError::ApplicationClosed { .. }) => {
-                    return Err(Error::PeerClosedConnection);
-                }
-                Err(e) => return Err(e.into()),
-            };
-            Ok((send, recv))
-        } else {
-            Err(Error::PeerClosedConnection)
-        }
     }
 
     pub async fn receive_backup_data(&mut self) -> Result<Index> {

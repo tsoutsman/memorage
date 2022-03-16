@@ -3,8 +3,7 @@ use crate::sleep_till;
 use std::{net::IpAddr, path::PathBuf};
 
 use memorage_client::{
-    fs::index::Index,
-    net::{protocol::request, Client},
+    net::Client,
     persistent::{config::Config, data::Data, Persistent},
     Result,
 };
@@ -35,10 +34,7 @@ pub async fn retrieve(
 
     let mut peer_connection = client.connect_to_peer(true).await?;
 
-    let index = match peer_connection.send(request::GetIndex).await?.0 {
-        Some(i) => i.decrypt(&data.key_pair.private)?,
-        None => Index::new(),
-    };
+    let index = peer_connection.get_index().await?;
 
     peer_connection
         .retrieve_backup_data(&index, &output)
