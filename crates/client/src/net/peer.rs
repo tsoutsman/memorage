@@ -1,19 +1,15 @@
 use crate::{
-    crypto::Encrypted,
+    crypto::{self, Encrypted},
     fs::index::{Index, IndexDifference},
     net::protocol::{
         self,
         request::{self, RequestType},
-        response, FILE_FRAME_SIZE,
+        response, ENCRYPTED_FILE_FRAME_SIZE, FILE_FRAME_SIZE, NONCE_LENGTH, TAG_LENGTH,
     },
     persistent::{config::Config, data::Data},
     Error, Result,
 };
 
-use chacha20poly1305::{
-    aead::{AeadInPlace, NewAead},
-    Tag, XChaCha20Poly1305, XNonce,
-};
 use quinn::{NewConnection, RecvStream, SendStream};
 use tokio::{
     fs::File,
@@ -32,7 +28,7 @@ pub struct PeerConnection<'a, 'b> {
 }
 
 impl<'a, 'b> PeerConnection<'a, 'b> {
-    async fn send_request<T>(&self, request: &T) -> Result<(T::Response, RecvStream)>
+    async fn send_request<T>(&self, request: &T) -> Result<(T::Response, (SendStream, RecvStream))>
     where
         T: protocol::Serialize + request::Request + std::fmt::Debug,
     {
@@ -42,7 +38,7 @@ impl<'a, 'b> PeerConnection<'a, 'b> {
 
         let response = receive_from_stream::<protocol::Result<_>>(&mut recv).await??;
         debug!(?response, "received response");
-        Ok((response, recv))
+        Ok((response, (send, recv)))
     }
 
     async fn accept_stream(&mut self) -> Result<(SendStream, RecvStream)> {
@@ -83,12 +79,39 @@ impl<'a, 'b> PeerConnection<'a, 'b> {
             info!(diff=?d, "sending difference");
             match d {
                 IndexDifference::Write(name) => {
-                    self.send_request(&request::Write {
-                        contents_len: std::fs::metadata(&name)?.len(),
-                        name: name.into(),
-                    })
-                    .await?;
-                    todo!();
+                    let contents_len = std::fs::metadata(&name)?.len();
+
+                    let (_, (mut send, _)) = self
+                        .send_request(&request::Write {
+                            contents_len,
+                            name: name.as_path().into(),
+                        })
+                        .await?;
+
+                    let mut buf = [0; ENCRYPTED_FILE_FRAME_SIZE];
+                    let mut contents_len_left = contents_len as usize;
+
+                    let mut file =
+                        File::open(self.config.peer_storage_path.file_path(name)?).await?;
+
+                    while contents_len_left != 0 {
+                        let read_len = std::cmp::min(FILE_FRAME_SIZE, contents_len_left as usize);
+
+                        if read_len < 24 + 16 {
+                            return Err(Error::FrameTooShort);
+                        };
+
+                        file.read_exact(&mut buf[NONCE_LENGTH..(NONCE_LENGTH + read_len)])
+                            .await?;
+                        let (nonce, tag) =
+                            crypto::encrypt_in_place(&self.data.key_pair.private, &mut buf)?;
+                        buf[..NONCE_LENGTH].copy_from_slice(nonce.as_slice());
+                        buf[(read_len + NONCE_LENGTH)..(read_len + NONCE_LENGTH + TAG_LENGTH)]
+                            .copy_from_slice(tag.as_slice());
+                        send.write_all(&buf).await?;
+
+                        contents_len_left -= read_len;
+                    }
                 }
                 IndexDifference::Rename { from, to } => {
                     self.send_request(&request::Rename {
@@ -221,12 +244,9 @@ impl<'a, 'b> PeerConnection<'a, 'b> {
     where
         P: AsRef<std::path::Path>,
     {
-        let aed = XChaCha20Poly1305::new(chacha20poly1305::Key::from_slice(
-            self.data.key_pair.private.as_ref(),
-        ));
         for (name, _) in index.into_iter() {
             let hashed_name = name.as_path().into();
-            let (response::GetFile { contents_len }, mut recv) = self
+            let (response::GetFile { contents_len }, (_, mut recv)) = self
                 .send_request(&request::GetFile { name: hashed_name })
                 .await?;
             // TODO: Remove cast?
@@ -236,7 +256,7 @@ impl<'a, 'b> PeerConnection<'a, 'b> {
             path.push(name);
             let mut file = File::create(path).await?;
 
-            let mut buffer = [0; FILE_FRAME_SIZE];
+            let mut buf = [0; FILE_FRAME_SIZE];
             let mut contents_len_left = contents_len;
 
             while contents_len_left != 0 {
@@ -246,26 +266,9 @@ impl<'a, 'b> PeerConnection<'a, 'b> {
                     return Err(Error::FrameTooShort);
                 };
 
-                recv.read_exact(&mut buffer[..read_len]).await?;
-                file.write_all(&buffer).await?;
-
-                let (nonce, data, tag) = {
-                    let data_start = 24;
-                    let tag_start = read_len - 16;
-
-                    let (nonce, data_and_tag) = buffer[..read_len].split_at_mut(data_start);
-                    let (data, tag) = data_and_tag.split_at_mut(tag_start);
-
-                    let nonce = XNonce::from_slice(nonce);
-                    let tag = Tag::from_slice(tag);
-
-                    (nonce, data, tag)
-                };
-
-                match aed.decrypt_in_place_detached(nonce, &[], data, tag) {
-                    Ok(_) => file.write_all(data).await?,
-                    Err(_) => return Err(Error::Decryption),
-                };
+                recv.read_exact(&mut buf[..read_len]).await?;
+                let data = crypto::decrypt_in_place(&self.data.key_pair.private, &mut buf)?;
+                file.write_all(data).await?;
 
                 contents_len_left -= read_len;
             }

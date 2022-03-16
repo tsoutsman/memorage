@@ -3,8 +3,8 @@ use std::marker::PhantomData;
 use crate::{Error, Result};
 
 use chacha20poly1305::{
-    aead::{Aead, NewAead},
-    XChaCha20Poly1305, XNonce,
+    aead::{Aead, AeadInPlace, NewAead},
+    Tag, XChaCha20Poly1305, XNonce,
 };
 use memorage_core::rand::{thread_rng, RngCore};
 use memorage_core::PrivateKey;
@@ -57,6 +57,45 @@ where
         };
         bincode::deserialize(&decrypted).map_err(|e| e.into())
     }
+}
+
+/// Encrypts a slice returning the nonce used to encrypt it and the tag generated.
+pub fn encrypt_in_place(key: &PrivateKey, buf: &mut [u8]) -> Result<([u8; 24], [u8; 16])> {
+    let aed = XChaCha20Poly1305::new(chacha20poly1305::Key::from_slice(key.as_ref()));
+
+    let mut rng = thread_rng();
+    let mut nonce = [0; 24];
+    rng.fill_bytes(&mut nonce[..]);
+
+    let xnonce = XNonce::from_slice(&nonce);
+    let tag = aed
+        .encrypt_in_place_detached(xnonce, &[], buf)
+        .map_err(|_| Error::Encryption)?;
+    Ok((nonce, tag.into()))
+}
+
+/// Decrypts a slice containing a nonce, data, and tag, returning a subslice of
+/// `buf` with the decrypted data.
+pub fn decrypt_in_place<'a, 'b>(key: &'a PrivateKey, buf: &'b mut [u8]) -> Result<&'b [u8]> {
+    let aed = XChaCha20Poly1305::new(chacha20poly1305::Key::from_slice(key.as_ref()));
+    let (nonce, data, tag) = {
+        let len = buf.len();
+
+        let data_start = 24;
+        let tag_start = len - 16;
+
+        let (nonce, data_and_tag) = buf[..len].split_at_mut(data_start);
+        let (data, tag) = data_and_tag.split_at_mut(tag_start);
+
+        let nonce = XNonce::from_slice(nonce);
+        let tag = Tag::from_slice(tag);
+
+        (nonce, data, tag)
+    };
+
+    aed.decrypt_in_place_detached(nonce, &[], data, tag)
+        .map_err(|_| Error::Decryption)?;
+    Ok(data)
 }
 
 #[cfg(test)]
