@@ -11,11 +11,12 @@ use crate::{
 };
 
 use chacha20poly1305::{
-    aead::{Aead, AeadInPlace, NewAead},
+    aead::{AeadInPlace, NewAead},
     Tag, XChaCha20Poly1305, XNonce,
 };
 use quinn::{NewConnection, RecvStream, SendStream};
 use tokio::{
+    fs::File,
     io::{AsyncReadExt, AsyncWriteExt},
     net::UdpSocket,
 };
@@ -31,7 +32,7 @@ pub struct PeerConnection<'a, 'b> {
 }
 
 impl<'a, 'b> PeerConnection<'a, 'b> {
-    async fn send<T>(&self, request: &T) -> Result<(T::Response, RecvStream)>
+    async fn send_request<T>(&self, request: &T) -> Result<(T::Response, RecvStream)>
     where
         T: protocol::Serialize + request::Request + std::fmt::Debug,
     {
@@ -56,7 +57,7 @@ impl<'a, 'b> PeerConnection<'a, 'b> {
             info!(diff=?d, "sending difference");
             match d {
                 IndexDifference::Write(name) => {
-                    self.send(&request::Write {
+                    self.send_request(&request::Write {
                         contents_len: std::fs::metadata(&name)?.len(),
                         name: name.into(),
                     })
@@ -64,27 +65,28 @@ impl<'a, 'b> PeerConnection<'a, 'b> {
                     todo!();
                 }
                 IndexDifference::Rename { from, to } => {
-                    self.send(&request::Rename {
+                    self.send_request(&request::Rename {
                         from: from.into(),
                         to: to.into(),
                     })
                     .await?;
                 }
                 IndexDifference::Delete(name) => {
-                    self.send(&request::Delete { name: name.into() }).await?;
+                    self.send_request(&request::Delete { name: name.into() })
+                        .await?;
                 }
             }
         }
 
-        self.send(&request::SetIndex {
+        self.send_request(&request::SetIndex {
             index: Encrypted::encrypt(&self.data.key_pair.private, new_index)?,
         })
         .await?;
 
-        self.send(&request::Complete {
+        self.send_request(&request::Complete {
             index: if initiator {
-                // read_bin(&self.config.index_path()).ok()
-                todo!();
+                Index::from_disk_encrypted(&self.data.key_pair.private, self.config.index_path())
+                    .await?
             } else {
                 // The index from request::Complete isn't used by the initiator
                 // of the sync.
@@ -123,7 +125,16 @@ impl<'a, 'b> PeerConnection<'a, 'b> {
             match request {
                 RequestType::Ping(_) => send_with_stream(&mut send, &Ok(response::Ping)).await?,
                 RequestType::GetIndex(_) => {
-                    todo!();
+                    let response: crate::Result<_> = try {
+                        response::GetIndex {
+                            index: Index::from_disk_encrypted(
+                                &self.data.key_pair.private,
+                                self.config.index_path(),
+                            )
+                            .await?,
+                        }
+                    };
+                    send_with_stream(&mut send, &response.map_err(|e| e.into())).await?;
                 }
                 RequestType::GetFile(request::GetFile { name }) => {
                     let response: crate::Result<_> = try {
@@ -140,8 +151,7 @@ impl<'a, 'b> PeerConnection<'a, 'b> {
                             let response = Ok(response::GetFile { contents_len });
                             send_with_stream(&mut send, &response).await?;
                             // TODO: Communicate error to peer if it occurs during copying.
-                            crate::util::wide_copy(tokio::fs::File::open(path).await?, send)
-                                .await?;
+                            crate::util::wide_copy(File::open(path).await?, send).await?;
                         }
                         Err(e) => {
                             send_with_stream(
@@ -151,13 +161,11 @@ impl<'a, 'b> PeerConnection<'a, 'b> {
                             .await?;
                         }
                     }
-                    // if let response
-                    // wide_copy(tokio::fs::File::open())
                 }
-                RequestType::Write(request::Write { name, contents_len }) => {
+                RequestType::Write(request::Write { name, .. }) => {
                     let response: crate::Result<_> = try {
                         let path = self.config.peer_storage_path.file_path(name)?;
-                        crate::util::wide_copy(recv, tokio::fs::File::create(path).await?).await?;
+                        crate::util::wide_copy(recv, File::create(path).await?).await?;
                         response::Write
                     };
                     send_with_stream(&mut send, &response.map_err(|e| e.into())).await?;
@@ -181,8 +189,11 @@ impl<'a, 'b> PeerConnection<'a, 'b> {
                 }
                 RequestType::SetIndex(request::SetIndex { index }) => {
                     let response: crate::Result<_> = try {
-                        // write_bin(self.config.index_path(), &index)?;
-                        todo!();
+                        let serialized = bincode::serialize(&index)?;
+                        File::create(self.config.index_path())
+                            .await?
+                            .write_all(&serialized)
+                            .await?;
                         response::SetIndex
                     };
                     send_with_stream(&mut send, &response.map_err(|e| e.into())).await?;
@@ -207,25 +218,21 @@ impl<'a, 'b> PeerConnection<'a, 'b> {
         ));
         for (name, _) in index.into_iter() {
             let hashed_name = name.as_path().into();
-            let (response::GetFile { contents_len }, mut recv) =
-                self.send(&request::GetFile { name: hashed_name }).await?;
+            let (response::GetFile { contents_len }, mut recv) = self
+                .send_request(&request::GetFile { name: hashed_name })
+                .await?;
             // TODO: Remove cast?
             let contents_len = contents_len.ok_or(Error::NotFoundOnPeer)? as usize;
 
             let mut path = output.as_ref().to_owned();
             path.push(name);
-            let mut file = tokio::fs::File::create(path).await?;
+            let mut file = File::create(path).await?;
 
             let mut buffer = [0; FILE_FRAME_SIZE];
             let mut contents_len_left = contents_len;
 
             while contents_len_left != 0 {
-                let read_len: usize = if contents_len_left >= FILE_FRAME_SIZE {
-                    FILE_FRAME_SIZE
-                } else {
-                    contents_len_left
-                };
-                debug_assert!(read_len <= buffer.len());
+                let read_len: usize = std::cmp::min(FILE_FRAME_SIZE, contents_len_left);
 
                 if read_len < 24 + 16 {
                     return Err(Error::FrameTooShort);
@@ -237,6 +244,7 @@ impl<'a, 'b> PeerConnection<'a, 'b> {
                 let (nonce, data, tag) = {
                     let data_start = 24;
                     let tag_start = read_len - 16;
+
                     let (nonce, data_and_tag) = buffer[..read_len].split_at_mut(data_start);
                     let (data, tag) = data_and_tag.split_at_mut(tag_start);
 
@@ -245,6 +253,7 @@ impl<'a, 'b> PeerConnection<'a, 'b> {
 
                     (nonce, data, tag)
                 };
+
                 match aed.decrypt_in_place_detached(nonce, &[], data, tag) {
                     Ok(_) => file.write_all(data).await?,
                     Err(_) => return Err(Error::Decryption),
@@ -254,7 +263,8 @@ impl<'a, 'b> PeerConnection<'a, 'b> {
             }
         }
 
-        self.send(&request::Complete { index: None }).await?;
+        self.send_request(&request::Complete { index: None })
+            .await?;
         Ok(())
     }
 }

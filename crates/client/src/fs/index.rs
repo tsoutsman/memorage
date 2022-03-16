@@ -1,11 +1,13 @@
-use crate::{fs::hash, Result};
+use crate::{crypto::Encrypted, fs::hash, Error, Result};
 
 use std::path::{Path, PathBuf};
+
+use memorage_core::PrivateKey;
 
 use bimap::BiMap;
 use rayon::iter::{IntoParallelIterator, ParallelIterator};
 use serde::{Deserialize, Serialize};
-use tokio::fs::File;
+use tokio::{fs::File, io::AsyncReadExt};
 
 #[derive(Clone, Default, Debug, Eq, PartialEq, Serialize, Deserialize)]
 pub struct Index(BiMap<PathBuf, [u8; 32]>);
@@ -13,6 +15,30 @@ pub struct Index(BiMap<PathBuf, [u8; 32]>);
 impl Index {
     pub fn new() -> Self {
         Self::default()
+    }
+
+    pub async fn from_disk_encrypted<P>(
+        key: &PrivateKey,
+        path: P,
+    ) -> Result<Option<Encrypted<Self>>>
+    where
+        P: AsRef<Path>,
+    {
+        let meta = std::fs::metadata(path.as_ref()).ok();
+        let mut buf = Vec::with_capacity(if let Some(meta) = meta {
+            meta.len() as usize
+        } else {
+            0
+        });
+
+        match File::open(path).await.map_err(|e| e.into()) {
+            Ok(mut file) => file.read_to_end(&mut buf).await?,
+            Err(Error::NotFound { .. }) => return Ok(None),
+            Err(e) => return Err(e),
+        };
+        let index = bincode::deserialize(&buf)?;
+
+        Ok(Some(Encrypted::encrypt(key, &index)?))
     }
 
     pub async fn from_directory<P>(path: P) -> Result<Self>
@@ -38,7 +64,7 @@ impl Index {
             .into_par_iter()
             .map(|file_path| -> Result<(PathBuf, [u8; 32])> {
                 handle.block_on(async {
-                    let hash = hash(File::open(&file_path).await?)?;
+                    let hash = hash(File::open(&file_path).await?).await?;
                     Ok((file_path, hash))
                 })
             });

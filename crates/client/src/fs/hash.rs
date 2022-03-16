@@ -1,9 +1,9 @@
-pub fn hash<T>(reader: T) -> crate::Result<[u8; 32]>
+pub async fn hash<T>(reader: T) -> crate::Result<[u8; 32]>
 where
     T: tokio::io::AsyncRead + std::marker::Unpin,
 {
     let mut hasher = Hasher(blake3::Hasher::new());
-    crate::util::wide_copy(reader, &mut hasher);
+    crate::util::wide_copy(reader, &mut hasher).await?;
     Ok(hasher.0.finalize().into())
 }
 
