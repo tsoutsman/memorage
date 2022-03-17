@@ -24,7 +24,7 @@ impl Index {
     where
         P: AsRef<Path>,
     {
-        let meta = std::fs::metadata(path.as_ref()).ok();
+        let meta = tokio::fs::metadata(path.as_ref()).await.ok();
         let mut buf = Vec::with_capacity(if let Some(meta) = meta {
             meta.len() as usize
         } else {

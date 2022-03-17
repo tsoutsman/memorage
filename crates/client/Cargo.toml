@@ -31,6 +31,7 @@ directories-next = "*"
 jwalk = "*"
 rayon = "*"
 bimap = { version = "*", features = ["serde"] }
+async-trait = "*"
 
 [dev-dependencies]
 efes = "*"

@@ -24,7 +24,7 @@ async fn main() -> memorage_client::Result<()> {
         Command::Setup {
             config_output,
             data_output,
-        } => command::setup(config_output, data_output),
+        } => command::setup(config_output, data_output).await,
         Command::Pair {
             code,
             config,

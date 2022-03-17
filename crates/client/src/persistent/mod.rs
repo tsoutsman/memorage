@@ -13,23 +13,24 @@ lazy_static::lazy_static! {
     };
 }
 
+#[async_trait::async_trait]
 pub trait Persistent: serde::Serialize + serde::de::DeserializeOwned {
     fn default_path() -> &'static std::path::Path;
 
-    fn from_disk<P>(path: Option<P>) -> crate::Result<Self>
+    async fn from_disk<P>(path: Option<P>) -> crate::Result<Self>
     where
-        P: AsRef<std::path::Path>,
+        P: AsRef<std::path::Path> + std::marker::Send,
     {
         let content = match path {
-            Some(p) => std::fs::read_to_string(p),
-            None => std::fs::read_to_string(Self::default_path()),
+            Some(p) => tokio::fs::read_to_string(p).await,
+            None => tokio::fs::read_to_string(Self::default_path()).await,
         }?;
         Ok(toml::from_str(&content)?)
     }
 
-    fn to_disk<P>(&self, path: Option<P>) -> crate::Result<()>
+    async fn to_disk<P>(&self, path: Option<P>) -> crate::Result<()>
     where
-        P: AsRef<std::path::Path>,
+        P: AsRef<std::path::Path> + std::marker::Send,
     {
         let toml = toml::to_string(&self)?;
 
@@ -39,10 +40,10 @@ pub trait Persistent: serde::Serialize + serde::de::DeserializeOwned {
         };
 
         if let Some(parent) = path.parent() {
-            std::fs::create_dir_all(parent)?;
+            tokio::fs::create_dir_all(parent).await?;
         }
 
-        std::fs::write(path, toml).map_err(|e| e.into())
+        tokio::fs::write(path, toml).await.map_err(|e| e.into())
     }
 }
 

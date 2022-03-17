@@ -79,7 +79,7 @@ impl<'a, 'b> PeerConnection<'a, 'b> {
             info!(diff=?d, "sending difference");
             match d {
                 IndexDifference::Write(name) => {
-                    let contents_len = std::fs::metadata(&name)?.len();
+                    let contents_len = tokio::fs::metadata(&name).await?.len();
 
                     let (_, (mut send, _)) = self
                         .send_request(&request::Write {
@@ -170,7 +170,7 @@ impl<'a, 'b> PeerConnection<'a, 'b> {
                 RequestType::GetFile(request::GetFile { name }) => {
                     let response: crate::Result<_> = try {
                         let path = self.config.peer_storage_path.file_path(name)?;
-                        let contents_len = match std::fs::metadata(&path) {
+                        let contents_len = match tokio::fs::metadata(&path).await {
                             Ok(meta) => Some(meta.len()),
                             Err(ref e) if e.kind() == std::io::ErrorKind::NotFound => None,
                             Err(e) => Err(e)?,
@@ -203,17 +203,19 @@ impl<'a, 'b> PeerConnection<'a, 'b> {
                 }
                 RequestType::Rename(request::Rename { from, to }) => {
                     let response: crate::Result<_> = try {
-                        std::fs::rename(
+                        tokio::fs::rename(
                             self.config.peer_storage_path.file_path(&from)?,
                             self.config.peer_storage_path.file_path(&to)?,
-                        )?;
+                        )
+                        .await?;
                         response::Rename
                     };
                     send_with_stream(&mut send, &response.map_err(|e| e.into())).await?;
                 }
                 RequestType::Delete(request::Delete { name }) => {
                     let response: crate::Result<_> = try {
-                        std::fs::remove_file(self.config.peer_storage_path.file_path(&name)?)?;
+                        tokio::fs::remove_file(self.config.peer_storage_path.file_path(&name)?)
+                            .await?;
                         response::Delete
                     };
                     send_with_stream(&mut send, &response.map_err(|e| e.into())).await?;

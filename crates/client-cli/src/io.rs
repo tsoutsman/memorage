@@ -42,7 +42,7 @@ where
 }
 
 #[inline]
-pub fn verify_peer(key_pair: KeyPair, peer: PublicKey, initiator: bool) -> Result<()> {
+pub async fn verify_peer(key_pair: KeyPair, peer: PublicKey, initiator: bool) -> Result<()> {
     let (key_1, key_2);
     if initiator {
         (key_1, key_2) = (key_pair.public, peer);
@@ -59,7 +59,7 @@ pub fn verify_peer(key_pair: KeyPair, peer: PublicKey, initiator: bool) -> Resul
     if input == "y" || input == "yes" {
         let data = Data { key_pair, peer };
         println!("Saving peer");
-        data.to_disk(Option::<&Path>::None)?;
+        data.to_disk(Option::<&Path>::None).await?;
         println!("Pairing successful");
         Ok(())
     } else {

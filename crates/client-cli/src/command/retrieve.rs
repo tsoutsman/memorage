@@ -20,8 +20,8 @@ pub async fn retrieve(
         Some(p) => p,
         None => std::env::current_dir()?,
     };
-    let mut config = Config::from_disk(config)?;
-    let data = Data::from_disk(data)?;
+    let mut config = Config::from_disk(config).await?;
+    let data = Data::from_disk(data).await?;
     debug!("loaded config and data files");
     if let Some(server) = server {
         config.server_address = vec![server];

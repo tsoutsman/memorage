@@ -10,7 +10,7 @@ use memorage_client::{
 
 use tracing::info;
 
-pub fn setup(config_output: Option<PathBuf>, data_output: Option<PathBuf>) -> Result<()> {
+pub async fn setup(config_output: Option<PathBuf>, data_output: Option<PathBuf>) -> Result<()> {
     let data = DataWithoutPeer::from_key_pair(memorage_core::KeyPair::from_entropy());
     let mut config = Config::default();
 
@@ -122,7 +122,8 @@ pub fn setup(config_output: Option<PathBuf>, data_output: Option<PathBuf>) -> Re
         }
     }
 
-    match std::fs::create_dir_all(&config.peer_storage_path) {
+    // TODO: Move to client common?
+    match tokio::fs::create_dir_all(&config.peer_storage_path).await {
         Ok(_) => {}
         Err(e) => match e.kind() {
             std::io::ErrorKind::AlreadyExists => {}
@@ -130,8 +131,8 @@ pub fn setup(config_output: Option<PathBuf>, data_output: Option<PathBuf>) -> Re
         },
     }
 
-    data.to_disk(data_output)?;
-    config.to_disk(config_output)?;
+    data.to_disk(data_output).await?;
+    config.to_disk(config_output).await?;
 
     println!("\nSetup successful!\n");
     println!("You can modify these configuration values at any time in the ");
