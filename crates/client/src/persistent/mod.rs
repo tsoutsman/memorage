@@ -67,13 +67,13 @@ mod tests {
         }
     }
 
-    #[test]
-    fn persistent_create_dirs() {
+    #[tokio::test]
+    async fn persistent_create_dirs() {
         let mut root = tempfile::tempdir().unwrap().into_path();
         root.push("foo");
         root.push("bar");
         root.push("baz");
 
-        assert!(matches!(Temp().to_disk(Some(root)), Ok(())));
+        assert!(matches!(Temp().to_disk(Some(root)).await, Ok(())));
     }
 }

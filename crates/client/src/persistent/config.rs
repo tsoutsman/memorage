@@ -123,14 +123,14 @@ where
 mod tests {
     use super::*;
 
-    #[test]
-    fn serialize_config() {
+    #[tokio::test]
+    async fn serialize_config() {
         let config = Config::default();
 
         let mut path = std::env::temp_dir();
         path.push("config.toml");
 
-        assert!(config.to_disk(Some(&path)).is_ok());
-        assert_eq!(Config::from_disk(Some(&path)).unwrap(), config);
+        assert!(config.to_disk(Some(&path)).await.is_ok());
+        assert_eq!(Config::from_disk(Some(&path)).await.unwrap(), config);
     }
 }
