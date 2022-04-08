@@ -32,6 +32,7 @@ jwalk = "*"
 rayon = "*"
 bimap = { version = "*", features = ["serde"] }
 async-trait = "*"
+futures = "*"
 
 [dev-dependencies]
 efes = "*"

@@ -2,8 +2,6 @@ use crate::{crypto::Encrypted, fs::hash, Error, Result};
 
 use std::path::{Path, PathBuf};
 
-use memorage_core::PrivateKey;
-
 use bimap::BiMap;
 use rayon::iter::{IntoParallelIterator, ParallelIterator};
 use serde::{Deserialize, Serialize};
@@ -17,10 +15,7 @@ impl Index {
         Self::default()
     }
 
-    pub async fn from_disk_encrypted<P>(
-        key: &PrivateKey,
-        path: P,
-    ) -> Result<Option<Encrypted<Self>>>
+    pub async fn from_disk_encrypted<P>(path: P) -> Result<Option<Encrypted<Self>>>
     where
         P: AsRef<Path>,
     {
@@ -38,7 +33,7 @@ impl Index {
         };
         let index = bincode::deserialize(&buf)?;
 
-        Ok(Some(Encrypted::encrypt(key, &index)?))
+        Ok(Some(index))
     }
 
     pub async fn from_directory<P>(path: P) -> Result<Self>
@@ -59,11 +54,10 @@ impl Index {
             // TODO: Do we return error if it isn't.
         }
 
-        let handle = tokio::runtime::Handle::current();
         let paths = paths
             .into_par_iter()
             .map(|file_path| -> Result<(PathBuf, [u8; 32])> {
-                handle.block_on(async {
+                futures::executor::block_on(async {
                     let hash = hash(File::open(&file_path).await?).await?;
                     Ok((file_path, hash))
                 })

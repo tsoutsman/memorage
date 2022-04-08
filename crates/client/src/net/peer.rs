@@ -32,13 +32,24 @@ impl<'a, 'b> PeerConnection<'a, 'b> {
     where
         T: protocol::Serialize + request::Request + std::fmt::Debug,
     {
-        debug!(?request, "sending request");
-        let (mut send, mut recv) = self.connection.connection.open_bi().await?;
-        send_with_stream(&mut send, request).await?;
-
+        let (mut send, mut recv) = self.send_request_without_response(request).await?;
+        send.finish().await?;
         let response = receive_from_stream::<protocol::Result<_>>(&mut recv).await??;
         debug!(?response, "received response");
         Ok((response, (send, recv)))
+    }
+
+    async fn send_request_without_response<T>(
+        &self,
+        request: &T,
+    ) -> Result<(SendStream, RecvStream)>
+    where
+        T: protocol::Serialize + request::Request + std::fmt::Debug,
+    {
+        debug!(?request, "sending request");
+        let (mut send, recv) = self.connection.connection.open_bi().await?;
+        send_with_stream(&mut send, request).await?;
+        Ok((send, recv))
     }
 
     async fn accept_stream(&mut self) -> Result<(SendStream, RecvStream)> {
@@ -79,10 +90,15 @@ impl<'a, 'b> PeerConnection<'a, 'b> {
             info!(diff=?d, "sending difference");
             match d {
                 IndexDifference::Write(name) => {
+                    info!(?name, "writing file to peer");
+
                     let contents_len = tokio::fs::metadata(&name).await?.len();
 
-                    let (_, (mut send, _)) = self
-                        .send_request(&request::Write {
+                    info!(?contents_len);
+
+                    // TODO: peer will only send response::write after data has bee sentw
+                    let (mut send, mut recv) = self
+                        .send_request_without_response(&request::Write {
                             contents_len,
                             name: name.as_path().into(),
                         })
@@ -91,15 +107,12 @@ impl<'a, 'b> PeerConnection<'a, 'b> {
                     let mut buf = [0; ENCRYPTED_FILE_FRAME_SIZE];
                     let mut contents_len_left = contents_len as usize;
 
-                    let mut file =
-                        File::open(self.config.peer_storage_path.file_path(name)?).await?;
+                    let mut file = File::open(name).await?;
 
                     while contents_len_left != 0 {
                         let read_len = std::cmp::min(FILE_FRAME_SIZE, contents_len_left as usize);
 
-                        if read_len < 24 + 16 {
-                            return Err(Error::FrameTooShort);
-                        };
+                        debug!(?read_len);
 
                         file.read_exact(&mut buf[NONCE_LENGTH..(NONCE_LENGTH + read_len)])
                             .await?;
@@ -108,10 +121,18 @@ impl<'a, 'b> PeerConnection<'a, 'b> {
                         buf[..NONCE_LENGTH].copy_from_slice(nonce.as_slice());
                         buf[(read_len + NONCE_LENGTH)..(read_len + NONCE_LENGTH + TAG_LENGTH)]
                             .copy_from_slice(tag.as_slice());
+                        debug!("before send");
                         send.write_all(&buf).await?;
+                        debug!("after send");
 
                         contents_len_left -= read_len;
                     }
+
+                    send.finish().await?;
+                    receive_from_stream::<protocol::Result<protocol::response::Write>>(&mut recv)
+                        .await??;
+
+                    info!("successfully wrote file to peer");
                 }
                 IndexDifference::Rename { from, to } => {
                     self.send_request(&request::Rename {
@@ -134,8 +155,7 @@ impl<'a, 'b> PeerConnection<'a, 'b> {
 
         self.send_request(&request::Complete {
             index: if initiator {
-                Index::from_disk_encrypted(&self.data.key_pair.private, self.config.index_path())
-                    .await?
+                Index::from_disk_encrypted(self.config.index_path()).await?
             } else {
                 // The index from request::Complete isn't used by the initiator
                 // of the sync.
@@ -152,17 +172,14 @@ impl<'a, 'b> PeerConnection<'a, 'b> {
             let (mut send, mut recv) = self.accept_stream().await?;
 
             let request = receive_from_stream(&mut recv).await?;
+            info!(?request, "received request");
 
             match request {
                 RequestType::Ping(_) => send_with_stream(&mut send, &Ok(response::Ping)).await?,
                 RequestType::GetIndex(_) => {
                     let response: crate::Result<_> = try {
                         response::GetIndex {
-                            index: Index::from_disk_encrypted(
-                                &self.data.key_pair.private,
-                                self.config.index_path(),
-                            )
-                            .await?,
+                            index: Index::from_disk_encrypted(self.config.index_path()).await?,
                         }
                     };
                     send_with_stream(&mut send, &response.map_err(|e| e.into())).await?;
@@ -182,7 +199,9 @@ impl<'a, 'b> PeerConnection<'a, 'b> {
                             let response = Ok(response::GetFile { contents_len });
                             send_with_stream(&mut send, &response).await?;
                             // TODO: Communicate error to peer if it occurs during copying.
+                            debug!("sent GetFile response, starting wide copy");
                             crate::util::wide_copy(File::open(path).await?, send).await?;
+                            debug!("GetFile wide copy complete");
                         }
                         Err(e) => {
                             send_with_stream(
@@ -196,7 +215,10 @@ impl<'a, 'b> PeerConnection<'a, 'b> {
                 RequestType::Write(request::Write { name, .. }) => {
                     let response: crate::Result<_> = try {
                         let path = self.config.peer_storage_path.file_path(name)?;
+                        info!(?path, "writing to file");
+                        debug!("received Write request, starting wide copy");
                         crate::util::wide_copy(recv, File::create(path).await?).await?;
+                        debug!("Write wide copy complete");
                         response::Write
                     };
                     send_with_stream(&mut send, &response.map_err(|e| e.into())).await?;
@@ -239,6 +261,7 @@ impl<'a, 'b> PeerConnection<'a, 'b> {
                     });
                 }
             }
+            info!("request handled");
         }
     }
 
@@ -247,6 +270,8 @@ impl<'a, 'b> PeerConnection<'a, 'b> {
         P: AsRef<std::path::Path>,
     {
         for (name, _) in index.into_iter() {
+            info!(?name, "retrieving file");
+
             let hashed_name = name.as_path().into();
             let (response::GetFile { contents_len }, (_, mut recv)) = self
                 .send_request(&request::GetFile { name: hashed_name })
@@ -254,19 +279,23 @@ impl<'a, 'b> PeerConnection<'a, 'b> {
             // TODO: Remove cast?
             let contents_len = contents_len.ok_or(Error::NotFoundOnPeer)? as usize;
 
+            info!(?contents_len);
+
             let mut path = output.as_ref().to_owned();
             path.push(name);
             let mut file = File::create(path).await?;
 
-            let mut buf = [0; FILE_FRAME_SIZE];
+            let mut buf = [0; ENCRYPTED_FILE_FRAME_SIZE];
             let mut contents_len_left = contents_len;
 
             while contents_len_left != 0 {
-                let read_len: usize = std::cmp::min(FILE_FRAME_SIZE, contents_len_left);
+                let read_len: usize = std::cmp::min(ENCRYPTED_FILE_FRAME_SIZE, contents_len_left);
 
                 if read_len < 24 + 16 {
                     return Err(Error::FrameTooShort);
                 };
+
+                debug!(?read_len);
 
                 recv.read_exact(&mut buf[..read_len]).await?;
                 let data = crypto::decrypt_in_place(&self.data.key_pair.private, &mut buf)?;
@@ -274,6 +303,8 @@ impl<'a, 'b> PeerConnection<'a, 'b> {
 
                 contents_len_left -= read_len;
             }
+
+            info!("successfully retrieved file");
         }
 
         self.send_request(&request::Complete { index: None })
@@ -287,8 +318,9 @@ where
     T: protocol::Serialize,
 {
     let encoded = protocol::serialize(request)?;
+    debug!("encoded length: {}", encoded.len());
+    send.write_u16(encoded.len() as u16).await?;
     send.write_all(&encoded).await?;
-    send.finish().await?;
     Ok(())
 }
 
