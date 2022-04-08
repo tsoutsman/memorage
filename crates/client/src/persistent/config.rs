@@ -15,7 +15,7 @@ use serde::{de, Deserialize, Deserializer, Serialize, Serializer};
 pub struct Config {
     pub server_address: Vec<IpAddr>,
     /// Path to backup.
-    pub backup_path: RootDirectory,
+    pub backup_path: PathBuf,
     /// Path at which the peer's encrypted data is stored.
     pub peer_storage_path: RootDirectory,
     #[serde(
@@ -64,7 +64,7 @@ impl Default for Config {
     fn default() -> Self {
         Self {
             server_address: vec!["45.79.238.170".parse().unwrap()],
-            backup_path: RootDirectory::new(),
+            backup_path: PathBuf::new(),
             peer_storage_path: PROJECT_DIRS.data_dir().to_owned().join("peer_data").into(),
             peer_connection_schedule_delay: Duration::from_secs(600),
             register_response: RetryConfig::register_response(),

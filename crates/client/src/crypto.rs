@@ -82,9 +82,9 @@ pub fn decrypt_in_place<'a, 'b>(key: &'a PrivateKey, buf: &'b mut [u8]) -> Resul
         let len = buf.len();
 
         let data_start = 24;
-        let tag_start = len - 16;
+        let tag_start = (len - data_start) - 16;
 
-        let (nonce, data_and_tag) = buf[..len].split_at_mut(data_start);
+        let (nonce, data_and_tag) = buf.split_at_mut(data_start);
         let (data, tag) = data_and_tag.split_at_mut(tag_start);
 
         let nonce = XNonce::from_slice(nonce);

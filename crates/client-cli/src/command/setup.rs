@@ -55,7 +55,7 @@ pub async fn setup(config_output: Option<PathBuf>, data_output: Option<PathBuf>)
             _ => {
                 let path: PathBuf = input.into();
                 if path.exists() {
-                    break path.into();
+                    break path;
                 } else {
                     eprintln!("Backup path does not exist\n");
                 }
@@ -68,7 +68,7 @@ pub async fn setup(config_output: Option<PathBuf>, data_output: Option<PathBuf>)
         // Format taken from the rustup installer.
 
         println!("\nCurrent configuration options:\n");
-        println!("        backup path: {}", config.backup_path);
+        println!("        backup path: {}", config.backup_path.display());
         println!("  peer storage path: {}\n", config.peer_storage_path);
 
         println!("1) Proceed with installation (default)");
@@ -106,7 +106,7 @@ pub async fn setup(config_output: Option<PathBuf>, data_output: Option<PathBuf>)
         println!("\nI'm going to ask you the value of each of these installation options.");
         println!("You may simply press the Enter key to leave unchanged.\n");
 
-        let backup_path = io::prompt(&format!("Backup path [{}]: ", config.backup_path))?;
+        let backup_path = io::prompt(&format!("Backup path [{}]: ", config.backup_path.display()))?;
         if backup_path.as_str() != "" {
             config.backup_path = backup_path.into();
         }

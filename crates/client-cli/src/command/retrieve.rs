@@ -18,7 +18,7 @@ pub async fn retrieve(
 ) -> Result<()> {
     let output = match output {
         Some(p) => p,
-        None => std::env::current_dir()?,
+        None => std::env::current_dir()?.join("memorage_backup"),
     };
     let mut config = Config::from_disk(config).await?;
     let data = Data::from_disk(data).await?;

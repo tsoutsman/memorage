@@ -36,13 +36,14 @@ impl Index {
         Ok(Some(index))
     }
 
-    pub async fn from_directory<P>(path: P) -> Result<Self>
+    #[allow(clippy::missing_panics_doc)]
+    pub async fn from_directory<P>(index_path: P) -> Result<Self>
     where
         P: AsRef<Path>,
     {
         let mut paths = Vec::new();
 
-        for entry in jwalk::WalkDir::new(path) {
+        for entry in jwalk::WalkDir::new(index_path.as_ref()) {
             // TODO: Document that empty folders are not backed up.
             // TODO: Symbolic links
             let entry = entry?;
@@ -68,7 +69,10 @@ impl Index {
         // TODO: Don't collect
         for result in paths.collect::<Vec<_>>() {
             let (path, hash) = result?;
-            index.0.insert(path, hash);
+            // TODO: Is unwrap safe?
+            index
+                .0
+                .insert(path.strip_prefix(&index_path).unwrap().to_path_buf(), hash);
         }
 
         Ok(index)

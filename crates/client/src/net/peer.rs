@@ -90,16 +90,19 @@ impl<'a, 'b> PeerConnection<'a, 'b> {
             info!(diff=?d, "sending difference");
             match d {
                 IndexDifference::Write(name) => {
-                    info!(?name, "writing file to peer");
+                    let absolute_file_path = self.config.backup_path.join(&name);
+                    info!(?name, ?absolute_file_path, "writing file to peer");
 
-                    let contents_len = tokio::fs::metadata(&name).await?.len();
+                    let contents_len = tokio::fs::metadata(&absolute_file_path).await?.len();
+                    let encrypted_contents_len = contents_len
+                        + (contents_len.div_ceil(FILE_FRAME_SIZE as u64)
+                            * (NONCE_LENGTH as u64 + TAG_LENGTH as u64));
 
                     info!(?contents_len);
 
-                    // TODO: peer will only send response::write after data has bee sentw
                     let (mut send, mut recv) = self
                         .send_request_without_response(&request::Write {
-                            contents_len,
+                            contents_len: encrypted_contents_len,
                             name: name.as_path().into(),
                         })
                         .await?;
@@ -107,7 +110,7 @@ impl<'a, 'b> PeerConnection<'a, 'b> {
                     let mut buf = [0; ENCRYPTED_FILE_FRAME_SIZE];
                     let mut contents_len_left = contents_len as usize;
 
-                    let mut file = File::open(name).await?;
+                    let mut file = File::open(absolute_file_path).await?;
 
                     while contents_len_left != 0 {
                         let read_len = std::cmp::min(FILE_FRAME_SIZE, contents_len_left as usize);
@@ -116,14 +119,16 @@ impl<'a, 'b> PeerConnection<'a, 'b> {
 
                         file.read_exact(&mut buf[NONCE_LENGTH..(NONCE_LENGTH + read_len)])
                             .await?;
-                        let (nonce, tag) =
-                            crypto::encrypt_in_place(&self.data.key_pair.private, &mut buf)?;
+                        let (nonce, tag) = crypto::encrypt_in_place(
+                            &self.data.key_pair.private,
+                            &mut buf[NONCE_LENGTH..(NONCE_LENGTH + read_len)],
+                        )?;
                         buf[..NONCE_LENGTH].copy_from_slice(nonce.as_slice());
                         buf[(read_len + NONCE_LENGTH)..(read_len + NONCE_LENGTH + TAG_LENGTH)]
                             .copy_from_slice(tag.as_slice());
-                        debug!("before send");
-                        send.write_all(&buf).await?;
-                        debug!("after send");
+
+                        send.write_all(&buf[..(read_len + NONCE_LENGTH + TAG_LENGTH)])
+                            .await?;
 
                         contents_len_left -= read_len;
                     }
@@ -282,7 +287,11 @@ impl<'a, 'b> PeerConnection<'a, 'b> {
             info!(?contents_len);
 
             let mut path = output.as_ref().to_owned();
+            tokio::fs::create_dir_all(path.clone()).await?;
             path.push(name);
+
+            info!("writing decrypted file into {:?}", path.display());
+
             let mut file = File::create(path).await?;
 
             let mut buf = [0; ENCRYPTED_FILE_FRAME_SIZE];
@@ -298,7 +307,9 @@ impl<'a, 'b> PeerConnection<'a, 'b> {
                 debug!(?read_len);
 
                 recv.read_exact(&mut buf[..read_len]).await?;
-                let data = crypto::decrypt_in_place(&self.data.key_pair.private, &mut buf)?;
+
+                let data =
+                    crypto::decrypt_in_place(&self.data.key_pair.private, &mut buf[..read_len])?;
                 file.write_all(data).await?;
 
                 contents_len_left -= read_len;
