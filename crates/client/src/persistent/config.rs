@@ -23,6 +23,11 @@ pub struct Config {
         deserialize_with = "deserialize_duration"
     )]
     pub peer_connection_schedule_delay: Duration,
+    #[serde(
+        serialize_with = "serialize_duration",
+        deserialize_with = "deserialize_duration"
+    )]
+    pub daemon_sync_interval: Duration,
     pub register_response: RetryConfig,
     pub request_connection: RetryConfig,
 }
@@ -66,6 +71,7 @@ impl Default for Config {
             server_address: vec!["45.79.238.170".parse().unwrap()],
             backup_path: PathBuf::new(),
             peer_storage_path: PROJECT_DIRS.data_dir().to_owned().join("peer_data").into(),
+            daemon_sync_interval: Duration::from_secs(480),
             peer_connection_schedule_delay: Duration::from_secs(600),
             register_response: RetryConfig::register_response(),
             request_connection: RetryConfig::request_connection(),

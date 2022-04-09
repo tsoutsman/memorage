@@ -63,7 +63,9 @@ pub async fn sync(
                 .send_data(&old_index, &new_index, !no_receive)
                 .await?;
         }
-        peer_connection.receive_commands().await?;
+        if !no_receive {
+            peer_connection.receive_commands().await?;
+        }
     } else {
         // TODO: no_receive has no effect if host is not initiator.
         match peer_connection.receive_commands().await? {

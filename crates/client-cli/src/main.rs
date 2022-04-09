@@ -38,6 +38,11 @@ async fn main() -> memorage_client::Result<()> {
             no_send,
             no_receive,
         } => command::sync(config, data, server, no_send, no_receive).await,
+        Command::Daemon {
+            config,
+            data,
+            server,
+        } => command::daemon(config, data, server).await,
         Command::Retrieve {
             output,
             config,
