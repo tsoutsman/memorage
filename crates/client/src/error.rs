@@ -63,6 +63,8 @@ pub enum Error {
     TooLarge,
     #[error("frame too short")]
     FrameTooShort,
+    #[error("join error")]
+    Join(#[from] tokio::task::JoinError),
 }
 
 impl From<std::io::Error> for Error {

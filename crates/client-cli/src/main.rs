@@ -55,7 +55,6 @@ async fn main() -> memorage_client::Result<()> {
 async fn sleep_till(time: OffsetDateTime) -> memorage_client::Result<()> {
     let delay = time - OffsetDateTime::now_utc();
     tracing::info!(?time, ?delay, "waiting for synchronisation");
-    // TODO: Create index while sleeping?
     tokio::time::sleep(
         delay
             .try_into()

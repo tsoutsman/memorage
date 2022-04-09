@@ -26,6 +26,10 @@ pub struct PeerConnection<'a, 'b> {
 }
 
 impl<'a, 'b> PeerConnection<'a, 'b> {
+    pub async fn ping(&self) -> Result<()> {
+        self.send_request(&request::Ping).await.map(|_| ())
+    }
+
     pub async fn get_index(&self) -> Result<Index> {
         Ok(match self.send_request(&request::GetIndex).await?.0.index {
             Some(i) => i.decrypt(&self.data.key_pair.private)?,

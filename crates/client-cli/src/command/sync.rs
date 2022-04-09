@@ -4,7 +4,7 @@ use std::{net::IpAddr, path::PathBuf};
 
 use memorage_client::{
     fs::index::Index,
-    net::{protocol::request::Complete, Client},
+    net::{protocol::request::Complete, Client, PeerConnection},
     persistent::{config::Config, data::Data, Persistent},
     Error, Result,
 };
@@ -25,14 +25,6 @@ pub async fn sync(
         config.server_address = vec![server];
     }
 
-    // TODO: Race conditions
-    // TODO: Do while waiting for connection
-    let new_index = if no_send {
-        Index::new()
-    } else {
-        Index::from_directory(&config.backup_path).await?
-    };
-
     let client = Client::new(&data, &config).await?;
     debug!(public_key=?data.key_pair.public, target_key=?data.peer, "trying to establish connection");
     let initiator;
@@ -48,9 +40,41 @@ pub async fn sync(
         }
         Err(e) => return Err(e),
     };
-    sleep_till(time).await?;
 
+    let backup_path_clone = config.backup_path.clone();
+    let new_index_handle = tokio::spawn(async move {
+        if no_send {
+            Ok(Index::new())
+        } else {
+            // TODO: Race conditions?
+            Index::from_directory(backup_path_clone).await
+        }
+    });
+
+    sleep_till(time).await?;
     let mut peer_connection = client.connect_to_peer(true).await?;
+
+    async fn indefinite_ping(peer: &mut PeerConnection<'_, '_>) -> ! {
+        loop {
+            // TODO: The select statement could drop indefinite_ping during the
+            // ping, which may result in a write error on the peer if
+            // indefinite_ping gets dropped after transmitting a ping but before
+            // receiving a response.
+            let result = peer.ping().await;
+            debug!(?result, "pinged peer");
+            tokio::time::sleep(std::time::Duration::from_secs(5)).await;
+        }
+    }
+    let new_index = tokio::select! {
+        // Biased mode first checks if the new index has already been created
+        // before beginning to ping.
+        biased;
+        new_index = new_index_handle => new_index??,
+        // indefinite_ping will keep pinging the peer to keep the connection
+        // open until the local index has been created. Index::new() is just
+        // there to satisfy the type checker.
+        _ = indefinite_ping(&mut peer_connection) => Index::new(),
+    };
 
     if initiator {
         if no_send {
