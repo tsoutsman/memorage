@@ -61,18 +61,9 @@ pub struct SetIndex {
 }
 
 /// Signify that syncing is complete.
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Copy, Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub enum Complete {
-    Continue {
-        /// The index of the peer's files on this computer.
-        ///
-        /// The peer uses this to decide whether or not they need to update their
-        /// backup.
-        ///
-        /// When the receiver has completed syncing, the index they send back is
-        /// empty.
-        index: Option<Encrypted<Index>>,
-    },
+    Continue,
     /// Signifies that the host will not be accepting any commands from the peer.
     Close,
 }

@@ -10,6 +10,7 @@ pub struct Ping;
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct GetIndex {
+    // TODO: Wide copy into stream like GetFile?
     pub index: Option<crate::crypto::Encrypted<crate::fs::index::Index>>,
 }
 

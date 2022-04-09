@@ -94,9 +94,7 @@ impl<'a, 'b> PeerConnection<'a, 'b> {
         .await?;
 
         self.send_request(&if initiator {
-            request::Complete::Continue {
-                index: Index::from_disk_encrypted(self.config.index_path()).await?,
-            }
+            request::Complete::Continue
         } else {
             request::Complete::Close
         })

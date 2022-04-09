@@ -38,8 +38,7 @@ pub enum Command {
         #[clap(short, long)]
         server: Option<IpAddr>,
     },
-    /// Attempt to connect to a peer
-    Connect {
+    Sync {
         /// Use the specified configuration file
         #[clap(short, long)]
         config: Option<PathBuf>,
@@ -51,20 +50,10 @@ pub enum Command {
         /// The address can be IPv4 or IPv6.
         #[clap(short, long)]
         server: Option<IpAddr>,
-    },
-    /// Check for synchronisation requests
-    Check {
-        /// Use the specified configuration file
-        #[clap(short, long)]
-        config: Option<PathBuf>,
-        /// Use the specified data file
-        #[clap(short, long)]
-        data: Option<PathBuf>,
-        /// Use the specified coordination server
-        ///
-        /// The address can be IPv4 or IPv6.
-        #[clap(short, long)]
-        server: Option<IpAddr>,
+        #[clap(long)]
+        no_send: bool,
+        #[clap(long)]
+        no_receive: bool,
     },
     /// Retrieve stored files
     Retrieve {

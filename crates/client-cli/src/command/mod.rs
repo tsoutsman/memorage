@@ -1,11 +1,9 @@
-mod check;
-mod connect;
 mod pair;
 mod retrieve;
 mod setup;
+mod sync;
 
-pub use check::check;
-pub use connect::connect;
 pub use pair::pair;
 pub use retrieve::retrieve;
 pub use setup::setup;
+pub use sync::sync;
