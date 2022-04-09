@@ -59,6 +59,18 @@ where
     }
 }
 
+pub fn split_encrypted_buf(buf: &'_ mut [u8]) -> (&'_ mut [u8], &'_ mut [u8], &'_ mut [u8]) {
+    let len = buf.len();
+
+    let data_start = 24;
+    let tag_start = (len - data_start) - 16;
+
+    let (nonce, data_and_tag) = buf.split_at_mut(data_start);
+    let (data, tag) = data_and_tag.split_at_mut(tag_start);
+
+    (nonce, data, tag)
+}
+
 /// Encrypts a slice returning the nonce used to encrypt it and the tag generated.
 pub fn encrypt_in_place(key: &PrivateKey, buf: &mut [u8]) -> Result<([u8; 24], [u8; 16])> {
     let aed = XChaCha20Poly1305::new(chacha20poly1305::Key::from_slice(key.as_ref()));
@@ -78,22 +90,13 @@ pub fn encrypt_in_place(key: &PrivateKey, buf: &mut [u8]) -> Result<([u8; 24], [
 /// `buf` with the decrypted data.
 pub fn decrypt_in_place<'a, 'b>(key: &'a PrivateKey, buf: &'b mut [u8]) -> Result<&'b [u8]> {
     let aed = XChaCha20Poly1305::new(chacha20poly1305::Key::from_slice(key.as_ref()));
-    let (nonce, data, tag) = {
-        let len = buf.len();
 
-        let data_start = 24;
-        let tag_start = (len - data_start) - 16;
+    let (nonce, data, tag) = split_encrypted_buf(buf);
 
-        let (nonce, data_and_tag) = buf.split_at_mut(data_start);
-        let (data, tag) = data_and_tag.split_at_mut(tag_start);
+    let xnonce = XNonce::from_slice(nonce);
+    let tag = Tag::from_slice(tag);
 
-        let nonce = XNonce::from_slice(nonce);
-        let tag = Tag::from_slice(tag);
-
-        (nonce, data, tag)
-    };
-
-    aed.decrypt_in_place_detached(nonce, &[], data, tag)
+    aed.decrypt_in_place_detached(xnonce, &[], data, tag)
         .map_err(|_| Error::Decryption)?;
     Ok(data)
 }

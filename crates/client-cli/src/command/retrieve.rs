@@ -36,9 +36,7 @@ pub async fn retrieve(
 
     let index = peer_connection.get_index().await?;
 
-    peer_connection
-        .retrieve_backup_data(&index, &output)
-        .await?;
+    peer_connection.retrieve_data(&index, &output).await?;
 
     println!("Retrieval succesful");
     Ok(())

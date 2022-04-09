@@ -4,12 +4,12 @@ use std::{net::IpAddr, path::PathBuf};
 
 use memorage_client::{
     fs::index::Index,
-    net::Client,
+    net::{protocol::request::Complete, Client},
     persistent::{config::Config, data::Data, Persistent},
     Error, Result,
 };
 
-use tracing::debug;
+use tracing::{debug, warn};
 
 pub async fn check(
     config: Option<PathBuf>,
@@ -37,11 +37,22 @@ pub async fn check(
     sleep_till(time).await?;
 
     let mut peer_connection = client.connect_to_peer(false).await?;
-    let old_index = peer_connection.receive_backup_data().await?;
+    let old_index = peer_connection.receive_commands().await?;
 
-    peer_connection
-        .send_backup_data(&old_index, &new_index, false)
-        .await?;
+    match old_index {
+        Complete::Continue { index: old_index } => {
+            let old_index = match old_index {
+                Some(i) => i.decrypt(&data.key_pair.private)?,
+                None => Index::new(),
+            };
+            peer_connection
+                .send_data(&old_index, &new_index, false)
+                .await?;
+        }
+        Complete::Close => {
+            warn!("peer refused to receive commands");
+        }
+    }
 
     println!("Backup succesful");
 

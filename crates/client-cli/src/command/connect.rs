@@ -35,9 +35,9 @@ pub async fn connect(
     let old_index = peer_connection.get_index().await?;
 
     peer_connection
-        .send_backup_data(&old_index, &new_index, true)
+        .send_data(&old_index, &new_index, true)
         .await?;
-    peer_connection.receive_backup_data().await?;
+    peer_connection.receive_commands().await?;
 
     println!("Backup succesful");
 

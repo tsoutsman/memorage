@@ -5,7 +5,7 @@ use std::path::{Path, PathBuf};
 use bimap::BiMap;
 use rayon::iter::{IntoParallelIterator, ParallelIterator};
 use serde::{Deserialize, Serialize};
-use tokio::{fs::File, io::AsyncReadExt};
+use tokio::fs::File;
 
 #[derive(Clone, Default, Debug, Eq, PartialEq, Serialize, Deserialize)]
 pub struct Index(BiMap<PathBuf, [u8; 32]>);
@@ -19,20 +19,12 @@ impl Index {
     where
         P: AsRef<Path>,
     {
-        let meta = tokio::fs::metadata(path.as_ref()).await.ok();
-        let mut buf = Vec::with_capacity(if let Some(meta) = meta {
-            meta.len() as usize
-        } else {
-            0
-        });
-
-        match File::open(path).await.map_err(|e| e.into()) {
-            Ok(mut file) => file.read_to_end(&mut buf).await?,
+        let buf = match tokio::fs::read(path).await.map_err(|e| e.into()) {
+            Ok(c) => c,
             Err(Error::NotFound { .. }) => return Ok(None),
             Err(e) => return Err(e),
         };
         let index = bincode::deserialize(&buf)?;
-
         Ok(Some(index))
     }
 

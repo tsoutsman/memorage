@@ -62,15 +62,19 @@ pub struct SetIndex {
 
 /// Signify that syncing is complete.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
-pub struct Complete {
-    /// The index of the peer's files on this computer.
-    ///
-    /// The peer uses this to decide whether or not they need to update their
-    /// backup.
-    ///
-    /// When the receiver has completed syncing, the index they send back is
-    /// empty.
-    pub index: Option<Encrypted<Index>>,
+pub enum Complete {
+    Continue {
+        /// The index of the peer's files on this computer.
+        ///
+        /// The peer uses this to decide whether or not they need to update their
+        /// backup.
+        ///
+        /// When the receiver has completed syncing, the index they send back is
+        /// empty.
+        index: Option<Encrypted<Index>>,
+    },
+    /// Signifies that the host will not be accepting any commands from the peer.
+    Close,
 }
 
 macro_rules! impl_request {
