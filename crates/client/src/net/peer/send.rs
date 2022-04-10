@@ -93,12 +93,11 @@ impl<'a, 'b> PeerConnection<'a, 'b> {
         })
         .await?;
 
-        self.send_request(&if initiator {
-            request::Complete::Continue
+        if initiator {
+            self.send_request(&request::Complete::Continue).await?;
         } else {
-            request::Complete::Close
-        })
-        .await?;
+            let _ = self.send_request(&request::Complete::Close).await;
+        }
 
         Ok(())
     }

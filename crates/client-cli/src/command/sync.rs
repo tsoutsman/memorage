@@ -40,6 +40,7 @@ pub async fn sync(
         }
         Err(e) => return Err(e),
     };
+    debug!(?initiator);
 
     let backup_path_clone = config.backup_path.clone();
     let new_index_handle = tokio::spawn(async move {
@@ -52,7 +53,7 @@ pub async fn sync(
     });
 
     sleep_till(time).await?;
-    let mut peer_connection = client.connect_to_peer(true).await?;
+    let mut peer_connection = client.connect_to_peer(initiator).await?;
 
     async fn indefinite_ping(peer: &mut PeerConnection<'_, '_>) -> ! {
         loop {
@@ -75,6 +76,7 @@ pub async fn sync(
         // there to satisfy the type checker.
         _ = indefinite_ping(&mut peer_connection) => Index::new(),
     };
+    debug!("new index created");
 
     if initiator {
         if no_send {
@@ -105,5 +107,5 @@ pub async fn sync(
         };
     }
 
-    todo!();
+    Ok(())
 }

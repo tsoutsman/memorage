@@ -37,6 +37,7 @@ impl<'a, 'b> PeerConnection<'a, 'b> {
 
 impl<'a, 'b> PeerConnection<'a, 'b> {
     pub async fn receive_commands(&mut self) -> Result<request::Complete> {
+        info!("receiving commands");
         loop {
             let (mut send, mut recv) = self.accept_stream().await?;
 

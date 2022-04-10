@@ -59,7 +59,7 @@ impl<'a, 'b> PeerConnection<'a, 'b> {
             info!(?name, "successfully retrieved file");
         }
 
-        self.send_request(&request::Complete::Close).await?;
+        let _ = self.send_request(&request::Complete::Close).await;
         Ok(())
     }
 }
