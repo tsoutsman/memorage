@@ -22,7 +22,7 @@ mod error;
 mod manager;
 pub mod setup;
 
-use std::net::SocketAddr;
+use std::{fmt::Write, net::SocketAddr};
 
 use memorage_core::PublicKey;
 use memorage_cs::{deserialize, request::RequestType, response, serialize};
@@ -110,7 +110,7 @@ pub fn setup_logger() {
 fn format_key(key: &PublicKey) -> String {
     let mut string = String::new();
     for x in &key.as_ref()[0..6] {
-        string.push_str(&format!("{:02x?}", x));
+        let _ = write!(string, "{:02x?}", x);
     }
     string
 }

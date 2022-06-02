@@ -1,4 +1,7 @@
-use std::path::{Path, PathBuf};
+use std::{
+    fmt::Write,
+    path::{Path, PathBuf},
+};
 
 use serde::{Deserialize, Serialize};
 
@@ -12,7 +15,7 @@ impl From<&Path> for HashedPath {
         // TODO: to_string_lossy?
         let hash: [u8; 32] = blake3::hash(path.to_string_lossy().as_bytes()).into();
         for x in hash {
-            result.push_str(&format!("{:02x?}", x));
+            let _ = write!(result, "{:02x?}", x);
         }
         Self(result.into())
     }

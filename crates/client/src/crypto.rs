@@ -11,6 +11,7 @@ use memorage_core::PrivateKey;
 
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
 
+#[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Encrypted<T>
 where
