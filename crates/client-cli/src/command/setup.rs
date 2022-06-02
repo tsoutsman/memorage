@@ -53,7 +53,7 @@ pub async fn setup(config_output: Option<PathBuf>, data_output: Option<PathBuf>)
                 eprintln!("Backup path must be specified\n");
             }
             _ => {
-                let path: PathBuf = input.into();
+                let path = PathBuf::from(input).canonicalize()?;
                 if path.exists() {
                     break path;
                 } else {
@@ -108,7 +108,7 @@ pub async fn setup(config_output: Option<PathBuf>, data_output: Option<PathBuf>)
 
         let backup_path = io::prompt(&format!("Backup path [{}]: ", config.backup_path.display()))?;
         if backup_path.as_str() != "" {
-            config.backup_path = backup_path.into();
+            config.backup_path = PathBuf::from(backup_path).canonicalize()?;
         }
 
         println!();
@@ -118,7 +118,7 @@ pub async fn setup(config_output: Option<PathBuf>, data_output: Option<PathBuf>)
             config.peer_storage_path
         ))?;
         if peer_storage_path.as_str() != "" {
-            config.peer_storage_path = peer_storage_path.into();
+            config.peer_storage_path = PathBuf::from(peer_storage_path).canonicalize()?.into();
         }
     }
 
