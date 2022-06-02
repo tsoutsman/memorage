@@ -130,6 +130,7 @@ impl<'a, 'b> PeerConnection<'a, 'b> {
                     send_with_stream(&mut send, &response.map_err(|e| e.into())).await?;
                 }
                 RequestType::Complete(request) => {
+                    info!("sending complete response");
                     send_with_stream(&mut send, &Ok(response::Complete)).await?;
                     return Ok(request);
                 }

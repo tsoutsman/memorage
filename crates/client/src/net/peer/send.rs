@@ -88,15 +88,19 @@ impl<'a, 'b> PeerConnection<'a, 'b> {
             }
         }
 
+        info!("sending set_index request");
+
         self.send_request(&request::SetIndex {
             index: Encrypted::encrypt(&self.data.key_pair.private, new_index)?,
         })
         .await?;
 
         if initiator {
+            info!("sending complete(continue) request");
             self.send_request(&request::Complete::Continue).await?;
         } else {
-            let _ = self.send_request(&request::Complete::Close).await;
+            info!("sending complete(close) request");
+            self.send_request(&request::Complete::Close).await?;
         }
 
         Ok(())
