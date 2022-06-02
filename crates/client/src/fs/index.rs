@@ -5,7 +5,6 @@ use std::path::{Path, PathBuf};
 use bimap::BiMap;
 use rayon::iter::{IntoParallelIterator, ParallelIterator};
 use serde::{Deserialize, Serialize};
-use tokio::fs::File;
 
 #[derive(Clone, Default, Debug, Eq, PartialEq, Serialize, Deserialize)]
 pub struct Index(BiMap<PathBuf, [u8; 32]>);
@@ -47,14 +46,16 @@ impl Index {
             // TODO: Do we return error if it isn't.
         }
 
-        let paths = paths
-            .into_par_iter()
-            .map(|file_path| -> Result<(PathBuf, [u8; 32])> {
-                futures::executor::block_on(async {
-                    let hash = hash(File::open(&file_path).await?).await?;
+        let paths = tokio::task::spawn_blocking(move || {
+            paths
+                .into_par_iter()
+                .map(|file_path| -> Result<(PathBuf, [u8; 32])> {
+                    // TODO: Maybe use asynchronous file operations?
+                    let hash = hash(std::fs::File::open(&file_path)?)?;
                     Ok((file_path, hash))
                 })
-            });
+        })
+        .await?;
 
         let mut index = Self::new();
 

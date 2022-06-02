@@ -74,7 +74,7 @@ impl<'a, 'b> PeerConnection<'a, 'b> {
                             debug!("sent get file response, starting wide copy");
 
                             // TODO: Communicate error to peer if it occurs during copying.
-                            crate::util::wide_copy(File::open(path).await?, send).await?;
+                            crate::util::async_wide_copy(File::open(path).await?, send).await?;
                             debug!("get file wide copy complete");
                         }
                         Err(e) => {
@@ -92,7 +92,7 @@ impl<'a, 'b> PeerConnection<'a, 'b> {
                         info!(?path, "writing to file");
                         debug!("received write request, starting wide copy");
 
-                        crate::util::wide_copy(recv, File::create(path).await?).await?;
+                        crate::util::async_wide_copy(recv, File::create(path).await?).await?;
                         debug!("write wide copy complete");
 
                         response::Write
