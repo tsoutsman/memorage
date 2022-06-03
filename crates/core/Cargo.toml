@@ -8,7 +8,7 @@ repository = "https://github.com/memorage/memorage"
 license = "GPL-3.0-only"
 
 [dependencies]
-ed25519-dalek = { version = "*", features = ["serde"] }
-serde = { version = "*", features = ["derive"] }
-time = { version = "*", features = ["serde"] }
+ed25519-dalek = { version = "1.0", features = ["serde"] }
+time = { version = "0.3", features = ["serde"] }
 rand = "0.7"
+serde = { version = "1.0", features = ["derive"] }

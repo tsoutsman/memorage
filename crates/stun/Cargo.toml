@@ -8,10 +8,15 @@ repository = "https://github.com/memorage/memorage"
 license = "GPL-3.0-only"
 
 [dependencies]
+# internal 
 memorage-core = { path = "../core" }
-enumn = "*"
-thiserror = "*"
-tokio = { version = "*", features = ["net"] }
+
+# core
+tokio = { version = "1.18", features = ["net"] }
+
+# util
+enumn = "0.1"
+thiserror = "1.0"
 
 [dev-dependencies]
-tokio = { version = "*", features = ["macros", "rt-multi-thread"] }
+tokio = { version = "1.18", features = ["macros", "rt-multi-thread"] }

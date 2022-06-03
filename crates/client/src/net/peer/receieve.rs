@@ -11,6 +11,7 @@ use crate::{
     Error, Result,
 };
 
+use futures_util::StreamExt;
 use quinn::{RecvStream, SendStream};
 use tokio::{fs::File, io::AsyncWriteExt};
 use tracing::{debug, trace};

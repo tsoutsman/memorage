@@ -8,9 +8,14 @@ repository = "https://github.com/memorage/memorage"
 license = "GPL-3.0-only"
 
 [dependencies]
+# internal
 memorage-core = { path = "../core" }
-rcgen = "*"
-rustls = { version = "*", features = ["dangerous_configuration"] }
-thiserror = "*"
-quinn = { git = "https://github.com/quinn-rs/quinn" }
-x509-parser = { version = "*", features = ["verify", "validate"] }
+
+# core
+rcgen = "0.9"
+rustls = { version = "0.20", features = ["dangerous_configuration"] }
+quinn = "0.8"
+x509-parser = { version = "0.13", features = ["verify", "validate"] }
+
+# util
+thiserror = "1.0"

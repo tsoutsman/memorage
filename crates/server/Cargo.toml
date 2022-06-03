@@ -8,18 +8,35 @@ repository = "https://github.com/memorage/memorage"
 license = "GPL-3.0-only"
 
 [dependencies]
+# internal
 memorage-core = { path = "../core" }
 memorage-cs = { path = "../cs" }
 memorage-cert = { path = "../cert" }
 memorage-stun = { path = "../stun" }
-tokio = { version = "*", features = ["sync",  "io-util", "net", "macros", "rt-multi-thread"] }
-hashbrown = "*"
-serde = "*"
-quinn = { git = "https://github.com/quinn-rs/quinn" }
-tracing = "*"
-tracing-subscriber = { version = "*", features = ["env-filter"] }
-human-panic = "*"
-thiserror = "*"
+
+# core
+tracing = "0.1"
+hashbrown = "0.12"
+serde = "1.0"
+quinn = "0.8"
+
+# cli
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+human-panic = "1.0"
+
+# util
+thiserror = "1.0"
+futures-util = "0.3"
+
+[dependencies.tokio]
+version = "1.18"
+features = [
+    "sync",  
+    "io-util", 
+    "net", 
+    "macros", 
+    "rt-multi-thread"
+] 
 
 [dev-dependencies]
-lazy_static = "*"
+lazy_static = "1.4"

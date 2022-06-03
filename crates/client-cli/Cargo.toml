@@ -8,12 +8,17 @@ repository = "https://github.com/memorage/memorage"
 license = "GPL-3.0-only"
 
 [dependencies]
+# internal
 memorage-client = { path = "../client" }
 memorage-cs = { path = "../cs" }
 memorage-core = { path = "../core" }
-clap = { version = "3.0.5", features = ["derive"] }
-tracing = "*"
-tracing-subscriber = { version = "*", features = ["env-filter"] }
-human-panic = "*"
-tokio = { version = "*", features = ["macros", "rt-multi-thread"] }
-rpassword = "*"
+
+# core
+tracing = "0.1"
+tokio = { version = "1.18", features = ["macros", "rt-multi-thread"] }
+
+# cli
+clap = { version = "3.0", features = ["derive"] }
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+human-panic = "1.0"
+rpassword = "6.0"

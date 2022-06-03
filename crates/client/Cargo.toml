@@ -8,32 +8,50 @@ repository = "https://github.com/memorage/memorage"
 license = "GPL-3.0-only"
 
 [dependencies]
+# internal
 memorage-core = { path = "../core" }
 memorage-cs = { path = "../cs" }
 memorage-cert = { path = "../cert" }
 memorage-stun = { path = "../stun" }
 memorage-macros = { path = "../macros", features = ["client"] }
-tokio = { version = "*", features = ["net", "io-util", "macros", "rt-multi-thread", "fs"] }
-serde = "*"
-blake3 = "*"
-lazy_static = "*"
-bincode = "*"
+
+# core
+tracing = "0.1"
+quinn = "0.8"
+rayon = "1.5"
+bimap = { version = "0.6", features = ["serde"] }
+jwalk = "0.6"
+
+# crypto
+blake3 = "1.3"
 chacha20poly1305 = "0.9"
-argon2 = "*"
-thiserror = "*"
-quinn = { git = "https://github.com/quinn-rs/quinn" }
-tracing = "*"
-serde_bytes = "*"
-toml = "*"
-dirs = "*"
-walkdir = "*"
-directories-next = "*"
-jwalk = "*"
-rayon = "*"
-bimap = { version = "*", features = ["serde"] }
-async-trait = "*"
-futures = "*"
+argon2 = "0.4"
+
+# config
+toml = "0.5"
+directories-next = "2.0"
+
+# serde
+serde = "1.0"
+bincode = "1.3"
+serde_bytes = "0.11"
+
+# util
+async-trait = "0.1"
+futures-util = "0.3"
+lazy_static = "1.4"
+thiserror = "1.0"
+
+[dependencies.tokio]
+version = "1.18"
+features = [
+    "net",
+    "io-util",
+    "macros", 
+    "rt-multi-thread", 
+    "fs"
+] 
 
 [dev-dependencies]
-efes = "*"
-tempfile = "*"
+efes = "1.0"
+tempfile = "3.3"

@@ -24,6 +24,7 @@ pub mod setup;
 
 use std::{fmt::Write, net::SocketAddr};
 
+use futures_util::StreamExt;
 use memorage_core::PublicKey;
 use memorage_cs::{deserialize, request::RequestType, response, serialize};
 use tracing::{info, warn};
