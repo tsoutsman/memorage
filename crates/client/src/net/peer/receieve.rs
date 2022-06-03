@@ -132,6 +132,9 @@ impl<'a, 'b> PeerConnection<'a, 'b> {
                 RequestType::Complete(request) => {
                     info!("sending complete response");
                     send_with_stream(&mut send, &Ok(response::Complete)).await?;
+                    if request == request::Complete::Close {
+                        tokio::time::sleep(std::time::Duration::from_secs(1)).await;
+                    }
                     return Ok(request);
                 }
             }

@@ -83,6 +83,7 @@ where
 {
     // TODO: Make sure not too long.
     let request_length = usize::from(recv.read_u16().await?);
+    debug!("incoming request length: {}", request_length);
     let mut buf = vec![0; request_length];
     recv.read_exact(&mut buf).await?;
     protocol::deserialize::<_, T>(&buf).map_err(|e| e.into())
