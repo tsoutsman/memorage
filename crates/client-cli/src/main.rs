@@ -7,6 +7,7 @@ use crate::app::{Args, Command};
 use memorage_core::time::OffsetDateTime;
 
 use clap::Parser;
+use tracing::info;
 
 #[tokio::main]
 async fn main() -> memorage_client::Result<()> {
@@ -54,7 +55,7 @@ async fn main() -> memorage_client::Result<()> {
 
 async fn sleep_till(time: OffsetDateTime) -> memorage_client::Result<()> {
     let delay = time - OffsetDateTime::now_utc();
-    tracing::info!(?time, ?delay, "waiting for synchronisation");
+    info!(%time, %delay, "waiting for synchronisation");
     tokio::time::sleep(
         delay
             .try_into()

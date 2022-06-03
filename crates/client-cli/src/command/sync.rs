@@ -9,7 +9,7 @@ use memorage_client::{
     Error, Result,
 };
 
-use tracing::{debug, warn};
+use tracing::{debug, trace, warn};
 
 pub async fn sync(
     config: Option<PathBuf>,
@@ -26,7 +26,6 @@ pub async fn sync(
     }
 
     let client = Client::new(&data, &config).await?;
-    debug!(public_key=?data.key_pair.public, target_key=?data.peer, "trying to establish connection");
     let initiator;
 
     let time = match client.check_peer_connection().await {
@@ -62,7 +61,7 @@ pub async fn sync(
             // indefinite_ping gets dropped after transmitting a ping but before
             // receiving a response.
             let result = peer.ping().await;
-            debug!(?result, "pinged peer");
+            trace!(?result, "pinged peer");
             tokio::time::sleep(std::time::Duration::from_secs(5)).await;
         }
     }

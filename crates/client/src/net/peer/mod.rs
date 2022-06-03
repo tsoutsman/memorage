@@ -10,7 +10,7 @@ use tokio::{
     io::{AsyncReadExt, AsyncWriteExt},
     net::UdpSocket,
 };
-use tracing::debug;
+use tracing::{debug, trace};
 
 mod receieve;
 mod retrieve;
@@ -31,6 +31,7 @@ impl<'a, 'b> PeerConnection<'a, 'b> {
     }
 
     pub async fn get_index(&self) -> Result<Index> {
+        debug!("getting old index");
         Ok(match self.send_request(&request::GetIndex).await?.0.index {
             Some(i) => i.decrypt(&self.data.key_pair.private)?,
             None => Index::new(),
@@ -46,7 +47,6 @@ impl<'a, 'b> PeerConnection<'a, 'b> {
         let (mut send, mut recv) = self.send_request_without_response(request).await?;
         send.finish().await?;
         let response = receive_from_stream::<protocol::Result<_>>(&mut recv).await??;
-        debug!(?response, "received response");
         Ok((response, (send, recv)))
     }
 
@@ -57,7 +57,6 @@ impl<'a, 'b> PeerConnection<'a, 'b> {
     where
         T: protocol::Serialize + request::Request + std::fmt::Debug,
     {
-        debug!(?request, "sending request");
         let (mut send, recv) = self.connection.connection.open_bi().await?;
         send_with_stream(&mut send, request).await?;
         Ok((send, recv))
@@ -66,25 +65,33 @@ impl<'a, 'b> PeerConnection<'a, 'b> {
 
 async fn send_with_stream<T>(send: &mut SendStream, packet: &T) -> Result<()>
 where
-    T: protocol::Serialize,
+    T: protocol::Serialize + std::fmt::Debug,
 {
     let encoded = protocol::serialize(packet)?;
-
-    debug!("encoded length: {}", encoded.len());
+    trace!(
+        length = ?encoded.len(),
+        ?packet,
+        "sending packet"
+    );
     send.write_u16(encoded.len() as u16).await?;
     send.write_all(&encoded).await?;
-
     Ok(())
 }
 
 async fn receive_from_stream<T>(recv: &mut RecvStream) -> Result<T>
 where
-    T: protocol::Deserialize,
+    T: protocol::Deserialize + std::fmt::Debug,
 {
     // TODO: Make sure not too long.
-    let request_length = usize::from(recv.read_u16().await?);
-    debug!("incoming request length: {}", request_length);
-    let mut buf = vec![0; request_length];
+    let length = usize::from(recv.read_u16().await?);
+    let mut buf = vec![0; length];
     recv.read_exact(&mut buf).await?;
-    protocol::deserialize::<_, T>(&buf).map_err(|e| e.into())
+    let packet = protocol::deserialize::<_, T>(&buf).map_err(|e| e.into());
+    trace!(
+        ?length,
+        ?packet,
+        expected = std::any::type_name::<T>(),
+        "incoming packet"
+    );
+    packet
 }

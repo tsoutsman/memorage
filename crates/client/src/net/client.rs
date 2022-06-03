@@ -17,7 +17,7 @@ use memorage_cs::{
 
 use quinn::{Endpoint, EndpointConfig, Incoming};
 use tokio::net::UdpSocket;
-use tracing::{debug, info, warn};
+use tracing::{debug, info, trace, warn};
 
 #[derive(Debug)]
 pub struct Client<'a, 'b, T>
@@ -125,6 +125,11 @@ impl<'a, 'b> Client<'a, 'b, Data> {
     /// Establish a connection to a peer.
     #[allow(clippy::missing_panics_doc)]
     pub async fn establish_peer_connection(&self) -> Result<OffsetDateTime> {
+        debug!(
+            public_key=?self.data.key_pair.public,
+            target_key=?self.data.peer,
+            "trying to establish connection"
+        );
         let target = self.data.peer;
         let time = OffsetDateTime::now_utc() + self.config.peer_connection_schedule_delay;
 
@@ -135,8 +140,13 @@ impl<'a, 'b> Client<'a, 'b, Data> {
     }
 
     pub async fn check_peer_connection(&self) -> Result<OffsetDateTime> {
-        let peer = self.data.peer;
+        debug!(
+            public_key=?self.data.key_pair.public,
+            target_key=?self.data.peer,
+            "checking for peer connections"
+        );
 
+        let peer = self.data.peer;
         let response = self.request(request::CheckConnection).await?;
 
         if response.initiator == peer {
@@ -151,12 +161,10 @@ impl<'a, 'b> Client<'a, 'b, Data> {
 
         let mut counter = 0;
 
-        debug!("sending first packet");
+        debug!("sending identification ping");
 
         let _temp = self.request(request::Ping(peer_key)).await;
         tokio::time::sleep(std::time::Duration::from_secs(5)).await;
-
-        debug!(?_temp, "looping");
 
         loop {
             match self.request(request::Ping(peer_key)).await {
@@ -174,7 +182,7 @@ impl<'a, 'b> Client<'a, 'b, Data> {
 
                     for _ in 0..10 {
                         let result = self.socket.send(&[15, 96, 13]).await;
-                        debug!(?result, "punching");
+                        trace!(?result, "punching");
                         tokio::time::sleep(std::time::Duration::from_secs(1)).await;
                     }
 
@@ -199,7 +207,7 @@ impl<'a, 'b> Client<'a, 'b, Data> {
                 }
                 Err(Error::Server(memorage_cs::Error::NoData)) => {
                     counter += 1;
-                    info!(%counter, "no data on server");
+                    debug!(%counter, "peer address not on server");
                 }
                 Err(e) => {
                     warn!(?e, "server error");

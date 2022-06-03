@@ -8,7 +8,7 @@ use memorage_client::{
     Result,
 };
 
-use tracing::{debug, info};
+use tracing::debug;
 
 pub async fn retrieve(
     output: Option<PathBuf>,
@@ -28,7 +28,6 @@ pub async fn retrieve(
     }
 
     let client = Client::new(&data, &config).await?;
-    info!(public_key=?data.key_pair.public, target_key=?data.peer, "trying to establish connection");
     let time = client.establish_peer_connection().await?;
     sleep_till(time).await?;
 

@@ -13,7 +13,7 @@ use crate::{
 
 use quinn::{RecvStream, SendStream};
 use tokio::{fs::File, io::AsyncWriteExt};
-use tracing::{debug, info};
+use tracing::{debug, trace};
 
 impl<'a, 'b> PeerConnection<'a, 'b> {
     async fn accept_stream(&mut self) -> Result<(SendStream, RecvStream)> {
@@ -37,12 +37,10 @@ impl<'a, 'b> PeerConnection<'a, 'b> {
 
 impl<'a, 'b> PeerConnection<'a, 'b> {
     pub async fn receive_commands(&mut self) -> Result<request::Complete> {
-        info!("receiving commands");
+        debug!("receiving commands from peer");
         loop {
             let (mut send, mut recv) = self.accept_stream().await?;
-
             let request = receive_from_stream(&mut recv).await?;
-            info!(?request, "received request");
 
             match request {
                 RequestType::Ping(_) => send_with_stream(&mut send, &Ok(response::Ping)).await?,
@@ -71,11 +69,10 @@ impl<'a, 'b> PeerConnection<'a, 'b> {
                         Ok((path, contents_len)) => {
                             let response = Ok(response::GetFile { contents_len });
                             send_with_stream(&mut send, &response).await?;
-                            debug!("sent get file response, starting wide copy");
-
+                            trace!("sent get file response, starting wide copy");
                             // TODO: Communicate error to peer if it occurs during copying.
                             crate::util::async_wide_copy(File::open(path).await?, send).await?;
-                            debug!("get file wide copy complete");
+                            trace!("get file wide copy complete");
                         }
                         Err(e) => {
                             send_with_stream(
@@ -89,12 +86,10 @@ impl<'a, 'b> PeerConnection<'a, 'b> {
                 RequestType::Write(request::Write { name, .. }) => {
                     let response: crate::Result<_> = try {
                         let path = self.config.peer_storage_path.file_path(name)?;
-                        info!(?path, "writing to file");
-                        debug!("received write request, starting wide copy");
-
+                        debug!(?path, "writing to file");
+                        trace!("received write request, starting wide copy");
                         crate::util::async_wide_copy(recv, File::create(path).await?).await?;
-                        debug!("write wide copy complete");
-
+                        trace!("write wide copy complete");
                         response::Write
                     };
                     send_with_stream(&mut send, &response.map_err(|e| e.into())).await?;
@@ -130,15 +125,16 @@ impl<'a, 'b> PeerConnection<'a, 'b> {
                     send_with_stream(&mut send, &response.map_err(|e| e.into())).await?;
                 }
                 RequestType::Complete(request) => {
-                    info!("sending complete response");
+                    debug!("sending complete response");
                     send_with_stream(&mut send, &Ok(response::Complete)).await?;
                     if request == request::Complete::Close {
+                        trace!("sleeping after sending complete response");
                         tokio::time::sleep(std::time::Duration::from_secs(1)).await;
                     }
                     return Ok(request);
                 }
             }
-            info!("request handled");
+            trace!("request handled");
         }
     }
 }
