@@ -1,4 +1,5 @@
 use crate::{
+    crypto::Encrypted,
     fs::index::Index,
     net::{
         peer::{receive_from_stream, send_with_stream, PeerConnection},
@@ -13,7 +14,7 @@ use crate::{
 
 use futures_util::StreamExt;
 use quinn::{RecvStream, SendStream};
-use tokio::{fs::File, io::AsyncWriteExt};
+use tokio::fs::File;
 use tracing::{debug, trace};
 
 impl<'a, 'b> PeerConnection<'a, 'b> {
@@ -48,13 +49,13 @@ impl<'a, 'b> PeerConnection<'a, 'b> {
                 RequestType::GetIndex(_) => {
                     let response: crate::Result<_> = try {
                         response::GetIndex {
-                            index: Index::from_disk_encrypted(self.config.index_path()).await?,
+                            index: Encrypted::<Index>::from_disk(self.config.index_path()).await?,
                         }
                     };
                     send_with_stream(&mut send, &response.map_err(|e| e.into())).await?;
                 }
                 RequestType::GetFile(request::GetFile { name }) => {
-                    let data_result: crate::Result<_> = try {
+                    let result: crate::Result<_> = try {
                         let path = self.config.peer_storage_path.file_path(name)?;
 
                         let contents_len = match tokio::fs::metadata(&path).await {
@@ -66,12 +67,13 @@ impl<'a, 'b> PeerConnection<'a, 'b> {
                         (path, contents_len)
                     };
 
-                    match data_result {
+                    match result {
                         Ok((path, contents_len)) => {
                             let response = Ok(response::GetFile { contents_len });
                             send_with_stream(&mut send, &response).await?;
                             trace!("sent get file response, starting wide copy");
                             // TODO: Communicate error to peer if it occurs during copying.
+                            // TODO: Handle contents_len == None
                             crate::util::async_wide_copy(File::open(path).await?, send).await?;
                             trace!("get file wide copy complete");
                         }
@@ -88,9 +90,7 @@ impl<'a, 'b> PeerConnection<'a, 'b> {
                     let response: crate::Result<_> = try {
                         let path = self.config.peer_storage_path.file_path(name)?;
                         debug!(?path, "writing to file");
-                        trace!("received write request, starting wide copy");
                         crate::util::async_wide_copy(recv, File::create(path).await?).await?;
-                        trace!("write wide copy complete");
                         response::Write
                     };
                     send_with_stream(&mut send, &response.map_err(|e| e.into())).await?;
@@ -116,11 +116,7 @@ impl<'a, 'b> PeerConnection<'a, 'b> {
                 }
                 RequestType::SetIndex(request::SetIndex { index }) => {
                     let response: crate::Result<_> = try {
-                        let serialized = bincode::serialize(&index)?;
-                        File::create(self.config.index_path())
-                            .await?
-                            .write_all(&serialized)
-                            .await?;
+                        index.to_disk(self.config.index_path()).await?;
                         response::SetIndex
                     };
                     send_with_stream(&mut send, &response.map_err(|e| e.into())).await?;

@@ -5,6 +5,7 @@ use std::path::{Path, PathBuf};
 use bimap::BiMap;
 use rayon::iter::{IntoParallelIterator, ParallelIterator};
 use serde::{Deserialize, Serialize};
+use tokio::{fs::File, io::AsyncWriteExt};
 
 #[derive(Clone, Default, Debug, Eq, PartialEq, Serialize, Deserialize)]
 pub struct Index(BiMap<PathBuf, [u8; 32]>);
@@ -12,19 +13,6 @@ pub struct Index(BiMap<PathBuf, [u8; 32]>);
 impl Index {
     pub fn new() -> Self {
         Self::default()
-    }
-
-    pub async fn from_disk_encrypted<P>(path: P) -> Result<Option<Encrypted<Self>>>
-    where
-        P: AsRef<Path>,
-    {
-        let buf = match tokio::fs::read(path).await.map_err(|e| e.into()) {
-            Ok(c) => c,
-            Err(Error::NotFound { .. }) => return Ok(None),
-            Err(e) => return Err(e),
-        };
-        let index = bincode::deserialize(&buf)?;
-        Ok(Some(index))
     }
 
     #[allow(clippy::missing_panics_doc)]
@@ -93,6 +81,30 @@ impl Index {
         }
 
         diff
+    }
+}
+
+impl Encrypted<Index> {
+    pub async fn from_disk<P>(path: P) -> Result<Option<Self>>
+    where
+        P: AsRef<Path>,
+    {
+        let buf = match tokio::fs::read(path).await.map_err(|e| e.into()) {
+            Ok(c) => c,
+            Err(Error::NotFound { .. }) => return Ok(None),
+            Err(e) => return Err(e),
+        };
+        let index = bincode::deserialize(&buf)?;
+        Ok(Some(index))
+    }
+
+    pub async fn to_disk<P>(&self, path: P) -> Result<()>
+    where
+        P: AsRef<Path>,
+    {
+        let serialized = bincode::serialize(self)?;
+        File::create(path).await?.write_all(&serialized).await?;
+        Ok(())
     }
 }
 

@@ -15,6 +15,7 @@ use tracing::{debug, trace};
 mod receieve;
 mod retrieve;
 mod send;
+mod stream;
 
 #[derive(Debug)]
 pub struct PeerConnection<'a, 'b> {
