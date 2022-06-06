@@ -1,5 +1,7 @@
 use memorage_core::{rand::seq::SliceRandom, KeyPair, PrivateKey};
 
+use crate::{Error, Result};
+
 lazy_static::lazy_static! {
     static ref ARGON2: argon2::Argon2<'static> = {
         let mut params = argon2::ParamsBuilder::new();
@@ -29,8 +31,12 @@ pub struct MnemonicPhrase<'a> {
 }
 
 impl<'a> MnemonicPhrase<'a> {
-    pub fn new(words: Vec<&'a str>, password: Option<String>) -> Self {
-        Self { words, password }
+    pub fn new(words: Vec<&'a str>, password: Option<String>) -> Result<Self> {
+        if words.iter().any(|w| WORD_LIST.contains(w)) {
+            Ok(Self { words, password })
+        } else {
+            Err(Error::InvalidWords)
+        }
     }
 }
 
@@ -108,10 +114,13 @@ impl From<MnemonicPhrase<'_>> for KeyPair {
     /// # }
     /// use memorage_client::mnemonic::MnemonicPhrase;
     ///
-    /// let key = memorage_core::KeyPair::from(MnemonicPhrase::new(
-    ///     vec!["ahead", "blanket", "captain", "diamond"],
-    ///     Some("hunter2".to_owned()),
-    /// ))
+    /// let key = memorage_core::KeyPair::from(
+    ///     MnemonicPhrase::new(
+    ///         vec!["ahead", "blanket", "captain", "diamond"],
+    ///         Some("hunter2".to_owned()),
+    ///     )
+    ///     .unwrap(),
+    /// )
     /// .private;
     ///
     /// let string = "aheadblanketcaptaindiamond password hunter2 :)";

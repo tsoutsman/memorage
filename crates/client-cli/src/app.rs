@@ -19,6 +19,14 @@ pub enum Command {
         #[clap(long)]
         data_output: Option<PathBuf>,
     },
+    Login {
+        /// Save the generated config file to the specified path.
+        #[clap(long)]
+        config_output: Option<PathBuf>,
+        /// Save the generated data file to the specified path.
+        #[clap(long)]
+        data_output: Option<PathBuf>,
+    },
     /// Pair to a peer
     ///
     /// One peer runs the command without a code, generating a new code. The

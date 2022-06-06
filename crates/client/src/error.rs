@@ -65,6 +65,10 @@ pub enum Error {
     FrameTooShort,
     #[error("join error")]
     Join(#[from] tokio::task::JoinError),
+    #[error("mnemonic contains invalid words")]
+    InvalidWords,
+    #[error("user cancelled operation")]
+    UserCancelled,
 }
 
 impl From<std::io::Error> for Error {
