@@ -6,9 +6,21 @@
 **Memorage** is a peer to peer backup service. Set up with a friend to store
 backups on each other's computer. Backups are automatic and encrypted.
 
-**Memorage is still very much a work in progress; it is not yet ready for use.**
 
-<!-- ### Download -->
+### Installation
+
+**Memorage** must be built from source using the nightly Rust toolchain:
+```bash
+git clone https://github.com/tsoutsman/memorage
+cd memorage/crates/client-cli
+cargo install --path .
+````
+
+The nightly Rust toolchain can be installed with the following command:
+
+```bash
+curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
+```
 
 ### Features
 

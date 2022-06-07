@@ -1,3 +1,5 @@
+cargo-features = ["different-binary-name"]
+
 [package]
 name = "memorage-client-cli"
 version = "0.1.0"
@@ -6,6 +8,10 @@ edition = "2021"
 homepage = "https://memorage.org"
 repository = "https://github.com/memorage/memorage"
 license = "GPL-3.0-only"
+
+[[bin]]
+name = "memorage-client-cli"
+filename = "memorage"
 
 [dependencies]
 # internal
