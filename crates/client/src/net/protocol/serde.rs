@@ -5,8 +5,8 @@ pub trait Serialize: Sealed {
     fn transmission_form(&self) -> Self::TransmissionType;
 }
 
-// Ensures that the enum `RequestType` is deserialized and not the request structs
-// such as `Register`.
+// Ensures that the enum `RequestType` is deserialized and not the request
+// structs such as `Register`.
 pub trait Deserialize: Sealed + serde::de::DeserializeOwned {}
 
 impl<T> Sealed for Result<T> where T: response::Response {}

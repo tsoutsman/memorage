@@ -101,14 +101,15 @@ impl ClientCertVerifier for CertVerifier {
     }
 }
 
-/// Get the subject key of the certificate used to authenticate the provided connection.
+/// Get the subject key of the certificate used to authenticate the provided
+/// connection.
 ///
 /// # Safety
-/// This function does not check the validity or authenticity of the certificate -
-/// it is assumed that the certificate has already been verified. If the configuration
-/// from [`gen_recv_config`](crate::gen_recv_config) is used, then this function
-/// call safely be called on the incoming connection (assuming the correct parameters
-/// were passed to `gen_recv_config`).
+/// This function does not check the validity or authenticity of the certificate
+/// - it is assumed that the certificate has already been verified. If the
+/// configuration from [`gen_recv_config`](crate::gen_recv_config) is used, then
+/// this function call safely be called on the incoming connection (assuming the
+/// correct parameters were passed to `gen_recv_config`).
 #[inline]
 pub fn get_key_unchecked(connection: &quinn::Connection) -> crate::Result<PublicKey> {
     let certs = connection

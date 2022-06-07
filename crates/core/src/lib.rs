@@ -45,8 +45,8 @@ impl KeyPair {
     }
 
     pub fn from_entropy() -> Self {
-        // God help us all with the fifteen different fucking rand versions please it's 1 AM why
-        // are my local builds working but CI builds failing.
+        // God help us all with the fifteen different fucking rand versions please it's
+        // 1 AM why are my local builds working but CI builds failing.
         Self::generate(&mut rand::thread_rng())
     }
 

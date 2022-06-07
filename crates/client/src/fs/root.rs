@@ -23,9 +23,18 @@ impl RootDirectory {
     /// # use std::path::PathBuf;
     /// let root: RootDirectory = "/foo".into();
     /// assert_eq!(root.file_path("bar").unwrap(), PathBuf::from("/foo/bar"));
-    /// assert!(matches!(root.file_path("bar/baz"), Err(Error::MaliciousFileName)));
-    /// assert!(matches!(root.file_path("/baz"), Err(Error::MaliciousFileName)));
-    /// assert!(matches!(root.file_path(".."), Err(Error::MaliciousFileName)));
+    /// assert!(matches!(
+    ///     root.file_path("bar/baz"),
+    ///     Err(Error::MaliciousFileName)
+    /// ));
+    /// assert!(matches!(
+    ///     root.file_path("/baz"),
+    ///     Err(Error::MaliciousFileName)
+    /// ));
+    /// assert!(matches!(
+    ///     root.file_path(".."),
+    ///     Err(Error::MaliciousFileName)
+    /// ));
     /// ```
     pub fn file_path<P>(&self, name: P) -> Result<PathBuf>
     where

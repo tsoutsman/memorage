@@ -64,7 +64,8 @@ pub struct SetIndex {
 #[derive(Copy, Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub enum Complete {
     Continue,
-    /// Signifies that the host will not be accepting any commands from the peer.
+    /// Signifies that the host will not be accepting any commands from the
+    /// peer.
     Close,
 }
 

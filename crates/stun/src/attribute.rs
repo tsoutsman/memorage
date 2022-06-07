@@ -4,7 +4,8 @@ use std::{convert::TryFrom, net};
 
 type Result<T> = std::result::Result<T, StunError>;
 
-/// An enum that contains all supported attributes that can be added to a STUN message.
+/// An enum that contains all supported attributes that can be added to a STUN
+/// message.
 #[derive(Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
 pub(crate) enum Attribute {
     Software(Software),
@@ -19,9 +20,10 @@ impl Attribute {
         }
     }
 
-    /// Decodes bytes into an [`Attribute`]. The function requires the transaction id of the message
-    /// as some attributes require it in order to successfully interpret the bytes. If given
-    /// multiple attributes, it will only decode the top most one and return the decoded attribute
+    /// Decodes bytes into an [`Attribute`]. The function requires the
+    /// transaction id of the message as some attributes require it in order
+    /// to successfully interpret the bytes. If given multiple attributes,
+    /// it will only decode the top most one and return the decoded attribute
     /// and how many bytes were read while decoding it.
     #[allow(clippy::missing_panics_doc)]
     pub(crate) fn from_bytes(data: Vec<u8>, tid: [u8; 12]) -> Result<(Self, usize)> {
@@ -58,26 +60,28 @@ pub(crate) trait AttributeExt: Sized {
     /// The 2 byte value that STUN agents use to identify the type of attribute.
     #[doc(hidden)]
     const TYPE: u16;
-    /// The encoded representation of the attribute, not including the attribute header or any
-    /// padding.
+    /// The encoded representation of the attribute, not including the attribute
+    /// header or any padding.
     #[doc(hidden)]
     fn encode(&self) -> Vec<u8>;
-    /// Should return a decoded version of `Self` from the data given. `data` will contain the
-    /// value of the attribute, so it will not include the header or any padding.
+    /// Should return a decoded version of `Self` from the data given. `data`
+    /// will contain the value of the attribute, so it will not include the
+    /// header or any padding.
     #[doc(hidden)]
     fn decode(data: Vec<u8>, tid: [u8; 12]) -> Result<Self>;
-    /// The length of the [`Vec`](std::vec::Vec) returned by [`encode`](AttributeExt::encode).
+    /// The length of the [`Vec`](std::vec::Vec) returned by
+    /// [`encode`](AttributeExt::encode).
     ///
-    /// This is only included as there are often much more efficient ways of calculating the length
-    /// instead of fully encoding it and getting the length (e.g. the length of a
-    /// [`XorMappedAddress`] is constant).
+    /// This is only included as there are often much more efficient ways of
+    /// calculating the length instead of fully encoding it and getting the
+    /// length (e.g. the length of a [`XorMappedAddress`] is constant).
     #[doc(hidden)]
     fn value_len(&self) -> usize;
 
     /// The total length of the attribute once encoded.
     ///
-    /// The length includes 4 bytes for the header, the length of the internal value, and the length
-    /// of padding required.
+    /// The length includes 4 bytes for the header, the length of the internal
+    /// value, and the length of padding required.
     #[doc(hidden)]
     fn len(&self) -> usize {
         4 + self.value_len() + self.padding_len()
@@ -85,9 +89,10 @@ pub(crate) trait AttributeExt: Sized {
 
     /// The amount of padding needed when encoding this attribute.
     ///
-    /// Since STUN aligns attributes on 32-bit boundaries, attributes whose content is not a
-    /// multiple of 4 bytes are padded with 1, 2, or 3 bytes of padding so that its value contains
-    /// a multiple of 4 bytes. The padding bits are ignored, and may be any value.
+    /// Since STUN aligns attributes on 32-bit boundaries, attributes whose
+    /// content is not a multiple of 4 bytes are padded with 1, 2, or 3
+    /// bytes of padding so that its value contains a multiple of 4 bytes.
+    /// The padding bits are ignored, and may be any value.
     #[doc(hidden)]
     fn padding_len(&self) -> usize {
         (4 - self.value_len() % 4) % 4
@@ -107,12 +112,14 @@ pub(crate) trait AttributeExt: Sized {
         result
     }
 
-    /// Decodes bytes into an [`Attribute`]. The function requires the transaction id of the message
-    /// as some attributes require it in order to successfully interpret the bytes. If given
-    /// multiple attributes, it will only decode the top most one and return the decoded attribute
+    /// Decodes bytes into an [`Attribute`]. The function requires the
+    /// transaction id of the message as some attributes require it in order
+    /// to successfully interpret the bytes. If given multiple attributes,
+    /// it will only decode the top most one and return the decoded attribute
     /// and how many bytes were read while decoding it.
     fn from_bytes(data: Vec<u8>, tid: [u8; 12]) -> Result<(Self, usize)> {
-        // The two try_from unwraps are safe as we are taking a slice of length 2 from a Vec<u8>.
+        // The two try_from unwraps are safe as we are taking a slice of length 2 from a
+        // Vec<u8>.
 
         let expected_type = u16::from_be_bytes(<[u8; 2]>::try_from(&data[0..2]).unwrap());
         if expected_type != Self::TYPE {
@@ -125,10 +132,10 @@ pub(crate) trait AttributeExt: Sized {
             return Err(StunError::IncorrectAttributeLength);
         }
 
-        // TODO we don't need to clone the vec, but I don't know how to get a slice of a vec that is
-        // itself a vec.
-        // Give decode the data contained in the packet (i.e. the packet - the heading - the
-        // padding).
+        // TODO we don't need to clone the vec, but I don't know how to get a slice of a
+        // vec that is itself a vec.
+        // Give decode the data contained in the packet (i.e. the packet - the heading -
+        // the padding).
         Ok((
             Self::decode(data[4..(4 + expected_len) as usize].to_vec(), tid)?,
             // The length of data used is equal to the header (4 bytes) + the length of data
@@ -138,14 +145,16 @@ pub(crate) trait AttributeExt: Sized {
     }
 }
 
-/// A textual description of the software being used by the agent sending the message.
+/// A textual description of the software being used by the agent sending the
+/// message.
 ///
 /// Its value must be a valid UTF-8 string and have fewer than 128 characters.
-/// The value should include manufacturer and version number. The attribute has no impact on
-/// operation of the protocol, and serves only as a tool for diagnostic and debugging purposes.
+/// The value should include manufacturer and version number. The attribute has
+/// no impact on operation of the protocol, and serves only as a tool for
+/// diagnostic and debugging purposes.
 ///
-/// Software is a comprehension-optional attribute, which means that it can be ignored by
-/// the STUN agent if it does not understand it.
+/// Software is a comprehension-optional attribute, which means that it can be
+/// ignored by the STUN agent if it does not understand it.
 ///
 /// # Reference
 /// [RFC 5389]
@@ -157,8 +166,9 @@ pub(crate) struct Software(String);
 impl std::convert::TryFrom<&str> for Software {
     type Error = StunError;
 
-    /// Attempts to create a new [`Software`] attribute. As required by [RFC 5389], the value for the
-    /// attribute must be a valid UTF-8 string and have fewer than 128 characters.
+    /// Attempts to create a new [`Software`] attribute. As required by [RFC
+    /// 5389], the value for the attribute must be a valid UTF-8 string and
+    /// have fewer than 128 characters.
     ///
     /// [RFC 5389]: https://datatracker.ietf.org/doc/html/rfc5389#section-15.10
     fn try_from(value: &str) -> Result<Self> {
@@ -191,7 +201,8 @@ impl AttributeExt for Software {
 #[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
 pub(crate) struct XorMappedAddress {
     ip: net::IpAddr,
-    /// If the address is ipv6 then the transaction id of the message is used in the xor function.
+    /// If the address is ipv6 then the transaction id of the message is used in
+    /// the xor function.
     #[doc(hidden)]
     tid: Option<[u8; 12]>,
     port: u16,
@@ -214,8 +225,8 @@ impl XorMappedAddress {
         self.port
     }
 
-    /// This function must only be called by the [`Message`](crate::Message) that carries
-    /// the [`Software`] attribute.
+    /// This function must only be called by the [`Message`](crate::Message)
+    /// that carries the [`Software`] attribute.
     pub(crate) fn set_tid(&mut self, tid: [u8; 12]) {
         self.tid = Some(tid);
     }
@@ -231,9 +242,9 @@ impl AttributeExt for XorMappedAddress {
     const TYPE: u16 = 0x0020;
 
     fn encode(&self) -> Vec<u8> {
-        // The port is XORed with the 16 most significant bits of the `MAGIC_COOKIE`. The typecast
-        // is safe as the bit shift guarantees that, at most, only the 16 right most bits of the u32
-        // are set.
+        // The port is XORed with the 16 most significant bits of the `MAGIC_COOKIE`.
+        // The typecast is safe as the bit shift guarantees that, at most, only
+        // the 16 right most bits of the u32 are set.
         let port_xor = (self.port ^ (MAGIC_COOKIE >> 16) as u16).to_be_bytes();
 
         match self.ip {
@@ -261,8 +272,8 @@ impl AttributeExt for XorMappedAddress {
                 // Unwrap is ok as `Message` sets the value of `tid` when it pushes an
                 // `XorMappedAddress`.
                 xor.extend_from_slice(&self.tid.unwrap());
-                // Unwrap is ok as the vector is guaranteed to be 16 bytes: `MAGIC_COOKIE` must be
-                // of length 4 and `self.tid` must be of length 12.
+                // Unwrap is ok as the vector is guaranteed to be 16 bytes: `MAGIC_COOKIE` must
+                // be of length 4 and `self.tid` must be of length 12.
                 let xor = u128::from_be_bytes(<[u8; 16]>::try_from(xor).unwrap());
 
                 result.extend_from_slice(&(addr ^ xor).to_be_bytes());
@@ -273,8 +284,8 @@ impl AttributeExt for XorMappedAddress {
     }
 
     fn decode(data: Vec<u8>, tid: [u8; 12]) -> Result<Self> {
-        // Make sure that getting the family (bytes 1-2 of the message) and decoding the port
-        // (bytes 3-4 of the message) don't panic.
+        // Make sure that getting the family (bytes 1-2 of the message) and decoding the
+        // port (bytes 3-4 of the message) don't panic.
         if data.len() < 4 {
             return Err(StunError::IncorrectAttributeLength);
         }
@@ -312,8 +323,8 @@ impl AttributeExt for XorMappedAddress {
                 let mut xor = Vec::new();
                 xor.extend_from_slice(&MAGIC_COOKIE.to_be_bytes());
                 xor.extend_from_slice(&tid);
-                // Unwrap is ok as the vector is guaranteed to be 16 bytes: `MAGIC_COOKIE` must be
-                // of length 4 and `self.tid` must be of length 12.
+                // Unwrap is ok as the vector is guaranteed to be 16 bytes: `MAGIC_COOKIE` must
+                // be of length 4 and `self.tid` must be of length 12.
                 let xor = u128::from_be_bytes(<[u8; 16]>::try_from(xor).unwrap());
 
                 let decoded_address = encoded_address ^ xor;

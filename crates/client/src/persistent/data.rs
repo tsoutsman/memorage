@@ -67,8 +67,8 @@ mod private {
     pub trait Sealed {}
 }
 
-// I really don't want to derive Serialize and Deserialize for PrivateKey (and by extension
-// KeyPair).
+// I really don't want to derive Serialize and Deserialize for PrivateKey (and
+// by extension KeyPair).
 
 fn serialize_key_pair<S>(key_pair: &KeyPair, serializer: S) -> Result<S::Ok, S::Error>
 where

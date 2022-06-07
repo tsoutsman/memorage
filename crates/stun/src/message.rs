@@ -4,7 +4,8 @@ use memorage_core::rand::{thread_rng, RngCore};
 
 type Result<T> = std::result::Result<T, StunError>;
 
-/// The magic cookie field must contain the fixed value `0x2112A442` in network byte order.
+/// The magic cookie field must contain the fixed value `0x2112A442` in network
+/// byte order.
 pub(crate) static MAGIC_COOKIE: u32 = 0x2112A442;
 
 #[repr(u8)]
@@ -19,9 +20,10 @@ pub(crate) enum Class {
 /// Enum containing the possible methods defined in [RFC 8489] and [RFC 8656].
 ///
 /// # Implementation details
-/// The struct is represented by a [`u16`] as theoretically, the method is defined by 12 bits in the
-/// message, meaning a [`u8`] is too small. In reality, the method integer representation is never
-/// greater than 9, however, we still chose to represent it as a [`u16`] for compatibility.
+/// The struct is represented by a [`u16`] as theoretically, the method is
+/// defined by 12 bits in the message, meaning a [`u8`] is too small. In
+/// reality, the method integer representation is never greater than 9, however,
+/// we still chose to represent it as a [`u16`] for compatibility.
 #[repr(u16)]
 #[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug, enumn::N)]
 pub(crate) enum Method {
@@ -48,9 +50,9 @@ impl std::convert::From<Type> for u16 {
         // |M |M |M|M|M|C|M|M|M|C|M|M|M|M|
         // |11|10|9|8|7|1|6|5|4|0|3|2|1|0|
         // +--+--+-+-+-+-+-+-+-+-+-+-+-+-+
-        // The c bits denote the class of the message. So, if the first bit of class is true, we
-        // set the 5th bit (i.e. add 16). Likewise, if the second bit of class is true, we set the
-        // 9th bit (i.e. add 256).
+        // The c bits denote the class of the message. So, if the first bit of class is
+        // true, we set the 5th bit (i.e. add 16). Likewise, if the second bit
+        // of class is true, we set the 9th bit (i.e. add 256).
 
         // if the 1st bit is set
         if (t.class as u8 & 1) != 0 {
@@ -80,8 +82,8 @@ impl std::convert::TryFrom<u16> for Type {
             return Err(StunError::InvalidType);
         }
 
-        // For details on how `Type` works and what the weird magic that follows is, see the
-        // `From<Type> for u16` `impl` above.
+        // For details on how `Type` works and what the weird magic that follows is, see
+        // the `From<Type> for u16` `impl` above.
 
         let mut m: u16 = 0;
         let mut c: u8 = 0;
@@ -111,18 +113,21 @@ impl std::convert::TryFrom<[u8; 2]> for Type {
 
 /// This struct represents a STUN message in its entirety.
 /// # Semantics
-/// The struct cannot be mutated as, from [RFC 5389](datatracker.ietf.org/doc/html/rfc5389), "resends
-/// of the same request reuse the same transaction ID, but the client must choose a new transaction
-/// ID for new transactions unless the new request is bit-wise identical to the previous request and
-/// sent from the same transport address to the same IP address." If you would like to resend the
-/// request then you can use the same instance of `Message`. Otherwise, you must generate a new
-/// `Message` instance that will have a different transaction ID.
+/// The struct cannot be mutated as, from [RFC
+/// 5389](datatracker.ietf.org/doc/html/rfc5389), "resends of the same request
+/// reuse the same transaction ID, but the client must choose a new transaction
+/// ID for new transactions unless the new request is bit-wise identical to the
+/// previous request and sent from the same transport address to the same IP
+/// address." If you would like to resend the request then you can use the same
+/// instance of `Message`. Otherwise, you must generate a new `Message` instance
+/// that will have a different transaction ID.
 #[derive(Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
 pub(crate) struct Message {
-    /// The transaction ID is a 96-bit identifier, used to uniquely identify stun transactions.
+    /// The transaction ID is a 96-bit identifier, used to uniquely identify
+    /// stun transactions.
     ///
-    /// It must be uniformly and randomly chosen from the interval 0 .. 2**96-1, and
-    /// should be cryptographically random.
+    /// It must be uniformly and randomly chosen from the interval 0 .. 2**96-1,
+    /// and should be cryptographically random.
     tid: [u8; 12],
     ty: Type,
     attrs: Vec<Attribute>,
@@ -147,7 +152,8 @@ impl Message {
         self.attrs.clone()
     }
 
-    /// The total length of the message excluding the header, but including padding.
+    /// The total length of the message excluding the header, but including
+    /// padding.
     pub(crate) fn len(&self) -> usize {
         let mut result = 0;
         for attr in self.attrs.iter() {
@@ -158,12 +164,14 @@ impl Message {
 
     /// Append an attribute to the end of a message.
     ///
-    /// Any attribute type may appear more than once in a STUN message. Unless specified otherwise,
-    /// the order of appearance is significant: only the first occurrence needs to be processed by a
-    /// receiver, and any duplicates may be ignored by a receiver.
+    /// Any attribute type may appear more than once in a STUN message. Unless
+    /// specified otherwise, the order of appearance is significant: only
+    /// the first occurrence needs to be processed by a receiver, and any
+    /// duplicates may be ignored by a receiver.
     pub(crate) fn push(&mut self, mut attr: Attribute) {
         #[allow(clippy::single_match)]
-        // Certain attributes require information about the message in order to be correctly encoded.
+        // Certain attributes require information about the message in order to be correctly
+        // encoded.
         match attr {
             Attribute::XorMappedAddress(ref mut a) => a.set_tid(self.tid),
             _ => {}
@@ -174,8 +182,8 @@ impl Message {
 
 impl std::convert::From<Message> for Vec<u8> {
     fn from(m: Message) -> Self {
-        // The total size of the message sent is the length of the header (20 bytes) + the length of
-        // the contents.
+        // The total size of the message sent is the length of the header (20 bytes) +
+        // the length of the contents.
         let size = (20 + m.len()) as usize;
         let mut result = Vec::with_capacity(size);
 
@@ -195,8 +203,8 @@ impl std::convert::TryFrom<&[u8]> for Message {
     type Error = StunError;
 
     fn try_from(value: &[u8]) -> Result<Self> {
-        // The message must at least contain a header which is 20 bytes in length. This check
-        // prevents future indexing of value from panicking.
+        // The message must at least contain a header which is 20 bytes in length. This
+        // check prevents future indexing of value from panicking.
         if value.len() < 20 {
             return Err(StunError::InvalidHeader);
         }
@@ -206,13 +214,14 @@ impl std::convert::TryFrom<&[u8]> for Message {
 
         let encoded_len = <[u8; 2]>::try_from(&value[2..4]).unwrap();
         let len = u16::from_be_bytes(encoded_len);
-        // The message length must contain the size of the message in bytes, not including the
-        // 20-byte STUN header.
+        // The message length must contain the size of the message in bytes, not
+        // including the 20-byte STUN header.
         if len != value.len() as u16 - 20 {
             return Err(StunError::IncorrectMessageLength);
         }
 
-        // The Magic Cookie field must contain the fixed value 0x2112A442 in network byte order.
+        // The Magic Cookie field must contain the fixed value 0x2112A442 in network
+        // byte order.
         if u32::from_be_bytes(<[u8; 4]>::try_from(&value[4..8]).unwrap()) != MAGIC_COOKIE {
             return Err(StunError::InvalidMagicCookie);
         }

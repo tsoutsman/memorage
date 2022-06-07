@@ -60,6 +60,8 @@ where
     }
 }
 
+/// Splits a slice containing a nonce, data, and tag into three individual
+/// slices corresponding to the noce, data, and tag respectively.
 pub fn split_encrypted_buf(buf: &'_ mut [u8]) -> (&'_ mut [u8], &'_ mut [u8], &'_ mut [u8]) {
     let len = buf.len();
 
@@ -72,7 +74,8 @@ pub fn split_encrypted_buf(buf: &'_ mut [u8]) -> (&'_ mut [u8], &'_ mut [u8], &'
     (nonce, data, tag)
 }
 
-/// Encrypts a slice returning the nonce used to encrypt it and the tag generated.
+/// Encrypts a slice returning the nonce used to encrypt it and the tag
+/// generated.
 pub fn encrypt_in_place(key: &PrivateKey, buf: &mut [u8]) -> Result<([u8; 24], [u8; 16])> {
     let aed = XChaCha20Poly1305::new(chacha20poly1305::Key::from_slice(key.as_ref()));
 

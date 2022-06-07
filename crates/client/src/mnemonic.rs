@@ -41,9 +41,9 @@ impl<'a> MnemonicPhrase<'a> {
 }
 
 impl MnemonicPhrase<'static> {
-    /// Randomly select `num_words` words from the word list `english.txt`. Unlike BIP39,
-    /// `MnemonicPhrase` does not use any checksums, and so each word encodes a full 11
-    /// bits of entropy.
+    /// Randomly select `num_words` words from the word list `english.txt`.
+    /// Unlike BIP39, `MnemonicPhrase` does not use any checksums, and so
+    /// each word encodes a full 11 bits of entropy.
     pub fn generate(num_words: usize, password: Option<String>) -> Self {
         Self {
             words: WORD_LIST
@@ -75,11 +75,12 @@ impl From<MnemonicPhrase<'_>> for KeyPair {
     /// * If there is a password, append the string " password " followed by the
     ///   password.
     /// * Append the string " :)".
-    /// * Hash the UTF-8 representation of the created string using the Argon2id hash function
-    ///   with a tag length of 32, 24 iterations, and the UTF-8 representation of "very secure
-    ///   salt" as the salt.
-    /// * Hash the UTF-8 representation of the original string again using the Argon2id hash
-    ///   function with the same parameters, but use the output of the previous hash as the salt.
+    /// * Hash the UTF-8 representation of the created string using the Argon2id
+    ///   hash function with a tag length of 32, 24 iterations, and the UTF-8
+    ///   representation of "very secure salt" as the salt.
+    /// * Hash the UTF-8 representation of the original string again using the
+    ///   Argon2id hash function with the same parameters, but use the output of
+    ///   the previous hash as the salt.
     /// * Use the output of this hash function as the private key.
     ///
     /// The algorithm in pseudo-python:

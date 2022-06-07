@@ -6,8 +6,8 @@ pub trait Serialize: crate::private::Sealed {
     fn transmission_form(self) -> Self::TransmissionType;
 }
 
-// Ensures that the enum `RequestType` is deserialized and not the request structs
-// such as `Register`.
+// Ensures that the enum `RequestType` is deserialized and not the request
+// structs such as `Register`.
 pub trait Deserialize: crate::private::Sealed + serde::de::DeserializeOwned {}
 
 impl<T> crate::private::Sealed for crate::Result<T> where T: crate::response::Response {}
