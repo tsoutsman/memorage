@@ -4,10 +4,9 @@
 </p>
 
 **Memorage** is a peer to peer backup service. Set up with a friend to store
-backups on each other's computer. Backups are automatic and encrypted.
+automatic and encrypted backups on each other's computer.
 
-
-### Installation
+## Installation
 
 **Memorage** must be built from source using the nightly Rust toolchain:
 ```bash
@@ -22,19 +21,26 @@ The nightly Rust toolchain can be installed with the following command:
 curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
 ```
 
-### Features
+## Features
 
 - Per file backup - only modified files have to be re-encrypted and resent
 - Authentication using ED25519 keys
 - XChaCha20Poly1305 encryption for backups
+- CLI
 
-### Limitations
+### Planned
 
-- Peer knows how many files are backed up
-- Relies on a synchronisation server (which can be self hosted) <!-- TODO link
-  to docs page about self hosting -->
-- Peer could falsify backups with a modified client
+- Historical (incremental) backups
+- Multiple peers
+- GUI
+- Proof of capacity mode
 
-<!-- ### FAQ -->
+## FAQ
+
+### How do peers establish a connection?
+Clients rely on a synchronisation server (which can be self-hosted) to decide
+when to connect. After they connect, the synchronisation server is no longer 
+needed, as the peers can send data directly to each other. <!-- TODO link page
+about self hosting -->
 
 <!-- ### How to Use -->
