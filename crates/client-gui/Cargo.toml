@@ -8,3 +8,4 @@ repository = "https://github.com/memorage/memorage"
 license = "GPL-3.0-only"
 
 [dependencies]
+iced = { version = "0.4", features = ["tokio"] }
