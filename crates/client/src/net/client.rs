@@ -1,5 +1,5 @@
 use crate::{
-    net::PeerConnection,
+    net::peer::{IncomingConnection, OutgoingConnection},
     persistent::{
         config::Config,
         data::{Data, KeyPairData},
@@ -16,7 +16,7 @@ use memorage_cs::{
 };
 
 use futures_util::StreamExt;
-use quinn::{Endpoint, EndpointConfig, Incoming};
+use quinn::{Endpoint, EndpointConfig, Incoming, NewConnection};
 use tokio::net::UdpSocket;
 use tracing::{debug, info, trace, warn};
 
@@ -123,9 +123,11 @@ where
 }
 
 impl<'a, 'b> Client<'a, 'b, Data> {
+    // TODO: Add type enforcement to creat_outgoing_connection and
+    // receive_incoming_connection.
+
     /// Establish a connection to a peer.
-    #[allow(clippy::missing_panics_doc)]
-    pub async fn establish_peer_connection(&self) -> Result<OffsetDateTime> {
+    pub async fn schedule_outgoing_connection(&self) -> Result<OffsetDateTime> {
         debug!(
             public_key=?self.data.key_pair.public,
             target_key=?self.data.peer,
@@ -140,7 +142,19 @@ impl<'a, 'b> Client<'a, 'b, Data> {
         Ok(time)
     }
 
-    pub async fn check_peer_connection(&self) -> Result<OffsetDateTime> {
+    pub async fn create_outgoing_connection(self) -> Result<OutgoingConnection<'a, 'b>> {
+        let data = self.data;
+        let config = self.config;
+        let connection = self.connect_to_peer(true).await?.connection;
+
+        Ok(OutgoingConnection {
+            data,
+            config,
+            connection,
+        })
+    }
+
+    pub async fn check_incoming_connection(&self) -> Result<Option<OffsetDateTime>> {
         debug!(
             public_key=?self.data.key_pair.public,
             target_key=?self.data.peer,
@@ -148,16 +162,32 @@ impl<'a, 'b> Client<'a, 'b, Data> {
         );
 
         let peer = self.data.peer;
-        let response = self.request(request::CheckConnection).await?;
+        let response = match self.request(request::CheckConnection).await {
+            Ok(r) => r,
+            Err(Error::Server(memorage_cs::Error::NoData)) => return Ok(None),
+            Err(e) => return Err(e),
+        };
 
         if response.initiator == peer {
-            Ok(response.time)
+            Ok(Some(response.time))
         } else {
             Err(Error::UnauthorisedConnectionRequest)
         }
     }
 
-    pub async fn connect_to_peer(mut self, initiator: bool) -> Result<PeerConnection<'a, 'b>> {
+    pub async fn receive_incoming_connection(self) -> Result<IncomingConnection<'a, 'b>> {
+        let data = self.data;
+        let config = self.config;
+        let bi_streams = self.connect_to_peer(false).await?.bi_streams;
+
+        Ok(IncomingConnection {
+            data,
+            config,
+            bi_streams,
+        })
+    }
+
+    async fn connect_to_peer(mut self, initiator: bool) -> Result<NewConnection> {
         let peer_key = self.data.peer;
 
         let mut counter = 0;
@@ -187,24 +217,19 @@ impl<'a, 'b> Client<'a, 'b, Data> {
                         tokio::time::sleep(std::time::Duration::from_secs(1)).await;
                     }
 
-                    let connection = if initiator {
+                    return if initiator {
                         self.endpoint
                             .connect_with(send_config, peer_address, "ooga.com")?
-                            .await?
+                            .await
+                            .map_err(|e| e.into())
                     } else {
                         self.incoming
                             .next()
                             .await
                             .ok_or(Error::FailedConnection)?
-                            .await?
+                            .await
+                            .map_err(|e| e.into())
                     };
-
-                    return Ok(PeerConnection {
-                        data: self.data,
-                        config: self.config,
-                        connection,
-                        socket: self.socket,
-                    });
                 }
                 Err(Error::Server(memorage_cs::Error::NoData)) => {
                     counter += 1;

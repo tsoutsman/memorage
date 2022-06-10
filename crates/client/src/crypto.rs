@@ -26,7 +26,7 @@ impl<T> Encrypted<T>
 where
     T: Serialize + DeserializeOwned,
 {
-    pub fn encrypt(key: &PrivateKey, value: &T) -> Result<Self> {
+    pub fn encrypt(value: &T, key: &PrivateKey) -> Result<Self> {
         let data = bincode::serialize(value)?;
         let aed = XChaCha20Poly1305::new(chacha20poly1305::Key::from_slice(key.as_ref()));
 
@@ -76,7 +76,7 @@ pub fn split_encrypted_buf(buf: &'_ mut [u8]) -> (&'_ mut [u8], &'_ mut [u8], &'
 
 /// Encrypts a slice returning the nonce used to encrypt it and the tag
 /// generated.
-pub fn encrypt_in_place(key: &PrivateKey, buf: &mut [u8]) -> Result<([u8; 24], [u8; 16])> {
+pub fn encrypt_in_place(buf: &mut [u8], key: &PrivateKey) -> Result<([u8; 24], [u8; 16])> {
     let aed = XChaCha20Poly1305::new(chacha20poly1305::Key::from_slice(key.as_ref()));
 
     let mut rng = thread_rng();
@@ -115,7 +115,7 @@ mod tests {
         let key = KeyPair::from_entropy().private;
         let message = b"super secret message pls don't steal".to_vec();
 
-        let encrypted = Encrypted::encrypt(&key, &message).unwrap();
+        let encrypted = Encrypted::encrypt(&message, &key).unwrap();
         let decrypted = encrypted.decrypt(&key).unwrap();
 
         assert_eq!(decrypted, message);
@@ -126,7 +126,7 @@ mod tests {
         let key = KeyPair::from_entropy().private;
         let message = b"super secret message pls don't steal".to_vec();
 
-        let encrypted = Encrypted::encrypt(&key, &message).unwrap();
+        let encrypted = Encrypted::encrypt(&message, &key).unwrap();
 
         let incorrect_key = KeyPair::from_entropy().private;
         let decrypted = encrypted.decrypt(&incorrect_key);

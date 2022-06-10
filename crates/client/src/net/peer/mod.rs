@@ -1,70 +1,17 @@
-use crate::{
-    fs::index::Index,
-    net::protocol::{self, request},
-    persistent::{config::Config, data::Data},
-    Result,
-};
+use crate::{net::protocol, Result};
 
-use quinn::{NewConnection, RecvStream, SendStream};
-use tokio::{
-    io::{AsyncReadExt, AsyncWriteExt},
-    net::UdpSocket,
-};
-use tracing::{debug, trace};
+use quinn::{RecvStream, SendStream};
+use tokio::io::{AsyncReadExt, AsyncWriteExt};
+use tracing::trace;
 
-mod receieve;
-mod retrieve;
-mod send;
+mod incoming;
+mod outgoing;
 mod stream;
 
-#[derive(Debug)]
-pub struct PeerConnection<'a, 'b> {
-    pub(super) data: &'a Data,
-    pub(super) config: &'b Config,
-    pub(super) connection: NewConnection,
-    #[allow(dead_code)]
-    pub(super) socket: UdpSocket,
-}
+pub use incoming::IncomingConnection;
+pub use outgoing::OutgoingConnection;
 
-impl<'a, 'b> PeerConnection<'a, 'b> {
-    pub async fn ping(&self) -> Result<()> {
-        self.send_request(&request::Ping).await.map(|_| ())
-    }
-
-    pub async fn get_index(&self) -> Result<Index> {
-        debug!("getting old index");
-        Ok(match self.send_request(&request::GetIndex).await?.0.index {
-            Some(i) => i.decrypt(&self.data.key_pair.private)?,
-            None => Index::new(),
-        })
-    }
-}
-
-impl<'a, 'b> PeerConnection<'a, 'b> {
-    async fn send_request<T>(&self, request: &T) -> Result<(T::Response, (SendStream, RecvStream))>
-    where
-        T: protocol::Serialize + request::Request + std::fmt::Debug,
-    {
-        let (mut send, mut recv) = self.send_request_without_response(request).await?;
-        send.finish().await?;
-        let response = receive_from_stream::<protocol::Result<_>>(&mut recv).await??;
-        Ok((response, (send, recv)))
-    }
-
-    async fn send_request_without_response<T>(
-        &self,
-        request: &T,
-    ) -> Result<(SendStream, RecvStream)>
-    where
-        T: protocol::Serialize + request::Request + std::fmt::Debug,
-    {
-        let (mut send, recv) = self.connection.connection.open_bi().await?;
-        send_with_stream(&mut send, request).await?;
-        Ok((send, recv))
-    }
-}
-
-async fn send_with_stream<T>(send: &mut SendStream, packet: &T) -> Result<()>
+async fn send_packet<T>(send: &mut SendStream, packet: &T) -> Result<()>
 where
     T: protocol::Serialize + std::fmt::Debug,
 {
@@ -79,7 +26,7 @@ where
     Ok(())
 }
 
-async fn receive_from_stream<T>(recv: &mut RecvStream) -> Result<T>
+async fn receive_packet<T>(recv: &mut RecvStream) -> Result<T>
 where
     T: protocol::Deserialize + std::fmt::Debug,
 {

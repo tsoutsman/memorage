@@ -7,19 +7,13 @@ use memorage_client::{
     persistent::{config::Config, data::Data, Persistent},
     Result,
 };
-
 use tracing::debug;
 
-pub async fn retrieve(
-    output: Option<PathBuf>,
+pub async fn check(
     config: Option<PathBuf>,
     data: Option<PathBuf>,
     server: Option<IpAddr>,
 ) -> Result<()> {
-    let output = match output {
-        Some(p) => p,
-        None => std::env::current_dir()?.join("memorage_backup"),
-    };
     let mut config = Config::from_disk(config).await?;
     let data = Data::from_disk(data).await?;
     debug!("loaded config and data files");
@@ -28,11 +22,13 @@ pub async fn retrieve(
     }
 
     let client = Client::new(&data, &config).await?;
-    let time = client.schedule_outgoing_connection().await?;
+    let time = match client.check_incoming_connection().await? {
+        Some(t) => t,
+        None => return Ok(()),
+    };
     sleep_till(time).await?;
-    let mut outgoing_connection = client.create_outgoing_connection().await?;
-    outgoing_connection.retrieve(&output).await?;
+    let incoming_connection = client.receive_incoming_connection().await?;
+    incoming_connection.handle().await?;
 
-    println!("Retrieval succesful");
     Ok(())
 }

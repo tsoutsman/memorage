@@ -46,7 +46,7 @@ pub enum Command {
         #[clap(short, long)]
         server: Option<IpAddr>,
     },
-    Sync {
+    Backup {
         /// Use the specified configuration file
         #[clap(short, long)]
         config: Option<PathBuf>,
@@ -58,12 +58,8 @@ pub enum Command {
         /// The address can be IPv4 or IPv6.
         #[clap(short, long)]
         server: Option<IpAddr>,
-        #[clap(long)]
-        no_send: bool,
-        #[clap(long)]
-        no_receive: bool,
     },
-    Daemon {
+    Check {
         /// Use the specified configuration file
         #[clap(short, long)]
         config: Option<PathBuf>,
@@ -93,4 +89,5 @@ pub enum Command {
         #[clap(short, long)]
         server: Option<IpAddr>,
     },
+    // TODO: Daemon command
 }

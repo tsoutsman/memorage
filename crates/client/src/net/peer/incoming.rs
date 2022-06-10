@@ -2,83 +2,70 @@ use crate::{
     crypto::Encrypted,
     fs::index::Index,
     net::{
-        peer::{receive_from_stream, send_with_stream, PeerConnection},
+        peer::{receive_packet, send_packet},
         protocol::{
             self,
             request::{self, RequestType},
             response,
         },
     },
+    persistent::{config::Config, data::Data},
     Error, Result,
 };
 
 use futures_util::StreamExt;
-use quinn::{RecvStream, SendStream};
+use quinn::{IncomingBiStreams, RecvStream, SendStream};
 use tokio::fs::File;
 use tracing::{debug, trace};
 
-impl<'a, 'b> PeerConnection<'a, 'b> {
-    async fn accept_stream(&mut self) -> Result<(SendStream, RecvStream)> {
-        let quinn::NewConnection {
-            ref mut bi_streams, ..
-        } = self.connection;
-        if let Some(stream) = bi_streams.next().await {
-            let (send, recv) = match stream {
-                Ok(s) => s,
-                Err(quinn::ConnectionError::ApplicationClosed { .. }) => {
-                    return Err(Error::PeerClosedConnection);
-                }
-                Err(e) => return Err(e.into()),
-            };
-            Ok((send, recv))
-        } else {
-            Err(Error::PeerClosedConnection)
-        }
-    }
+#[derive(Debug)]
+pub struct IncomingConnection<'a, 'b> {
+    #[allow(dead_code)]
+    pub(crate) data: &'a Data,
+    pub(crate) config: &'b Config,
+    pub(crate) bi_streams: IncomingBiStreams,
 }
 
-impl<'a, 'b> PeerConnection<'a, 'b> {
-    pub async fn receive_commands(&mut self) -> Result<request::Complete> {
-        debug!("receiving commands from peer");
+impl<'a, 'b> IncomingConnection<'a, 'b> {
+    pub async fn handle(mut self) -> Result<()> {
         loop {
             let (mut send, mut recv) = self.accept_stream().await?;
-            let request = receive_from_stream(&mut recv).await?;
+            let request = receive_packet(&mut recv).await?;
 
             match request {
-                RequestType::Ping(_) => send_with_stream(&mut send, &Ok(response::Ping)).await?,
+                RequestType::Ping(_) => send_packet(&mut send, &Ok(response::Ping)).await?,
                 RequestType::GetIndex(_) => {
                     let response: crate::Result<_> = try {
                         response::GetIndex {
                             index: Encrypted::<Index>::from_disk(self.config.index_path()).await?,
                         }
                     };
-                    send_with_stream(&mut send, &response.map_err(|e| e.into())).await?;
+                    send_packet(&mut send, &response.map_err(|e| e.into())).await?;
                 }
                 RequestType::GetFile(request::GetFile { name }) => {
                     let result: crate::Result<_> = try {
                         let path = self.config.peer_storage_path.file_path(name)?;
-
-                        let contents_len = match tokio::fs::metadata(&path).await {
+                        let len = match tokio::fs::metadata(&path).await {
                             Ok(meta) => Some(meta.len()),
                             Err(ref e) if e.kind() == std::io::ErrorKind::NotFound => None,
                             Err(e) => Err(e)?,
                         };
 
-                        (path, contents_len)
+                        (path, len)
                     };
 
                     match result {
-                        Ok((path, contents_len)) => {
-                            let response = Ok(response::GetFile { contents_len });
-                            send_with_stream(&mut send, &response).await?;
+                        Ok((path, len)) => {
+                            let response = Ok(response::GetFile { len });
+                            send_packet(&mut send, &response).await?;
                             trace!("sent get file response, starting wide copy");
                             // TODO: Communicate error to peer if it occurs during copying.
-                            // TODO: Handle contents_len == None
+                            // TODO: Handle len == None
                             crate::util::async_wide_copy(File::open(path).await?, send).await?;
                             trace!("get file wide copy complete");
                         }
                         Err(e) => {
-                            send_with_stream(
+                            send_packet(
                                 &mut send,
                                 &protocol::Result::<response::GetFile>::Err(e.into()),
                             )
@@ -93,7 +80,7 @@ impl<'a, 'b> PeerConnection<'a, 'b> {
                         crate::util::async_wide_copy(recv, File::create(path).await?).await?;
                         response::Write
                     };
-                    send_with_stream(&mut send, &response.map_err(|e| e.into())).await?;
+                    send_packet(&mut send, &response.map_err(|e| e.into())).await?;
                 }
                 RequestType::Rename(request::Rename { from, to }) => {
                     let response: crate::Result<_> = try {
@@ -104,7 +91,7 @@ impl<'a, 'b> PeerConnection<'a, 'b> {
                         .await?;
                         response::Rename
                     };
-                    send_with_stream(&mut send, &response.map_err(|e| e.into())).await?;
+                    send_packet(&mut send, &response.map_err(|e| e.into())).await?;
                 }
                 RequestType::Delete(request::Delete { name }) => {
                     let response: crate::Result<_> = try {
@@ -112,26 +99,39 @@ impl<'a, 'b> PeerConnection<'a, 'b> {
                             .await?;
                         response::Delete
                     };
-                    send_with_stream(&mut send, &response.map_err(|e| e.into())).await?;
+                    send_packet(&mut send, &response.map_err(|e| e.into())).await?;
                 }
                 RequestType::SetIndex(request::SetIndex { index }) => {
                     let response: crate::Result<_> = try {
                         index.to_disk(self.config.index_path()).await?;
                         response::SetIndex
                     };
-                    send_with_stream(&mut send, &response.map_err(|e| e.into())).await?;
+                    send_packet(&mut send, &response.map_err(|e| e.into())).await?;
                 }
-                RequestType::Complete(request) => {
+                RequestType::Complete(_) => {
                     debug!("sending complete response");
-                    send_with_stream(&mut send, &Ok(response::Complete)).await?;
-                    if request == request::Complete::Close {
-                        trace!("sleeping after sending complete response");
-                        tokio::time::sleep(std::time::Duration::from_secs(1)).await;
-                    }
-                    return Ok(request);
+                    send_packet(&mut send, &Ok(response::Complete)).await?;
+                    trace!("sleeping after sending complete response");
+                    tokio::time::sleep(std::time::Duration::from_secs(1)).await;
+                    return Ok(());
                 }
             }
             trace!("request handled");
+        }
+    }
+
+    async fn accept_stream(&mut self) -> Result<(SendStream, RecvStream)> {
+        if let Some(stream) = self.bi_streams.next().await {
+            let (send, recv) = match stream {
+                Ok(s) => s,
+                Err(quinn::ConnectionError::ApplicationClosed { .. }) => {
+                    return Err(Error::PeerClosedConnection);
+                }
+                Err(e) => return Err(e.into()),
+            };
+            Ok((send, recv))
+        } else {
+            Err(Error::PeerClosedConnection)
         }
     }
 }

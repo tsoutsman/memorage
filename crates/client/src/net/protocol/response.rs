@@ -16,7 +16,7 @@ pub struct GetIndex {
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct GetFile {
-    pub contents_len: Option<u64>,
+    pub len: Option<u64>,
 }
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]

@@ -1,5 +1,7 @@
 use crate::net::protocol::{private::Sealed, request, response, Result};
 
+// TODO: Add tests
+
 pub trait Serialize: Sealed {
     type TransmissionType: serde::Serialize;
     fn transmission_form(&self) -> Self::TransmissionType;
@@ -22,6 +24,7 @@ where
         self.to_enum()
     }
 }
+
 impl<T> Serialize for Result<T>
 where
     T: response::Response + Clone,
@@ -29,6 +32,7 @@ where
     type TransmissionType = Self;
 
     fn transmission_form(&self) -> Self::TransmissionType {
+        // TODO: Remove clones (easily doable with GATs)
         self.clone()
     }
 }

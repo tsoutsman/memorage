@@ -38,7 +38,7 @@ pub struct GetFile {
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Write {
     pub name: HashedPath,
-    pub contents_len: u64,
+    pub len: u64,
 }
 
 /// Rename a file.
@@ -62,12 +62,7 @@ pub struct SetIndex {
 
 /// Signify that syncing is complete.
 #[derive(Copy, Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
-pub enum Complete {
-    Continue,
-    /// Signifies that the host will not be accepting any commands from the
-    /// peer.
-    Close,
-}
+pub struct Complete;
 
 macro_rules! impl_request {
     // IDK why this works with ident but not ty

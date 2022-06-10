@@ -34,7 +34,7 @@ pub(crate) async fn encrypt_and_wide_copy(
         let (nonce_slice, data_slice, tag_slice) = crypto::split_encrypted_buf(buf_slice);
 
         file.read_exact(data_slice).await?;
-        let (nonce, tag) = crypto::encrypt_in_place(private_key, data_slice)?;
+        let (nonce, tag) = crypto::encrypt_in_place(data_slice, private_key)?;
         nonce_slice.copy_from_slice(nonce.as_slice());
         tag_slice.copy_from_slice(tag.as_slice());
 
