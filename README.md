@@ -37,6 +37,19 @@ curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
 
 ## FAQ
 
+### Does Memorage contain bugs?
+
+All software contains bugs - especially that which is developed by a single
+17-year-old with no formal programming, cryptographical, or networking
+education.
+
+### Is Memorage *production ready*?
+
+```bash
+> rg TODO | wc -l
+45
+```
+
 ### How do peers establish a connection?
 Clients rely on a synchronisation server (which can be self-hosted) to decide
 when to connect. After they connect, the synchronisation server is no longer 
