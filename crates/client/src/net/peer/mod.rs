@@ -1,5 +1,6 @@
-use crate::{net::protocol, Result};
+use crate::{net::protocol, Error, Result};
 
+use memorage_core::time::OffsetDateTime;
 use quinn::{RecvStream, SendStream};
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tracing::trace;
@@ -10,6 +11,13 @@ mod stream;
 
 pub use incoming::IncomingConnection;
 pub use outgoing::OutgoingConnection;
+
+pub async fn sleep_till(time: OffsetDateTime) -> Result<()> {
+    let delay = time - OffsetDateTime::now_utc();
+    tracing::info!(%time, %delay, "waiting for synchronisation");
+    tokio::time::sleep(delay.try_into().map_err(|_| Error::MissedSynchronisation)?).await;
+    Ok(())
+}
 
 async fn send_packet<T>(send: &mut SendStream, packet: &T) -> Result<()>
 where

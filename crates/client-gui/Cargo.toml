@@ -8,4 +8,8 @@ repository = "https://github.com/memorage/memorage"
 license = "GPL-3.0-only"
 
 [dependencies]
+memorage-core = { path = "../core" }
+memorage-client = { path = "../client" }
 iced = { version = "0.4", features = ["tokio"] }
+iced_native = "0.5"
+tokio = "1.19"

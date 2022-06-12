@@ -1,10 +1,11 @@
-use crate::sleep_till;
-
 use std::{net::IpAddr, path::PathBuf};
 
 use memorage_client::{
     fs::index::Index,
-    net::{peer::OutgoingConnection, Client},
+    net::{
+        peer::{sleep_till, OutgoingConnection},
+        Client,
+    },
     persistent::{config::Config, data::Data, Persistent},
     Result,
 };
