@@ -17,7 +17,9 @@ lazy_static::lazy_static! {
 pub trait Persistent: serde::Serialize + serde::de::DeserializeOwned {
     fn default_path() -> &'static std::path::Path;
 
-    async fn from_disk<P>(path: Option<P>) -> crate::Result<Self>
+    async fn from_disk<P>(
+        path: Option<P>,
+    ) -> crate::Result<std::sync::Arc<memorage_core::Mutex<Self>>>
     where
         P: AsRef<std::path::Path> + std::marker::Send,
     {
@@ -25,7 +27,9 @@ pub trait Persistent: serde::Serialize + serde::de::DeserializeOwned {
             Some(p) => tokio::fs::read_to_string(p).await,
             None => tokio::fs::read_to_string(Self::default_path()).await,
         }?;
-        Ok(toml::from_str(&content)?)
+        Ok(std::sync::Arc::new(memorage_core::Mutex::new(
+            toml::from_str(&content)?,
+        )))
     }
 
     async fn to_disk<P>(&self, path: Option<P>) -> crate::Result<()>

@@ -15,6 +15,7 @@
 
 use serde::{Deserialize, Serialize};
 
+pub use parking_lot::Mutex;
 pub use rand;
 pub use time;
 
@@ -25,7 +26,7 @@ const BEFORE_PRIVATE_KEY: [u8; 16] = [
 ];
 const AFTER_PRIVATE_KEY: [u8; 5] = [0xa1, 0x23, 0x03, 0x21, 0x00];
 
-#[derive(Debug, Eq, PartialEq)]
+#[derive(Debug, Clone, Eq, PartialEq)]
 pub struct KeyPair {
     pub public: PublicKey,
     pub private: PrivateKey,
@@ -131,6 +132,12 @@ impl PartialEq for PublicKey {
 
 #[derive(Debug)]
 pub struct PrivateKey(ed25519_dalek::SecretKey);
+
+impl Clone for PrivateKey {
+    fn clone(&self) -> Self {
+        Self::try_from(self.as_ref()).unwrap()
+    }
+}
 
 impl PrivateKey {
     pub fn public(&self) -> PublicKey {

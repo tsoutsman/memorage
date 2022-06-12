@@ -80,6 +80,7 @@ impl Index {
             }
         }
 
+        // TODO: Shuffle diff to not reveal any info on fs to peer?
         diff
     }
 }

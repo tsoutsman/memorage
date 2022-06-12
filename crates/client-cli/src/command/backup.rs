@@ -16,18 +16,19 @@ pub async fn backup(
     data: Option<PathBuf>,
     server: Option<IpAddr>,
 ) -> Result<()> {
-    let mut config = Config::from_disk(config).await?;
+    let config = Config::from_disk(config).await?;
     let data = Data::from_disk(data).await?;
     debug!("loaded config and data files");
     if let Some(server) = server {
-        config.server_address = vec![server];
+        let server_address = &mut config.lock().server_address;
+        *server_address = vec![server];
     }
 
-    let client = Client::new(&data, &config).await?;
+    let client = Client::new(data, config.clone()).await?;
 
     let time = client.schedule_outgoing_connection().await?;
 
-    let backup_path_clone = config.backup_path.clone();
+    let backup_path_clone = config.lock().backup_path.clone();
     let new_index_handle = tokio::spawn(async move {
         // TODO: Race conditions?
         Index::from_directory(backup_path_clone).await
@@ -36,7 +37,7 @@ pub async fn backup(
     sleep_till(time).await?;
     let mut outgoing_connection = client.create_outgoing_connection().await?;
 
-    async fn indefinite_ping(connection: &mut OutgoingConnection<'_, '_>) -> ! {
+    async fn indefinite_ping(connection: &mut OutgoingConnection) -> ! {
         loop {
             // TODO: The select statement could drop indefinite_ping during the
             // ping, which may result in a write error on the peer if

@@ -12,17 +12,20 @@ use crate::{
     Error, Result,
 };
 
+use std::sync::Arc;
+
+use memorage_core::Mutex;
 use quinn::{Connection, RecvStream, SendStream};
 use tracing::{debug, info};
 
 #[derive(Debug)]
-pub struct OutgoingConnection<'a, 'b> {
-    pub(crate) data: &'a Data,
-    pub(crate) config: &'b Config,
+pub struct OutgoingConnection {
+    pub(crate) data: Arc<Mutex<Data>>,
+    pub(crate) config: Arc<Mutex<Config>>,
     pub(crate) connection: Connection,
 }
 
-impl<'a, 'b> OutgoingConnection<'a, 'b> {
+impl OutgoingConnection {
     pub async fn ping(&self) -> Result<()> {
         self.send_request(&request::Ping).await.map(|_| ())
     }
@@ -39,8 +42,9 @@ impl<'a, 'b> OutgoingConnection<'a, 'b> {
                 self.send_difference(d).await?;
             }
             debug!("setting index on peer");
+            let key_pair = self.data.lock().key_pair.private.clone();
             self.send_request(&request::SetIndex {
-                index: Encrypted::encrypt(new_index, &self.data.key_pair.private)?,
+                index: Encrypted::encrypt(new_index, &key_pair)?,
             })
             .await?;
         }
@@ -54,6 +58,7 @@ impl<'a, 'b> OutgoingConnection<'a, 'b> {
         P: AsRef<std::path::Path>,
     {
         let index = self.get_index().await?;
+        let private = self.data.lock().key_pair.private.clone();
         for (name, _) in index.into_iter() {
             info!(?name, "retrieving file");
 
@@ -72,7 +77,7 @@ impl<'a, 'b> OutgoingConnection<'a, 'b> {
 
             debug!("writing decrypted file to {}", path.display());
 
-            decrypt_and_wide_copy(&mut recv, &self.data.key_pair.private, &path, len).await?;
+            decrypt_and_wide_copy(&mut recv, &private, &path, len).await?;
             info!(?name, "successfully retrieved file");
         }
 
@@ -81,8 +86,9 @@ impl<'a, 'b> OutgoingConnection<'a, 'b> {
     }
 
     async fn get_index(&self) -> Result<Index> {
+        let private = self.data.lock().key_pair.private.clone();
         Ok(match self.send_request(&request::GetIndex).await?.0.index {
-            Some(i) => i.decrypt(&self.data.key_pair.private)?,
+            Some(i) => i.decrypt(&private)?,
             None => Index::new(),
         })
     }
@@ -91,7 +97,7 @@ impl<'a, 'b> OutgoingConnection<'a, 'b> {
         debug!(difference=?diff, "sending difference");
         match diff {
             IndexDifference::Write(name) => {
-                let path = self.config.backup_path.join(&name);
+                let path = self.config.lock().backup_path.join(&name);
                 debug!(?name, ?path, "writing file to peer");
 
                 let len = tokio::fs::metadata(&path).await?.len();
@@ -108,7 +114,8 @@ impl<'a, 'b> OutgoingConnection<'a, 'b> {
                     })
                     .await?;
 
-                encrypt_and_wide_copy(&mut send, &self.data.key_pair.private, &path, len).await?;
+                let private = self.data.lock().key_pair.private.clone();
+                encrypt_and_wide_copy(&mut send, &private, &path, len).await?;
 
                 send.finish().await?;
                 receive_packet::<protocol::Result<protocol::response::Write>>(&mut recv).await??;

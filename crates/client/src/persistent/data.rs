@@ -4,7 +4,7 @@ use memorage_core::{KeyPair, PublicKey};
 
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
-#[derive(Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Eq, PartialEq, Serialize, Deserialize)]
 pub struct Data {
     #[serde(
         serialize_with = "serialize_key_pair",
@@ -20,7 +20,7 @@ impl Persistent for Data {
     }
 }
 
-#[derive(Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Eq, PartialEq, Serialize, Deserialize)]
 pub struct DataWithoutPeer {
     #[serde(
         serialize_with = "serialize_key_pair",
@@ -46,19 +46,19 @@ impl DataWithoutPeer {
 }
 
 pub trait KeyPairData: private::Sealed {
-    fn key_pair(&self) -> &KeyPair;
+    fn key_pair(&self) -> KeyPair;
 }
 
 impl private::Sealed for Data {}
 impl KeyPairData for Data {
-    fn key_pair(&self) -> &KeyPair {
-        &self.key_pair
+    fn key_pair(&self) -> KeyPair {
+        self.key_pair.clone()
     }
 }
 impl private::Sealed for DataWithoutPeer {}
 impl KeyPairData for DataWithoutPeer {
-    fn key_pair(&self) -> &KeyPair {
-        &self.key_pair
+    fn key_pair(&self) -> KeyPair {
+        self.key_pair.clone()
     }
 }
 

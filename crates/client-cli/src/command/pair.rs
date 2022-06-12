@@ -17,23 +17,25 @@ pub async fn pair(
     data: Option<PathBuf>,
     server: Option<IpAddr>,
 ) -> Result<()> {
-    let mut config = Config::from_disk(config).await?;
+    let config = Config::from_disk(config).await?;
     let data = DataWithoutPeer::from_disk(data).await?;
     debug!("loaded config and data files");
     if let Some(server) = server {
-        config.server_address = vec![server];
+        let server_address = &mut config.lock().server_address;
+        *server_address = vec![server];
     }
 
-    let client = Client::new(&data, &config).await?;
+    let client = Client::new(data.clone(), config).await?;
 
+    let key_pair = data.lock().key_pair.clone();
     if let Some(code) = code {
         let peer = client.get_key(code).await?;
-        io::verify_peer(data.key_pair, peer, false).await
+        io::verify_peer(key_pair, peer, false).await
     } else {
         let pairing_code = client.register().await?;
         println!("Pairing code: {}", pairing_code);
 
         let peer = client.register_response().await?;
-        io::verify_peer(data.key_pair, peer, true).await
+        io::verify_peer(key_pair, peer, true).await
     }
 }

@@ -22,12 +22,13 @@ pub async fn login(config_output: Option<PathBuf>, data_output: Option<PathBuf>)
     let config = Config::from_disk(config_output.as_ref()).await;
     let data = Data::from_disk(data_output.as_ref()).await;
 
-    if let Ok(mut data) = data {
-        if data.key_pair == key_pair {
+    if let Ok(data) = data {
+        if data.lock().key_pair == key_pair {
             println!("User already logged in");
             return Ok(());
         } else {
             io::prompt_continue("Logging in will log out the current user")?;
+            let mut data = data.lock().clone();
             data.key_pair = key_pair;
             data.to_disk(data_output).await?;
         }

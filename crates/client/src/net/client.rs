@@ -7,9 +7,9 @@ use crate::{
     Error, Result,
 };
 
-use std::net::IpAddr;
+use std::{net::IpAddr, sync::Arc};
 
-use memorage_core::{time::OffsetDateTime, PublicKey};
+use memorage_core::{time::OffsetDateTime, Mutex, PublicKey};
 use memorage_cs::{
     request::{self, Request},
     PairingCode,
@@ -21,12 +21,12 @@ use tokio::net::UdpSocket;
 use tracing::{debug, info, trace, warn};
 
 #[derive(Debug)]
-pub struct Client<'a, 'b, T>
+pub struct Client<T>
 where
     T: KeyPairData,
 {
-    data: &'a T,
-    config: &'b Config,
+    data: Arc<Mutex<T>>,
+    config: Arc<Mutex<Config>>,
     send_config: quinn::ClientConfig,
     public_address: IpAddr,
     endpoint: Endpoint,
@@ -34,19 +34,22 @@ where
     socket: UdpSocket,
 }
 
-impl<'a, 'b, T> Client<'a, 'b, T>
+impl<T> Client<T>
 where
     T: KeyPairData,
 {
-    pub async fn new(data: &'a T, config: &'b Config) -> Result<Client<'a, 'b, T>> {
+    pub async fn new(data: Arc<Mutex<T>>, config: Arc<Mutex<Config>>) -> Result<Client<T>> {
         let mut socket = UdpSocket::bind("0.0.0.0:0").await?;
+        // TODO: Custom STUN address.
         let public_address =
             memorage_stun::public_address(&mut socket, memorage_stun::DEFAULT_STUN_SERVER).await?;
         info!(%public_address, "received public address");
         let public_address = public_address.ip();
 
+        let key_pair = data.lock().key_pair();
+
         let (send_config, recv_config) =
-            memorage_cert::gen_configs(public_address, data.key_pair(), None)?;
+            memorage_cert::gen_configs(public_address, &key_pair, None)?;
 
         let socket = socket.into_std()?;
         let cloned_socket = socket.try_clone()?;
@@ -70,12 +73,14 @@ where
     {
         debug!(?request, "sending request");
 
+        let server_socket_addresses = self.config.lock().server_socket_addresses().clone();
+
         let (mut send, recv) = self
             .endpoint
             .connect_with(
                 self.send_config.clone(),
                 // TODO: Iterate over all supplied addresses until one connects.
-                self.config.server_socket_addresses()[0],
+                server_socket_addresses[0],
                 "ooga.com",
             )?
             .await?
@@ -100,8 +105,11 @@ where
 
     pub async fn register_response(&self) -> Result<PublicKey> {
         let mut counter = 0;
+
+        let register_response = self.config.lock().register_response;
+
         loop {
-            tokio::time::sleep(self.config.register_response.ping_delay).await;
+            tokio::time::sleep(register_response.ping_delay).await;
 
             match self.request(request::GetRegisterResponse).await {
                 Ok(pk) => return Ok(pk.0),
@@ -111,7 +119,7 @@ where
                 Err(e) => return Err(e),
             }
 
-            if counter == self.config.register_response.tries {
+            if counter == register_response.tries {
                 return Err(Error::PeerNoResponse);
             }
         }
@@ -122,19 +130,20 @@ where
     }
 }
 
-impl<'a, 'b> Client<'a, 'b, Data> {
-    // TODO: Add type enforcement to creat_outgoing_connection and
+impl Client<Data> {
+    // TODO: Add type enforcement to create_outgoing_connection and
     // receive_incoming_connection.
 
     /// Establish a connection to a peer.
     pub async fn schedule_outgoing_connection(&self) -> Result<OffsetDateTime> {
+        let data = (*self.data.lock()).clone();
         debug!(
-            public_key=?self.data.key_pair.public,
-            target_key=?self.data.peer,
+            public_key=?data.key_pair.public,
+            target_key=?data.peer,
             "trying to establish connection"
         );
-        let target = self.data.peer;
-        let time = OffsetDateTime::now_utc() + self.config.peer_connection_schedule_delay;
+        let target = data.peer;
+        let time = OffsetDateTime::now_utc() + self.config.lock().outgoing_schedule_delay;
 
         self.request(request::RequestConnection { target, time })
             .await?;
@@ -142,9 +151,9 @@ impl<'a, 'b> Client<'a, 'b, Data> {
         Ok(time)
     }
 
-    pub async fn create_outgoing_connection(self) -> Result<OutgoingConnection<'a, 'b>> {
-        let data = self.data;
-        let config = self.config;
+    pub async fn create_outgoing_connection(self) -> Result<OutgoingConnection> {
+        let data = self.data.clone();
+        let config = self.config.clone();
         let connection = self.connect_to_peer(true).await?.connection;
 
         Ok(OutgoingConnection {
@@ -155,29 +164,29 @@ impl<'a, 'b> Client<'a, 'b, Data> {
     }
 
     pub async fn check_incoming_connection(&self) -> Result<Option<OffsetDateTime>> {
+        let data = (*self.data.lock()).clone();
         debug!(
-            public_key=?self.data.key_pair.public,
-            target_key=?self.data.peer,
+            public_key=?data.key_pair.public,
+            target_key=?data.peer,
             "checking for peer connections"
         );
 
-        let peer = self.data.peer;
         let response = match self.request(request::CheckConnection).await {
             Ok(r) => r,
             Err(Error::Server(memorage_cs::Error::NoData)) => return Ok(None),
             Err(e) => return Err(e),
         };
 
-        if response.initiator == peer {
+        if response.initiator == data.peer {
             Ok(Some(response.time))
         } else {
             Err(Error::UnauthorisedConnectionRequest)
         }
     }
 
-    pub async fn receive_incoming_connection(self) -> Result<IncomingConnection<'a, 'b>> {
-        let data = self.data;
-        let config = self.config;
+    pub async fn receive_incoming_connection(self) -> Result<IncomingConnection> {
+        let data = self.data.clone();
+        let config = self.config.clone();
         let bi_streams = self.connect_to_peer(false).await?.bi_streams;
 
         Ok(IncomingConnection {
@@ -188,7 +197,8 @@ impl<'a, 'b> Client<'a, 'b, Data> {
     }
 
     async fn connect_to_peer(mut self, initiator: bool) -> Result<NewConnection> {
-        let peer_key = self.data.peer;
+        let data = (*self.data.lock()).clone();
+        let peer_key = data.peer;
 
         let mut counter = 0;
 
@@ -197,13 +207,15 @@ impl<'a, 'b> Client<'a, 'b, Data> {
         let _temp = self.request(request::Ping(peer_key)).await;
         tokio::time::sleep(std::time::Duration::from_secs(5)).await;
 
+        let request_connection = self.config.lock().request_connection;
+
         loop {
             match self.request(request::Ping(peer_key)).await {
                 Ok(memorage_cs::response::Ping(peer_address)) => {
                     info!(%peer_address, "received peer address");
                     let (send_config, recv_config) = memorage_cert::gen_configs(
                         self.public_address,
-                        &self.data.key_pair,
+                        &data.key_pair,
                         Some(peer_key),
                     )?;
                     self.endpoint.set_server_config(Some(recv_config));
@@ -241,12 +253,12 @@ impl<'a, 'b> Client<'a, 'b, Data> {
                 }
             }
 
-            if counter == self.config.request_connection.tries {
+            if counter == request_connection.tries {
                 warn!("no peer response");
                 return Err(Error::PeerNoResponse);
             }
 
-            tokio::time::sleep(self.config.request_connection.ping_delay).await;
+            tokio::time::sleep(request_connection.ping_delay).await;
         }
     }
 }

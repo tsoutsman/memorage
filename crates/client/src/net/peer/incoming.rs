@@ -13,21 +13,26 @@ use crate::{
     Error, Result,
 };
 
+use std::sync::Arc;
+
 use futures_util::StreamExt;
+use memorage_core::Mutex;
 use quinn::{IncomingBiStreams, RecvStream, SendStream};
 use tokio::fs::File;
 use tracing::{debug, trace};
 
 #[derive(Debug)]
-pub struct IncomingConnection<'a, 'b> {
+pub struct IncomingConnection {
     #[allow(dead_code)]
-    pub(crate) data: &'a Data,
-    pub(crate) config: &'b Config,
+    pub(crate) data: Arc<Mutex<Data>>,
+    pub(crate) config: Arc<Mutex<Config>>,
     pub(crate) bi_streams: IncomingBiStreams,
 }
 
-impl<'a, 'b> IncomingConnection<'a, 'b> {
+impl IncomingConnection {
     pub async fn handle(mut self) -> Result<()> {
+        let config = (*self.config.lock()).clone();
+
         loop {
             let (mut send, mut recv) = self.accept_stream().await?;
             let request = receive_packet(&mut recv).await?;
@@ -37,14 +42,14 @@ impl<'a, 'b> IncomingConnection<'a, 'b> {
                 RequestType::GetIndex(_) => {
                     let response: crate::Result<_> = try {
                         response::GetIndex {
-                            index: Encrypted::<Index>::from_disk(self.config.index_path()).await?,
+                            index: Encrypted::<Index>::from_disk(config.index_path()).await?,
                         }
                     };
                     send_packet(&mut send, &response.map_err(|e| e.into())).await?;
                 }
                 RequestType::GetFile(request::GetFile { name }) => {
                     let result: crate::Result<_> = try {
-                        let path = self.config.peer_storage_path.file_path(name)?;
+                        let path = config.peer_storage_path.file_path(name)?;
                         let len = match tokio::fs::metadata(&path).await {
                             Ok(meta) => Some(meta.len()),
                             Err(ref e) if e.kind() == std::io::ErrorKind::NotFound => None,
@@ -75,7 +80,7 @@ impl<'a, 'b> IncomingConnection<'a, 'b> {
                 }
                 RequestType::Write(request::Write { name, .. }) => {
                     let response: crate::Result<_> = try {
-                        let path = self.config.peer_storage_path.file_path(name)?;
+                        let path = config.peer_storage_path.file_path(name)?;
                         debug!(?path, "writing to file");
                         crate::util::async_wide_copy(recv, File::create(path).await?).await?;
                         response::Write
@@ -85,8 +90,8 @@ impl<'a, 'b> IncomingConnection<'a, 'b> {
                 RequestType::Rename(request::Rename { from, to }) => {
                     let response: crate::Result<_> = try {
                         tokio::fs::rename(
-                            self.config.peer_storage_path.file_path(&from)?,
-                            self.config.peer_storage_path.file_path(&to)?,
+                            config.peer_storage_path.file_path(&from)?,
+                            config.peer_storage_path.file_path(&to)?,
                         )
                         .await?;
                         response::Rename
@@ -95,15 +100,14 @@ impl<'a, 'b> IncomingConnection<'a, 'b> {
                 }
                 RequestType::Delete(request::Delete { name }) => {
                     let response: crate::Result<_> = try {
-                        tokio::fs::remove_file(self.config.peer_storage_path.file_path(&name)?)
-                            .await?;
+                        tokio::fs::remove_file(config.peer_storage_path.file_path(&name)?).await?;
                         response::Delete
                     };
                     send_packet(&mut send, &response.map_err(|e| e.into())).await?;
                 }
                 RequestType::SetIndex(request::SetIndex { index }) => {
                     let response: crate::Result<_> = try {
-                        index.to_disk(self.config.index_path()).await?;
+                        index.to_disk(config.index_path()).await?;
                         response::SetIndex
                     };
                     send_packet(&mut send, &response.map_err(|e| e.into())).await?;
