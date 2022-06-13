@@ -12,7 +12,7 @@ use memorage_client::{
 use memorage_core::{time::OffsetDateTime, Mutex};
 
 #[derive(Debug)]
-pub enum Event {
+pub(crate) enum Event {
     Checked,
     Scheduled(OffsetDateTime),
     Connected,
@@ -20,13 +20,13 @@ pub enum Event {
     Error(memorage_client::Error),
 }
 
-enum State {
+pub(crate) enum State {
     Disconnected,
     Scheduled(Client<Data>, OffsetDateTime),
     Connected(IncomingConnection),
 }
 
-pub fn handle(data: Arc<Mutex<Data>>, config: Arc<Mutex<Config>>) -> Subscription<Event> {
+pub(crate) fn handle(data: Arc<Mutex<Data>>, config: Arc<Mutex<Config>>) -> Subscription<Event> {
     struct Connect;
 
     subscription::unfold(
