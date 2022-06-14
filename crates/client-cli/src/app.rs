@@ -1,3 +1,5 @@
+#![allow(deprecated)]
+
 use std::{net::IpAddr, path::PathBuf};
 
 use clap::{Parser, Subcommand};
@@ -89,5 +91,16 @@ pub enum Command {
         #[clap(short, long)]
         server: Option<IpAddr>,
     },
-    // TODO: Daemon command
+    Daemon {
+        #[clap(short, long)]
+        config: Option<PathBuf>,
+        /// Use the specified data file
+        #[clap(short, long)]
+        data: Option<PathBuf>,
+        /// Use the specified coordination server
+        ///
+        /// The address can be IPv4 or IPv6.
+        #[clap(short, long)]
+        server: Option<IpAddr>,
+    },
 }

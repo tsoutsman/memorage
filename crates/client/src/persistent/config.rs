@@ -27,6 +27,11 @@ pub struct Config {
         serialize_with = "serialize_duration",
         deserialize_with = "deserialize_duration"
     )]
+    pub schedule_outgoing_interval: Duration,
+    #[serde(
+        serialize_with = "serialize_duration",
+        deserialize_with = "deserialize_duration"
+    )]
     pub check_incoming_interval: Duration,
     pub register_response: RetryConfig,
     pub request_connection: RetryConfig,
@@ -73,6 +78,7 @@ impl Default for Config {
             peer_storage_path: PROJECT_DIRS.data_dir().to_owned().join("peer_data").into(),
             outgoing_schedule_delay: Duration::from_secs(600),
             check_incoming_interval: Duration::from_secs(580),
+            schedule_outgoing_interval: Duration::from_secs(2 * 60 * 60),
             register_response: RetryConfig::register_response(),
             request_connection: RetryConfig::request_connection(),
         }

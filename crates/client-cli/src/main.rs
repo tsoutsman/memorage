@@ -1,3 +1,5 @@
+#![feature(try_blocks, never_type)]
+
 mod app;
 mod command;
 mod io;
@@ -49,5 +51,10 @@ async fn main() -> memorage_client::Result<()> {
             data,
             server,
         } => command::retrieve(output, config, data, server).await,
+        Command::Daemon {
+            config,
+            data,
+            server,
+        } => command::daemon(config, data, server).await.map(|_| ()),
     }
 }

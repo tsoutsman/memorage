@@ -21,7 +21,7 @@ memorage-core = { path = "../core" }
 
 # core
 tracing = "0.1"
-tokio = { version = "1.18", features = ["macros", "rt-multi-thread"] }
+tokio = { version = "1.18", features = ["macros", "rt-multi-thread", "sync"] }
 
 # cli
 clap = { version = "3.0", features = ["derive"] }
